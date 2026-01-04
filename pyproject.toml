@@ -22,8 +22,8 @@ classifiers = [
 ]
 dependencies = [
     "torch>=2.5.0",
-    "nvidia-cublas>=13.0.0",
 ]
+# "nvidia-cublas>=13.0.0", <= we are purposefully leaving this out for now, should be installed when NVIDIA pytorch is
 
 [project.urls]
 Homepage = "https://github.com/comfyanonymous/ComfyKitchen"
