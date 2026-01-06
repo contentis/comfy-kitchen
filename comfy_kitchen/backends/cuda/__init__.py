@@ -522,7 +522,7 @@ def _build_constraints() -> dict:
                     shape_rules=(ExactDims(4),),
                 ),
                 "freqs_cis": ParamConstraint(
-                    dtypes=frozenset({torch.float32}),
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
                     shape_rules=(ExactDims(6),),
                 ),
             },
@@ -539,7 +539,7 @@ def _build_constraints() -> dict:
                     shape_rules=(ExactDims(4),),
                 ),
                 "freqs_cis": ParamConstraint(
-                    dtypes=frozenset({torch.float32}),
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
                     shape_rules=(ExactDims(6),),
                 ),
             },

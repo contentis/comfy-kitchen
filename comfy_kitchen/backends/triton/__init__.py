@@ -87,31 +87,16 @@ def _build_constraints() -> dict:
         ),
         "apply_rope1": FunctionConstraints(
             params={
-                "x": ParamConstraint(
-                    dtypes=standard_floats,
-                    shape_rules=(ExactDims(4),),
-                ),
-                "freqs_cis": ParamConstraint(
-                    dtypes=frozenset({torch.float32}),
-                    shape_rules=(ExactDims(6),),
-                ),
+                "x": ParamConstraint(dtypes=standard_floats),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
             },
             default_devices=cuda_devices,
         ),
         "apply_rope": FunctionConstraints(
             params={
-                "xq": ParamConstraint(
-                    dtypes=standard_floats,
-                    shape_rules=(ExactDims(4),),
-                ),
-                "xk": ParamConstraint(
-                    dtypes=standard_floats,
-                    shape_rules=(ExactDims(4),),
-                ),
-                "freqs_cis": ParamConstraint(
-                    dtypes=frozenset({torch.float32}),
-                    shape_rules=(ExactDims(6),),
-                ),
+                "xq": ParamConstraint(dtypes=standard_floats),
+                "xk": ParamConstraint(dtypes=standard_floats),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
             },
             default_devices=cuda_devices,
         ),

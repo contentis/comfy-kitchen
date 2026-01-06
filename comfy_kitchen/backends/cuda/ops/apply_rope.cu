@@ -25,11 +25,11 @@ namespace {
 
 constexpr int kBlockSize = 128;
 
-template <typename InputType>
+template <typename InputType, typename FreqsType>
 __global__ void apply_rope_kernel(
     const InputType* xq,
     const InputType* xk,
-    const float* freqs,
+    const FreqsType* freqs,
     InputType* xq_out,
     InputType* xk_out,
     int64_t batch,
@@ -49,6 +49,8 @@ __global__ void apply_rope_kernel(
     int64_t stride_freqs_dim,
     int64_t stride_freqs_rot,
     int64_t stride_freqs_pair) {
+    
+    using ComputeType = FreqsType;
     
     // Each thread processes 2 pairs (4 elements) for better memory coalescing
     const int64_t n_pairs = head_dim / 2;
@@ -78,47 +80,85 @@ __global__ void apply_rope_kernel(
     const int64_t freqs_dim2_idx = (freqs_dim2 == 1) ? 0 : dim2_idx;
     
     // Helper lambda to load a single 2x2 rotation matrix with adaptive vectorization
-    auto load_freqs_matrix = [&](int64_t pair_idx, float& f00, float& f01, float& f10, float& f11) {
+    // Loads freqs in FreqsType and keeps them in that precision to match eager's behavior
+    auto load_freqs_matrix = [&](int64_t pair_idx, ComputeType& f00, ComputeType& f01, ComputeType& f10, ComputeType& f11) {
         const int64_t freqs_base = freqs_batch_idx * stride_freqs_batch + 
                                    freqs_dim1_idx * stride_freqs_dim1 + 
                                    freqs_dim2_idx * stride_freqs_dim2 + 
                                    pair_idx * stride_freqs_dim;
         
         if (stride_freqs_pair == 1 && stride_freqs_rot == 2) {
-            // Fully contiguous 2x2 matrix - single float4 load
-            const float4 mat = *reinterpret_cast<const float4*>(&freqs[freqs_base]);
-            f00 = mat.x;
-            f01 = mat.y;
-            f10 = mat.z;
-            f11 = mat.w;
+            // Fully contiguous 2x2 matrix
+            if constexpr (sizeof(FreqsType) == 4) {
+                // fp32: single float4 load (4 x 4 bytes = 16 bytes)
+                const float4 mat = *reinterpret_cast<const float4*>(&freqs[freqs_base]);
+                f00 = mat.x;
+                f01 = mat.y;
+                f10 = mat.z;
+                f11 = mat.w;
+            } else {
+                // fp16/bf16: single float2 load, reinterpret as 4 half elements (4 x 2 bytes = 8 bytes)
+                const float2 vec = *reinterpret_cast<const float2*>(&freqs[freqs_base]);
+                const FreqsType* elems = reinterpret_cast<const FreqsType*>(&vec);
+                f00 = static_cast<ComputeType>(elems[0]);
+                f01 = static_cast<ComputeType>(elems[1]);
+                f10 = static_cast<ComputeType>(elems[2]);
+                f11 = static_cast<ComputeType>(elems[3]);
+            }
         } else if (stride_freqs_pair == 1) {
-            // Rows are contiguous - two float2 loads
-            const float2 row0 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 0 * stride_freqs_rot]);
-            const float2 row1 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 1 * stride_freqs_rot]);
-            f00 = row0.x;
-            f01 = row0.y;
-            f10 = row1.x;
-            f11 = row1.y;
+            // Rows are contiguous
+            if constexpr (sizeof(FreqsType) == 4) {
+                // fp32: two float2 loads
+                const float2 row0 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 0 * stride_freqs_rot]);
+                const float2 row1 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 1 * stride_freqs_rot]);
+                f00 = row0.x;
+                f01 = row0.y;
+                f10 = row1.x;
+                f11 = row1.y;
+            } else {
+                // fp16/bf16: two float loads, each reinterpret as 2 half elements
+                const float vec0 = *reinterpret_cast<const float*>(&freqs[freqs_base + 0 * stride_freqs_rot]);
+                const float vec1 = *reinterpret_cast<const float*>(&freqs[freqs_base + 1 * stride_freqs_rot]);
+                const FreqsType* elems0 = reinterpret_cast<const FreqsType*>(&vec0);
+                const FreqsType* elems1 = reinterpret_cast<const FreqsType*>(&vec1);
+                f00 = static_cast<ComputeType>(elems0[0]);
+                f01 = static_cast<ComputeType>(elems0[1]);
+                f10 = static_cast<ComputeType>(elems1[0]);
+                f11 = static_cast<ComputeType>(elems1[1]);
+            }
         } else if (stride_freqs_rot == 1) {
-            // Columns are contiguous - two float2 loads
-            const float2 col0 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 0 * stride_freqs_pair]);
-            const float2 col1 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 1 * stride_freqs_pair]);
-            f00 = col0.x;
-            f10 = col0.y;
-            f01 = col1.x;
-            f11 = col1.y;
+            // Columns are contiguous
+            if constexpr (sizeof(FreqsType) == 4) {
+                // fp32: two float2 loads
+                const float2 col0 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 0 * stride_freqs_pair]);
+                const float2 col1 = *reinterpret_cast<const float2*>(&freqs[freqs_base + 1 * stride_freqs_pair]);
+                f00 = col0.x;
+                f10 = col0.y;
+                f01 = col1.x;
+                f11 = col1.y;
+            } else {
+                // fp16/bf16: two float loads, each reinterpret as 2 half elements
+                const float vec0 = *reinterpret_cast<const float*>(&freqs[freqs_base + 0 * stride_freqs_pair]);
+                const float vec1 = *reinterpret_cast<const float*>(&freqs[freqs_base + 1 * stride_freqs_pair]);
+                const FreqsType* elems0 = reinterpret_cast<const FreqsType*>(&vec0);
+                const FreqsType* elems1 = reinterpret_cast<const FreqsType*>(&vec1);
+                f00 = static_cast<ComputeType>(elems0[0]);
+                f10 = static_cast<ComputeType>(elems0[1]);
+                f01 = static_cast<ComputeType>(elems1[0]);
+                f11 = static_cast<ComputeType>(elems1[1]);
+            }
         } else {
             // Fully strided - four scalar loads
-            f00 = freqs[freqs_base + 0 * stride_freqs_rot + 0 * stride_freqs_pair];
-            f01 = freqs[freqs_base + 0 * stride_freqs_rot + 1 * stride_freqs_pair];
-            f10 = freqs[freqs_base + 1 * stride_freqs_rot + 0 * stride_freqs_pair];
-            f11 = freqs[freqs_base + 1 * stride_freqs_rot + 1 * stride_freqs_pair];
+            f00 = static_cast<ComputeType>(freqs[freqs_base + 0 * stride_freqs_rot + 0 * stride_freqs_pair]);
+            f01 = static_cast<ComputeType>(freqs[freqs_base + 0 * stride_freqs_rot + 1 * stride_freqs_pair]);
+            f10 = static_cast<ComputeType>(freqs[freqs_base + 1 * stride_freqs_rot + 0 * stride_freqs_pair]);
+            f11 = static_cast<ComputeType>(freqs[freqs_base + 1 * stride_freqs_rot + 1 * stride_freqs_pair]);
         }
     };
     
     // Load rotation matrices for both pairs
-    float freqs_00_0, freqs_01_0, freqs_10_0, freqs_11_0;
-    float freqs_00_1, freqs_01_1, freqs_10_1, freqs_11_1;
+    ComputeType freqs_00_0, freqs_01_0, freqs_10_0, freqs_11_0;
+    ComputeType freqs_00_1, freqs_01_1, freqs_10_1, freqs_11_1;
     
     load_freqs_matrix(pair_idx_0, freqs_00_0, freqs_01_0, freqs_10_0, freqs_11_0);
     
@@ -135,29 +175,29 @@ __global__ void apply_rope_kernel(
     };
     
     // Helper lambda to load 2 pairs (4 elements) - adapts to contiguous vs strided
-    auto load_pairs = [&](const InputType* x_in, float& x_0, float& x_1, float& x_2, float& x_3) {
+    auto load_pairs = [&](const InputType* x_in, ComputeType& x_0, ComputeType& x_1, ComputeType& x_2, ComputeType& x_3) {
         if (stride_x_dim == 1) {
             // Vectorized load for contiguous tensors (4x fp16/bf16 = 64-bit as float2)
             union { float2 vec; InputType elems[4]; } data;
             data.vec = *reinterpret_cast<const float2*>(&x_in[calc_offset(pair_idx_0 * 2)]);
-            x_0 = static_cast<float>(data.elems[0]);
-            x_1 = static_cast<float>(data.elems[1]);
-            x_2 = static_cast<float>(data.elems[2]);
-            x_3 = static_cast<float>(data.elems[3]);
+            x_0 = static_cast<ComputeType>(data.elems[0]);
+            x_1 = static_cast<ComputeType>(data.elems[1]);
+            x_2 = static_cast<ComputeType>(data.elems[2]);
+            x_3 = static_cast<ComputeType>(data.elems[3]);
         } else {
             // Scalar load for strided tensors
             const int64_t off0 = calc_offset(pair_idx_0 * 2 * stride_x_dim);
-            x_0 = static_cast<float>(x_in[off0]);
-            x_1 = static_cast<float>(x_in[off0 + stride_x_dim]);
+            x_0 = static_cast<ComputeType>(x_in[off0]);
+            x_1 = static_cast<ComputeType>(x_in[off0 + stride_x_dim]);
             if (process_pair_1) {
-                x_2 = static_cast<float>(x_in[off0 + 2 * stride_x_dim]);
-                x_3 = static_cast<float>(x_in[off0 + 3 * stride_x_dim]);
+                x_2 = static_cast<ComputeType>(x_in[off0 + 2 * stride_x_dim]);
+                x_3 = static_cast<ComputeType>(x_in[off0 + 3 * stride_x_dim]);
             }
         }
     };
     
     // Helper lambda to store 2 pairs (4 elements) - adapts to contiguous vs strided
-    auto store_pairs = [&](InputType* x_out, float x_0, float x_1, float x_2, float x_3) {
+    auto store_pairs = [&](InputType* x_out, ComputeType x_0, ComputeType x_1, ComputeType x_2, ComputeType x_3) {
         if (stride_x_dim == 1) {
             // Vectorized store for contiguous tensors (4x fp16/bf16 = 64-bit as float2)
             union { float2 vec; InputType elems[4]; } data;
@@ -179,15 +219,15 @@ __global__ void apply_rope_kernel(
     };
     
     // Process xq (always) - load 2 pairs (4 elements)
-    float x_0, x_1, x_2, x_3;
+    ComputeType x_0, x_1, x_2, x_3;
     load_pairs(xq, x_0, x_1, x_2, x_3);
     
     // Apply 2D rotation to first pair
-    float out_0 = freqs_00_0 * x_0 + freqs_01_0 * x_1;
-    float out_1 = freqs_10_0 * x_0 + freqs_11_0 * x_1;
+    ComputeType out_0 = freqs_00_0 * x_0 + freqs_01_0 * x_1;
+    ComputeType out_1 = freqs_10_0 * x_0 + freqs_11_0 * x_1;
     
     // Apply 2D rotation to second pair (if processing)
-    float out_2 = 0.0f, out_3 = 0.0f;
+    ComputeType out_2 = ComputeType(0), out_3 = ComputeType(0);
     if (process_pair_1) {
         out_2 = freqs_00_1 * x_2 + freqs_01_1 * x_3;
         out_3 = freqs_10_1 * x_2 + freqs_11_1 * x_3;
@@ -213,11 +253,11 @@ __global__ void apply_rope_kernel(
     }
 }
 
-template <typename InputType>
+template <typename InputType, typename FreqsType>
 void apply_rope_launcher(
     const InputType* xq,
     const InputType* xk,
-    const float* freqs,
+    const FreqsType* freqs,
     InputType* xq_out,
     InputType* xk_out,
     int64_t batch,
@@ -252,7 +292,7 @@ void apply_rope_launcher(
     const int64_t num_blocks = (total_pair_groups + block_size - 1) / block_size;
     
     // Single unified kernel handles both contiguous and strided tensors
-    apply_rope_kernel<InputType><<<num_blocks, block_size, 0, stream>>>(
+    apply_rope_kernel<InputType, FreqsType><<<num_blocks, block_size, 0, stream>>>(
         xq, xk, freqs, xq_out, xk_out, batch, dim1, dim2, head_dim,
         freqs_batch, freqs_dim1, freqs_dim2,
         stride_x_batch, stride_x_dim1, stride_x_dim2, stride_x_dim,
@@ -298,15 +338,17 @@ void launch_apply_rope_kernel(
     int64_t stride_freqs_rot,
     int64_t stride_freqs_pair,
     int input_dtype_code,
+    int freqs_dtype_code,
     cudaStream_t stream) {
     
-    // Dispatch based on input dtype code (only FP16/BF16 supported)
-    // dtype codes: 1=float16, 2=bfloat16
-    DISPATCH_HALF_DTYPE(input_dtype_code, InputType, [&] {
-        comfy::apply_rope_launcher<InputType>(
+    // Dispatch based on input dtype code (FP16/BF16) and freqs dtype code (FP32/FP16/BF16)
+    // dtype codes: 0=float32, 1=float16, 2=bfloat16
+    DISPATCH_HALF_INPUT_FP_FREQS_DTYPES(input_dtype_code, freqs_dtype_code, 
+                                         InputType, FreqsType, [&] {
+        comfy::apply_rope_launcher<InputType, FreqsType>(
             static_cast<const InputType*>(xq),
             xk ? static_cast<const InputType*>(xk) : nullptr,
-            static_cast<const float*>(freqs),
+            static_cast<const FreqsType*>(freqs),
             static_cast<InputType*>(xq_out),
             xk_out ? static_cast<InputType*>(xk_out) : nullptr,
             batch, dim1, dim2, head_dim,

@@ -90,6 +90,7 @@ extern "C" {
         int64_t stride_freqs_rot,
         int64_t stride_freqs_pair,
         int input_dtype_code,
+        int freqs_dtype_code,
         cudaStream_t stream);
 
     void launch_quantize_nvfp4_kernel(
@@ -365,6 +366,12 @@ void apply_rope(
         throw std::runtime_error("Unsupported input dtype for apply_rope");
     }
 
+    // Get freqs dtype code
+    int freqs_dtype_code = map_dtype_to_code(freqs.dtype());
+    if (freqs_dtype_code < 0) {
+        throw std::runtime_error("Unsupported freqs dtype for apply_rope");
+    }
+
     cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
 
     // Get strides (nanobind provides strides in elements, not bytes)
@@ -405,6 +412,7 @@ void apply_rope(
         stride_freqs_rot,
         stride_freqs_pair,
         input_dtype_code,
+        freqs_dtype_code,
         stream
     );
 }

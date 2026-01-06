@@ -193,3 +193,13 @@ inline cudaDataType_t dtype_code_to_cuda_type(int dtype_code) {
                                  __VA_ARGS__);                                  \
     })
 
+// Macro for nested dispatch on FP16/BF16 input and FP32/FP16/BF16 freqs/output dtypes
+// Usage: DISPATCH_HALF_INPUT_FP_FREQS_DTYPES(in_code, freqs_code, InputType, FreqsType,
+//                                             { /* code using InputType and FreqsType */ });
+#define DISPATCH_HALF_INPUT_FP_FREQS_DTYPES(in_dtype_code, freqs_dtype_code,   \
+                                             in_type_name, freqs_type_name, ...)    \
+    DISPATCH_HALF_DTYPE(in_dtype_code, in_type_name, [&] {                     \
+        return DISPATCH_FP_DTYPE(freqs_dtype_code, freqs_type_name,            \
+                                 __VA_ARGS__);                                  \
+    })
+

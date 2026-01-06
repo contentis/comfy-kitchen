@@ -100,7 +100,7 @@ def _build_constraints() -> dict:
         "apply_rope1": FunctionConstraints(
             params={
                 "x": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=frozenset({torch.float32})),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
             },
             default_devices=all_devices,
         ),
@@ -108,7 +108,7 @@ def _build_constraints() -> dict:
             params={
                 "xq": ParamConstraint(dtypes=standard_floats),
                 "xk": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=frozenset({torch.float32})),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
             },
             default_devices=all_devices,
         ),
