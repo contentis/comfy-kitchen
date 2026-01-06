@@ -38,9 +38,8 @@ class TensorCoreFP8Layout(QuantizedLayout):
     @dataclass(frozen=True)
     class Params(BaseLayoutParams):
         def _validate_tensor_fields(self):
-            if not isinstance(self.scale, torch.Tensor):
-                raise TypeError(f"scale must be a torch.Tensor, got {type(self.scale).__name__}")
-            object.__setattr__(self, "scale", self.scale.to(dtype=torch.float32, non_blocking=True))
+            if isinstance(self.scale, torch.Tensor):
+                object.__setattr__(self, "scale", self.scale.to(dtype=torch.float32, non_blocking=True))
 
     @classmethod
     def quantize(
