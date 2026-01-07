@@ -44,25 +44,19 @@ dq = qt.dequantize()
 ### From PyPI
 
 ```bash
-# Install with CUDA support (Linux/Windows)
+# Install default (Linux/Windows/MacOS)
 pip install comfy-kitchen
 
-# Install CPU-only version (any platform)
-pip install comfy-kitchen --prefer-binary --only-binary=:none:
+# Install with CUBLAS for NVFP4 (+Blackwell)
+pip install comfy-kitchen[cublas]
 ```
 
 ### Package Variants
 
-Two wheel variants are published to PyPI:
+- **CUDA wheels**: Linux x86_64 and Windows x64
+- **Pure Python wheel**: Any platform, eager and triton backends only
 
-| Wheel | Platforms | Backends | Notes |
-|-------|-----------|----------|-------|
-| `comfy_kitchen-X.Y.Z-cp312-abi3-manylinux_2_28_x86_64.whl` | Linux x86_64 | eager, cuda, triton | Requires CUDA 13.0+ runtime |
-| `comfy_kitchen-X.Y.Z-cp312-abi3-win_amd64.whl` | Windows x64 | eager, cuda, triton | Requires CUDA 13.0+ runtime |
-| `comfy_kitchen-X.Y.Z-py3-none-any.whl` | Any | eager, triton | Pure Python, no CUDA required |
-
-- **CUDA wheels** use Python's Stable ABI (`abi3`), so a single wheel works across Python 3.12, 3.13, 3.14+
-- **CPU-only wheel** is pure Python and works on any platform with Python 3.12+
+Wheels are built for Python 3.10, 3.11, and 3.12+ (using Stable ABI for 3.12+).
 
 ### From Source
 
@@ -81,12 +75,12 @@ pip install -e . --no-build-isolation -v
 
 These options require using `setup.py` directly (not `pip install`):
 
-| Option | Command | Description | Default |
-|--------|---------|-------------|---------|
-| `--no-cuda` | `python setup.py bdist_wheel --no-cuda` | Build CPU-only wheel (`py3-none-any`) | Enabled (build with CUDA) |
-| `--cuda-archs=...` | `python setup.py build_ext --cuda-archs="80;89"` | CUDA architectures to build for | `120f` (Linux), `80;89;120f` (Windows) |
-| `--debug-build` | `python setup.py build_ext --debug-build` | Build in debug mode with symbols | Disabled (Release) |
-| `--lineinfo` | `python setup.py build_ext --lineinfo` | Enable NVCC line info for profiling | Disabled |
+| Option | Command | Description | Default                                                                     |
+|--------|---------|-------------|-----------------------------------------------------------------------------|
+| `--no-cuda` | `python setup.py bdist_wheel --no-cuda` | Build CPU-only wheel (`py3-none-any`) | Enabled (build with CUDA)                                                   |
+| `--cuda-archs=...` | `python setup.py build_ext --cuda-archs="80;89"` | CUDA architectures to build for | `75-virtual;80;89;90a;100f;120f` (Linux), `75-virtual;80;89;120f` (Windows) |
+| `--debug-build` | `python setup.py build_ext --debug-build` | Build in debug mode with symbols | Disabled (Release)                                                          |
+| `--lineinfo` | `python setup.py build_ext --lineinfo` | Enable NVCC line info for profiling | Disabled                                                                    |
 
 ```bash
 # Build CPU-only wheel (pure Python, no CUDA required)
@@ -103,10 +97,10 @@ python setup.py build_ext --debug-build --lineinfo bdist_wheel
 
 ### Requirements
 
-- **Python**: ≥3.12 (uses Stable ABI - single wheel works across 3.12, 3.13, 3.14+)
+- **Python**: ≥3.10
 - **PyTorch**: ≥2.5.0
 - **CUDA Runtime** (for CUDA wheels): ≥13.0
-  - Pre-built wheels require CUDA 13.0+ drivers on the system
+  - Pre-built wheels require NVIDIA Driver r580+
   - Building from source requires CUDA Toolkit ≥12.8 and `CUDA_HOME` environment variable
 - **nanobind**: ≥2.0.0 (for building from source)
 - **CMake**: ≥3.18 (for building from source)
@@ -129,7 +123,7 @@ print(ck.list_backends())
 result = ck.quantize_per_tensor_fp8(x, scale, backend="eager")
 
 # Temporarily use a different backend
-with ck.use_backend("cuda"):
+with ck.use_backend("triton"):
     result = ck.quantize_per_tensor_fp8(x, scale)
 ```
 
@@ -158,7 +152,7 @@ Each backend declares constraints for its functions:
 
 | Constraint | Description |
 |------------|-------------|
-| **Device** | Which device types are supported (`cuda`, `cpu`) |
+| **Device** | Which device types are supported |
 | **Dtype** | Allowed input/output dtypes per parameter |
 | **Shape** | Shape requirements (e.g., 2D tensors, dimensions divisible by 16) |
 | **Compute Capability** | Minimum GPU architecture (e.g., SM 8.0 for FP8, SM 10.0 for NVFP4) |

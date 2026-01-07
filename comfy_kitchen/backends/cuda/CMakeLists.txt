@@ -143,14 +143,17 @@ target_include_directories(_C PRIVATE
 )
 
 # Link libraries
+# Note: cuBLASLt is loaded dynamically at runtime via dlopen/LoadLibrary
 target_link_libraries(_C PRIVATE
     CUDA::cudart_static
-    CUDA::cublasLt
 )
 
 # On Windows, static cudart requires additional system libraries
 if(WIN32)
     target_link_libraries(_C PRIVATE ws2_32)
+else()
+    # Linux: need libdl for dlopen/dlsym
+    target_link_libraries(_C PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
 # Ensure Python libraries are properly linked on Windows
