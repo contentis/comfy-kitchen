@@ -27,8 +27,9 @@
 
 #include "utils.cuh"
 #include "../dtype_dispatch.cuh"
+#include "../cublaslt_runtime.h"
 
-// Helper macro for cuBLAS error checking (replaces TORCH_CUDABLAS_CHECK)
+// Helper macro for cuBLAS error checking using dynamically loaded functions
 #define CUBLAS_CHECK(call) \
   do { \
     cublasStatus_t status = call; \
@@ -46,22 +47,19 @@ namespace {
 thread_local cublasLtHandle_t cached_handle = nullptr;
 
 cublasLtHandle_t get_cublas_lt_handle() {
+  auto& runtime = CublasLtRuntime::instance();
+  if (!runtime.is_available()) {
+    throw std::runtime_error("cuBLASLt not available: " + runtime.error_message());
+  }
+  
   if (cached_handle == nullptr) {
-    cublasStatus_t status = cublasLtCreate(&cached_handle);
+    cublasStatus_t status = runtime.cublasLtCreate(&cached_handle);
     if (status != CUBLAS_STATUS_SUCCESS) {
       throw std::runtime_error(std::string("cuBLAS handle creation error: ") + std::to_string(status));
     }
   }
   return cached_handle;
 }
-
-// Optional: cleanup function to be called at module unload
-// void cleanup_cublas_lt_handle() {
-//   if (cached_handle != nullptr) {
-//     cublasLtDestroy(cached_handle);  // Synchronization is OK during cleanup
-//     cached_handle = nullptr;
-//   }
-// }
 
 void cublas_gemm_blockwise_fp4_impl(
     const void* A_ptr,
@@ -88,6 +86,12 @@ void cublas_gemm_blockwise_fp4_impl(
     const float* alpha_ptr,  // Host or device pointer depending on pointer mode
     cudaStream_t stream) {
   
+  // Get the runtime instance for all cuBLAS calls
+  auto& runtime = CublasLtRuntime::instance();
+  if (!runtime.is_available()) {
+    throw std::runtime_error("cuBLASLt not available: " + runtime.error_message());
+  }
+
   // Sanity checks
   // only TN layout is supported
   if (!(transa == true && transb == false)) {
@@ -132,7 +136,7 @@ void cublas_gemm_blockwise_fp4_impl(
 
   // Create operation descriptor
   cublasLtMatmulDesc_t operationDesc = nullptr;
-  CUBLAS_CHECK(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
 
 #if CUDA_VERSION >= 12090
   // Setup scaling for A and B
@@ -140,9 +144,9 @@ void cublas_gemm_blockwise_fp4_impl(
   // Note: in cuBLAS term, tensor name A and B are swapped.
   A_scale_mode = CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3;
   B_scale_mode = CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3;
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_A_SCALE_MODE, &A_scale_mode, sizeof(A_scale_mode)));
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_B_SCALE_MODE, &B_scale_mode, sizeof(B_scale_mode)));
 #else
   throw std::runtime_error("NVFP4 cuBLAS GEMM requires CUDA 12.9 or later.");
@@ -154,9 +158,9 @@ void cublas_gemm_blockwise_fp4_impl(
   // transb false: B as input tensor, with torch shape M x K is a non-transposed tensor
   const cublasOperation_t transa_type = transa ? CUBLAS_OP_T : CUBLAS_OP_N;
   const cublasOperation_t transb_type = transb ? CUBLAS_OP_T : CUBLAS_OP_N;
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &transa_type, sizeof(transa_type)));
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &transb_type, sizeof(transb_type)));
 
   // E2M1 FP4 format
@@ -164,12 +168,12 @@ void cublas_gemm_blockwise_fp4_impl(
   const cudaDataType_t Btype = CUDA_R_4F_E2M1;
   const cudaDataType_t Dtype = comfy::dtype_code_to_cuda_type(D_dtype_code);
 
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc,
       CUBLASLT_MATMUL_DESC_A_SCALE_POINTER,
       &A_decode_scale_ptr,
       sizeof(A_decode_scale_ptr)));
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc,
       CUBLASLT_MATMUL_DESC_B_SCALE_POINTER,
       &B_decode_scale_ptr,
@@ -177,25 +181,25 @@ void cublas_gemm_blockwise_fp4_impl(
 
   // make sure alpha beta computation dtype remains fp32 by CUBLASLT_MATMUL_DESC_SCALE_TYPE
   cublasDataType_t scale_type = CUDA_R_32F;
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_SCALE_TYPE, &scale_type, sizeof(scale_type)));
 
   // Set pointer mode: alpha and beta must both be device pointers
   // beta comes from GetScalarOne/Zero which returns device pointers
   // alpha_ptr must also be a device pointer
   cublasLtPointerMode_t pointer_mode = CUBLASLT_POINTER_MODE_DEVICE;
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_POINTER_MODE, &pointer_mode, sizeof(pointer_mode)));
 
   // Setup mat layout descriptors
   cublasLtMatrixLayout_t Adesc = nullptr, Bdesc = nullptr, Cdesc = nullptr, Ddesc = nullptr;
-  CUBLAS_CHECK(cublasLtMatrixLayoutCreate(
+  CUBLAS_CHECK(runtime.cublasLtMatrixLayoutCreate(
       &Adesc, Atype, transa_type == CUBLAS_OP_N ? m : k, transa_type == CUBLAS_OP_N ? k : m, lda));
-  CUBLAS_CHECK(cublasLtMatrixLayoutCreate(
+  CUBLAS_CHECK(runtime.cublasLtMatrixLayoutCreate(
       &Bdesc, Btype, transb_type == CUBLAS_OP_N ? k : n, transb_type == CUBLAS_OP_N ? n : k, ldb));
 
-  CUBLAS_CHECK(cublasLtMatrixLayoutCreate(&Cdesc, Dtype, m, n, ldc));
-  CUBLAS_CHECK(cublasLtMatrixLayoutCreate(&Ddesc, Dtype, m, n, ldd));
+  CUBLAS_CHECK(runtime.cublasLtMatrixLayoutCreate(&Cdesc, Dtype, m, n, ldc));
+  CUBLAS_CHECK(runtime.cublasLtMatrixLayoutCreate(&Ddesc, Dtype, m, n, ldd));
 
   // setup epilogue attributes
   cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT;
@@ -206,27 +210,27 @@ void cublas_gemm_blockwise_fp4_impl(
       throw std::runtime_error("bias must have size matching m dimension");
     }
     epilogue = CUBLASLT_EPILOGUE_BIAS;
-    CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+    CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
         operationDesc,
         CUBLASLT_MATMUL_DESC_BIAS_POINTER,
         &bias_ptr,
         sizeof(bias_ptr)));
   }
-  CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulDescSetAttribute(
       operationDesc, CUBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue)));
 
   // setup preference attributes
   cublasLtMatmulPreference_t preference = nullptr;
-  CUBLAS_CHECK(cublasLtMatmulPreferenceCreate(&preference));
+  CUBLAS_CHECK(runtime.cublasLtMatmulPreferenceCreate(&preference));
 
-  CUBLAS_CHECK(cublasLtMatmulPreferenceSetAttribute(
+  CUBLAS_CHECK(runtime.cublasLtMatmulPreferenceSetAttribute(
       preference,
       CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
       &workspace_size,
       sizeof(workspace_size)));
 
   // get heuristic result
-  const auto status = cublasLtMatmulAlgoGetHeuristic(
+  const auto status = runtime.cublasLtMatmulAlgoGetHeuristic(
       ltHandle,
       operationDesc,
       Adesc,
@@ -249,7 +253,7 @@ void cublas_gemm_blockwise_fp4_impl(
     throw std::runtime_error("Unable to find any suitable algorithms");
   }
 
-  CUBLAS_CHECK(cublasLtMatmul(
+  CUBLAS_CHECK(runtime.cublasLtMatmul(
       ltHandle,
       operationDesc,
       alpha_ptr,
@@ -267,17 +271,17 @@ void cublas_gemm_blockwise_fp4_impl(
       workspace_size,
       stream));
   if (preference)
-    CUBLAS_CHECK(cublasLtMatmulPreferenceDestroy(preference));
+    CUBLAS_CHECK(runtime.cublasLtMatmulPreferenceDestroy(preference));
   if (Ddesc)
-    CUBLAS_CHECK(cublasLtMatrixLayoutDestroy(Ddesc));
+    CUBLAS_CHECK(runtime.cublasLtMatrixLayoutDestroy(Ddesc));
   if (Cdesc)
-    CUBLAS_CHECK(cublasLtMatrixLayoutDestroy(Cdesc));
+    CUBLAS_CHECK(runtime.cublasLtMatrixLayoutDestroy(Cdesc));
   if (Bdesc)
-    CUBLAS_CHECK(cublasLtMatrixLayoutDestroy(Bdesc));
+    CUBLAS_CHECK(runtime.cublasLtMatrixLayoutDestroy(Bdesc));
   if (Adesc)
-    CUBLAS_CHECK(cublasLtMatrixLayoutDestroy(Adesc));
+    CUBLAS_CHECK(runtime.cublasLtMatrixLayoutDestroy(Adesc));
   if (operationDesc)
-    CUBLAS_CHECK(cublasLtMatmulDescDestroy(operationDesc));
+    CUBLAS_CHECK(runtime.cublasLtMatmulDescDestroy(operationDesc));
 
   // ltHandle is cached and reused - no destruction needed here
   // This avoids implicit device synchronization from cublasLtDestroy

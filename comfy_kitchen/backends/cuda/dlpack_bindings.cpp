@@ -19,6 +19,8 @@
 #include <cuda_runtime.h>
 #include <cstring>
 
+#include "cublaslt_runtime.h"
+
 namespace nb = nanobind;
 
 // Helper: Map nanobind dtype to internal dtype code
@@ -180,6 +182,11 @@ void cublas_gemm_blockwise_fp4(
     bool accumulate,
     nb::ndarray<float, nb::device::cuda> alpha,
     uintptr_t stream_ptr) {
+
+    auto& runtime = comfy::CublasLtRuntime::instance();
+    if (!runtime.is_available()) {
+        throw std::runtime_error("cuBLASLt not available: " + runtime.error_message());
+    }
 
     // Get dimensions: B is (N, K_b), A is (M, K_a) in packed format
     int64_t N = b.shape(0);
@@ -483,6 +490,9 @@ NB_MODULE(_C, m) {
           nb::arg("output_dtype_code"),
           nb::arg("stream_ptr"));
 
+    // Feature availability flag (computed at module load time)
+    m.attr("HAS_CUBLASLT") = comfy::CublasLtRuntime::instance().is_available();
+    
     // Add version info
     m.attr("__version__") = "0.1.0";
     m.attr("__nanobind__") = true;

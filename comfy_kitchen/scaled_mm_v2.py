@@ -1,9 +1,7 @@
-import logging
+from typing import Optional
 
 import torch
 from packaging import version
-from typing import Optional
-
 
 _TORCH_VERSION = version.parse(torch.__version__.split("+")[0])  # Remove git hash suffix
 TORCH_2_10 = version.parse("2.10.0")
@@ -30,9 +28,9 @@ def scaled_mm(
     weight: torch.Tensor,
     scale_a: torch.Tensor,
     scale_b: torch.Tensor,
-    bias: Optional[torch.Tensor] = None,
-    out_dtype: Optional[torch.dtype] = None,
-    scale_result: Optional[torch.Tensor] = None,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype | None = None,
+    scale_result: torch.Tensor | None = None,
 ) -> torch.Tensor:
     if has_scaled_mm_v2():
         output = torch.nn.functional.scaled_mm(
@@ -64,7 +62,7 @@ def scaled_mm(
     # Manually apply scale_result if provided
     if scale_result is not None:
         output = output * scale_result.to(output.dtype)
-        
+
     return output
 
 def scaled_mm_blockwise(
@@ -74,11 +72,15 @@ def scaled_mm_blockwise(
     tensor_scale_a: torch.Tensor,
     block_scale_b: torch.Tensor,
     tensor_scale_b: torch.Tensor,
-    bias: Optional[torch.Tensor] = None,
-    out_dtype: Optional[torch.dtype] = None,
-    swizzle_a: Optional['SwizzleType'] = [SwizzleType.SWIZZLE_32_4_4, SwizzleType.NO_SWIZZLE],
-    swizzle_b: Optional['SwizzleType'] = [SwizzleType.SWIZZLE_32_4_4, SwizzleType.NO_SWIZZLE],
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype | None = None,
+    swizzle_a: Optional['SwizzleType'] = None,
+    swizzle_b: Optional['SwizzleType'] = None,
 ) -> torch.Tensor:
+    if swizzle_b is None:
+        swizzle_b = [SwizzleType.SWIZZLE_32_4_4, SwizzleType.NO_SWIZZLE]
+    if swizzle_a is None:
+        swizzle_a = [SwizzleType.SWIZZLE_32_4_4, SwizzleType.NO_SWIZZLE]
     if has_scaled_mm_v2():
         return torch.nn.functional.scaled_mm(
             input,
@@ -102,20 +104,20 @@ def scaled_mm_blockwise(
             scale_b=block_scale_b.view(-1),
             out_dtype=out_dtype,
         )
-        
+
         # Handle tuple return
         if isinstance(output, tuple):
             output = output[0]
         output = output * alpha.to(output.dtype)
         if bias is not None:
             output = output + bias
-        
+
         return output
 
 # Version info for debugging
 def get_pytorch_version_info() -> dict[str, str | bool]:
     """Get PyTorch version information for debugging.
-    
+
     Returns:
         Dictionary with version info and feature flags
     """

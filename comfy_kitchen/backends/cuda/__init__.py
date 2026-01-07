@@ -94,6 +94,7 @@ except Exception as e:
 from comfy_kitchen.backends.eager.quantization import DTYPE_TO_CODE  # noqa: E402
 from comfy_kitchen.float_utils import roundup  # noqa: E402
 
+_CUBLASLT_AVAILABLE = _EXT_AVAILABLE and getattr(_C, "HAS_CUBLASLT", False)
 _cublas_workspace: torch.Tensor | None = None
 
 
@@ -449,7 +450,7 @@ def _build_constraints() -> dict:
 
     cuda_devices = frozenset({"cuda"})
 
-    return {
+    constraints = {
         "quantize_per_tensor_fp8": FunctionConstraints(
             params={
                 "x": ParamConstraint(
@@ -508,35 +509,6 @@ def _build_constraints() -> dict:
             },
             default_devices=cuda_devices,
         ),
-        "scaled_mm_nvfp4": FunctionConstraints(
-            params={
-                "a": ParamConstraint(
-                    dtypes=frozenset({torch.uint8}),
-                    shape_rules=(ExactDims(2), DivisibleBy(dim=1, factor=16)),
-                ),
-                "b": ParamConstraint(
-                    dtypes=frozenset({torch.uint8}),
-                    shape_rules=(ExactDims(2), DivisibleBy(dim=1, factor=16)),
-                ),
-                "tensor_scale_a": ParamConstraint(
-                    dtypes=frozenset({torch.float32}),
-                ),
-                "tensor_scale_b": ParamConstraint(
-                    dtypes=frozenset({torch.float32}),
-                ),
-                "block_scale_a": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn}),
-                ),
-                "block_scale_b": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn}),
-                ),
-                "out_dtype": ParamConstraint(
-                    dtypes=frozenset({torch.float16, torch.bfloat16}),
-                ),
-            },
-            default_devices=cuda_devices,
-            min_compute_capability=(10, 0),
-        ),
         "apply_rope1": FunctionConstraints(
             params={
                 "x": ParamConstraint(
@@ -568,6 +540,39 @@ def _build_constraints() -> dict:
             default_devices=cuda_devices,
         ),
     }
+
+    if _CUBLASLT_AVAILABLE:
+        constraints["scaled_mm_nvfp4"] = FunctionConstraints(
+            params={
+                "a": ParamConstraint(
+                    dtypes=frozenset({torch.uint8}),
+                    shape_rules=(ExactDims(2), DivisibleBy(dim=1, factor=16)),
+                ),
+                "b": ParamConstraint(
+                    dtypes=frozenset({torch.uint8}),
+                    shape_rules=(ExactDims(2), DivisibleBy(dim=1, factor=16)),
+                ),
+                "tensor_scale_a": ParamConstraint(
+                    dtypes=frozenset({torch.float32}),
+                ),
+                "tensor_scale_b": ParamConstraint(
+                    dtypes=frozenset({torch.float32}),
+                ),
+                "block_scale_a": ParamConstraint(
+                    dtypes=frozenset({torch.float8_e4m3fn}),
+                ),
+                "block_scale_b": ParamConstraint(
+                    dtypes=frozenset({torch.float8_e4m3fn}),
+                ),
+                "out_dtype": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                ),
+            },
+            default_devices=cuda_devices,
+            min_compute_capability=(10, 0),
+        )
+
+    return constraints
 
 
 def _register():
