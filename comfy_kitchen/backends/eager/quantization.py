@@ -14,12 +14,10 @@ from comfy_kitchen.float_utils import (
     F8_E5M2_MAX,
     _f32_to_floatx_unpacked,
     _float8_round,
-    _floatx_unpacked_to_f32,
     from_blocked,
     pack_uint4,
     roundup,
     to_blocked,
-    unpack_uint4,
 )
 
 # =============================================================================
