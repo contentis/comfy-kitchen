@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import torch
 
 import comfy_kitchen as ck
-from comfy_kitchen.scaled_mm_v2 import scaled_mm
+from comfy_kitchen.scaled_mm_v2 import scaled_mm_v2
 
 from .base import BaseLayoutParams, QuantizedLayout, dequantize_args, register_layout_op
 
@@ -91,7 +91,7 @@ def _fp8_scaled_mm(
     bias: torch.Tensor | None = None,
     out_dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
-    return scaled_mm(
+    return scaled_mm_v2(
         input_qdata.contiguous(),
         weight_qdata,
         scale_a=scale_a,
