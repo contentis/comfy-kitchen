@@ -187,3 +187,12 @@ pytest -v
 # Run specific test
 pytest tests/test_backends.py::TestBackendSystem::test_list_backends
 ```
+
+## Acknowledgments
+
+This project incorporates CUDA attention kernels and Triton quantization code
+derived from [SageAttention](https://github.com/thu-ml/SageAttention) by
+Jintao Zhang, Haofeng Huang, and contributors, licensed under the
+Apache License 2.0. The vendored sources live under
+`comfy_kitchen/backends/cuda/sage_attention/` and are built into the CUDA
+wheels. See the [NOTICE](NOTICE) file for full attribution details.
