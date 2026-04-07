@@ -287,36 +287,6 @@ void quant_qk_fused(
     }
 }
 
-// Standalone Q kernel (fallback for separate launches)
-template <typename T, int NR>
-__global__ __launch_bounds__(128)
-void quant_q_int8(
-    const T* __restrict__ in,  int8_t* __restrict__ out,  float* __restrict__ sb,
-    const int Lq, const int C, const int H_q,
-    const int BLKQ, const int WARPQ, const int q_sc_per_h)
-{
-    const int oblk = blockIdx.x, h = blockIdx.y, b = blockIdx.z;
-    const int64_t bh  = ((int64_t)b * H_q + h) * Lq * C;
-    const int64_t sbh = ((int64_t)b * H_q + h) * q_sc_per_h;
-    process_q<T, NR>(in + bh, out + bh, sb + sbh,
-                      oblk, Lq, C, BLKQ, WARPQ);
-}
-
-// Standalone K kernel (fallback for separate launches)
-template <typename T, int NL>
-__global__ __launch_bounds__(128)
-void quant_k_int8(
-    const T* __restrict__ in,  int8_t* __restrict__ out,  float* __restrict__ sb,
-    const int Lk, const int C, const int H_kv,
-    const int BLKK, const int WARPK, const int k_sc_per_h)
-{
-    const int oblk = blockIdx.x, h = blockIdx.y, b = blockIdx.z;
-    const int64_t bh  = ((int64_t)b * H_kv + h) * Lk * C;
-    const int64_t sbh = ((int64_t)b * H_kv + h) * k_sc_per_h;
-    process_k<T, NL>(in + bh, out + bh, sb + sbh,
-                      oblk, Lk, C, BLKK, WARPK);
-}
-
 } // namespace
 
 extern "C" void launch_quant_qk_per_thread_int8(
@@ -345,18 +315,6 @@ extern "C" void launch_quant_qk_per_thread_int8(
             q_oblk, H_q, H_kv, q_sc_per_h, k_sc_per_h);                \
     } while(0)
 
-#define LAUNCH_SEP(T, NR, NL)                                           \
-    do {                                                                \
-        dim3 gq(q_oblk, H_q,  B);                                      \
-        dim3 gk(k_oblk, H_kv, B);                                      \
-        quant_q_int8<T, NR><<<gq, 128, 0, stream>>>(                   \
-            (const T*)q, (int8_t*)q_int8, (float*)q_scale,              \
-            Lq, C, H_q, BLKQ, WARPQ, q_sc_per_h);                      \
-        quant_k_int8<T, NL><<<gk, 128, 0, stream>>>(                   \
-            (const T*)k, (int8_t*)k_int8, (float*)k_scale,              \
-            Lk, C, H_kv, BLKK, WARPK, k_sc_per_h);                     \
-    } while(0)
-
 #define DISPATCH(T, NR, NL)                     \
     LAUNCH_FUSED(T, NR, NL)
 
@@ -373,7 +331,6 @@ extern "C" void launch_quant_qk_per_thread_int8(
     DISPATCH_HALF_DTYPE(input_dtype_code, T, [&] { DO(T); });
 
 #undef LAUNCH_FUSED
-#undef LAUNCH_SEP
 #undef DISPATCH
 #undef DO
 }

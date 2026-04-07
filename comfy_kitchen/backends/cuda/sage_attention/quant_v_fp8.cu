@@ -141,7 +141,7 @@ extern "C" void launch_quant_v_fp8_kernel(
     void* out,
     void* scale,
     int B, int H, int N, int D, int padded_N,
-    int64_t sb, int64_t sh, int64_t sn, int64_t sd,
+    int64_t sb, int64_t sh, int64_t sn,
     int input_dtype_code,
     cudaStream_t stream)
 {

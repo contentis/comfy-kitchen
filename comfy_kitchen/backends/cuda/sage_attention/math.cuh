@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Vendored unmodified from SageAttention (https://github.com/thu-ml/SageAttention)
+// commit d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5.
+
 /*
  * Copyright (c) 2024 by SageAttention team.
  * 

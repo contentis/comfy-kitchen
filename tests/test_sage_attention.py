@@ -432,7 +432,7 @@ class TestEdgeCases:
     def test_bad_head_dim(self):
         from comfy_kitchen.sage_attention import sage_sdpa
         q, k, v = _make_qkv(1, 4, 4, 128, 128, 96)
-        with pytest.raises(AssertionError, match="head_dim must be 64 or 128"):
+        with pytest.raises(ValueError, match="head_dim must be 64 or 128"):
             sage_sdpa(q, k, v)
 
     @requires_sage
@@ -441,7 +441,7 @@ class TestEdgeCases:
         q = torch.randn(1, 7, 128, 64, dtype=torch.bfloat16, device="cuda")
         k = torch.randn(1, 3, 128, 64, dtype=torch.bfloat16, device="cuda")
         v = torch.randn(1, 3, 128, 64, dtype=torch.bfloat16, device="cuda")
-        with pytest.raises(AssertionError, match="must be divisible"):
+        with pytest.raises(ValueError, match="must be divisible"):
             sage_sdpa(q, k, v)
 
     @requires_sage

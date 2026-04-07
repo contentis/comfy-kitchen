@@ -17,6 +17,7 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <cuda_runtime.h>
+#include <climits>
 #include <cstring>
 
 #include "cublaslt_runtime.h"
@@ -140,7 +141,7 @@ extern "C" {
     void launch_quant_v_fp8_kernel(
         const void* v, void* out, void* scale,
         int B, int H, int N, int D, int padded_N,
-        int64_t sb, int64_t sh, int64_t sn, int64_t sd,
+        int64_t sb, int64_t sh, int64_t sn,
         int input_dtype_code, cudaStream_t stream);
 
     void launch_sage_attn_kernel(
@@ -521,7 +522,7 @@ void quant_v_fp8(
         static_cast<int>(v.shape(2)),
         static_cast<int>(v.shape(3)),
         padded_n,
-        v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        v.stride(0), v.stride(1), v.stride(2),
         input_dtype_code, stream);
 }
 
@@ -638,19 +639,30 @@ void sage_sdpa(
     launch_quant_v_fp8_kernel(
         v.data(), v_quant.data(), v_scale.data(),
         B, H_kv, Lk, D, padded_Lk,
-        v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        v.stride(0), v.stride(1), v.stride(2),
         input_dtype_code, stream);
 
     // Step 3: Run attention kernel.
     // All intermediates are contiguous — compute strides from shapes.
-    const int qi_st_h = Lq * D, qi_st_n = D, qi_st_bz = H_q * Lq * D;
-    const int ki_st_h = Lk * D, ki_st_n = D, ki_st_bz = H_kv * Lk * D;
-    const int o_st_h  = Lq * D, o_st_n  = D, o_st_bz  = H_q * Lq * D;
+    // Use int64_t arithmetic to detect overflow before narrowing to int
+    // (the upstream kernel accepts uint32_t strides).
+    const int64_t qi_st_bz64 = static_cast<int64_t>(H_q)  * Lq * D;
+    const int64_t ki_st_bz64 = static_cast<int64_t>(H_kv) * Lk * D;
+    const int64_t v_st_bz64  = static_cast<int64_t>(H_kv) * D * padded_Lk;
+
+    if (qi_st_bz64 > INT_MAX || ki_st_bz64 > INT_MAX || v_st_bz64 > INT_MAX) {
+        throw std::overflow_error(
+            "sage_sdpa: tensor strides exceed int32 range; reduce batch/seq/head dimensions");
+    }
+
+    const int qi_st_h = Lq * D, qi_st_n = D, qi_st_bz = static_cast<int>(qi_st_bz64);
+    const int ki_st_h = Lk * D, ki_st_n = D, ki_st_bz = static_cast<int>(ki_st_bz64);
+    const int o_st_h  = Lq * D, o_st_n  = D, o_st_bz  = static_cast<int>(qi_st_bz64);
     // v_quant is [B*H_kv*D, padded_Lk] (2D from quant kernel).
     // Attention expects V as [B, H, D, padded_N].
     const int v_st_d  = padded_Lk;
     const int v_st_h  = D * padded_Lk;
-    const int v_st_bz = H_kv * D * padded_Lk;
+    const int v_st_bz = static_cast<int>(v_st_bz64);
 
     launch_sage_attn_kernel(
         q_int8.data(), k_int8.data(), v_quant.data(), o.data(),
@@ -662,6 +674,12 @@ void sage_sdpa(
         o_st_bz, o_st_n, o_st_h,
         is_causal, sm_scale, output_dtype_code,
         stream);
+
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        throw std::runtime_error(
+            std::string("sage_sdpa kernel launch failed: ") + cudaGetErrorString(err));
+    }
 }
 
 // Python module definition

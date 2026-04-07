@@ -111,15 +111,19 @@ set(CUDA_SOURCES
     sage_attention/sage_attn_launcher.cu
 )
 
-# SageAttention kernels require FP8 MMA (SM89+); skip older architectures.
+# SageAttention kernels require FP8 types / MMA (SM89+); skip older architectures.
 if(MSVC)
     set_source_files_properties(
         sage_attention/sage_attn_launcher.cu
+        sage_attention/quant_qk_int8.cu
+        sage_attention/quant_v_fp8.cu
         PROPERTIES CUDA_ARCHITECTURES "89;120f"
     )
 else()
     set_source_files_properties(
         sage_attention/sage_attn_launcher.cu
+        sage_attention/quant_qk_int8.cu
+        sage_attention/quant_v_fp8.cu
         PROPERTIES CUDA_ARCHITECTURES "89;90a;120f"
     )
 endif()

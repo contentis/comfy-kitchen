@@ -5,6 +5,8 @@
 // commit d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5.
 // Modifications: removed torch/extension.h dependency, flattened include paths.
 
+#pragma once
+
 /*
  * Copyright (c) 2024 by SageAttention team.
  *
