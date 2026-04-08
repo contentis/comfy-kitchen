@@ -30,9 +30,6 @@ __all__ = [
     # Fused matmul
     "scaled_mm_nvfp4",
     "scaled_mm_mxfp8",
-    # Attention
-    "sage_sdpa",
-    "sage_is_available",
     # Positional encoding
     "apply_rope",
     "apply_rope1",
