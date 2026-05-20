@@ -20,6 +20,7 @@
 
 #include <cuda_fp8.h>
 #include <cuda_runtime.h>
+#include <type_traits>
 
 namespace {
 
@@ -33,6 +34,28 @@ constexpr int kWarps = kThreads / 32;
 __device__ __forceinline__ int inv_perm16(int w) {
   return (w & 1) | (((w >> 3) & 1) << 1) | (((w >> 1) & 1) << 2) |
          (((w >> 2) & 1) << 3);
+}
+
+template <typename T>
+__device__ __forceinline__ void load_tile(const T *ptr, float *out_vals) {
+  if constexpr (std::is_same_v<T, float>) {
+    float4 v0 = *reinterpret_cast<const float4 *>(ptr);
+    float4 v1 = *reinterpret_cast<const float4 *>(ptr + 4);
+    out_vals[0] = v0.x;
+    out_vals[1] = v0.y;
+    out_vals[2] = v0.z;
+    out_vals[3] = v0.w;
+    out_vals[4] = v1.x;
+    out_vals[5] = v1.y;
+    out_vals[6] = v1.z;
+    out_vals[7] = v1.w;
+  } else {
+    const T *loaded = comfy::load_f16x8(ptr);
+#pragma unroll
+    for (int i = 0; i < kDTile; ++i) {
+      out_vals[i] = static_cast<float>(loaded[i]);
+    }
+  }
 }
 
 template <typename T>
@@ -60,24 +83,26 @@ quant_v_fp8_kernel(const T *__restrict__ v, __nv_fp8_e4m3 *__restrict__ out,
   int n = threadIdx.x;
   const int N_body = N - 3 * kThreads;
   for (; n < N_body; n += 4 * kThreads) {
-    const T *t0 = comfy::load_f16x8(base + (int64_t)n * sn);
-    const T *t1 = comfy::load_f16x8(base + (int64_t)(n + kThreads) * sn);
-    const T *t2 = comfy::load_f16x8(base + (int64_t)(n + 2 * kThreads) * sn);
-    const T *t3 = comfy::load_f16x8(base + (int64_t)(n + 3 * kThreads) * sn);
+    float t0[kDTile], t1[kDTile], t2[kDTile], t3[kDTile];
+    load_tile(base + (int64_t)n * sn, t0);
+    load_tile(base + (int64_t)(n + kThreads) * sn, t1);
+    load_tile(base + (int64_t)(n + 2 * kThreads) * sn, t2);
+    load_tile(base + (int64_t)(n + 3 * kThreads) * sn, t3);
 #pragma unroll
     for (int di = 0; di < kDTile; ++di) {
-      float a = fabsf(static_cast<float>(t0[di]));
-      float b = fabsf(static_cast<float>(t1[di]));
-      float c = fabsf(static_cast<float>(t2[di]));
-      float d = fabsf(static_cast<float>(t3[di]));
+      float a = fabsf(t0[di]);
+      float b = fabsf(t1[di]);
+      float c = fabsf(t2[di]);
+      float d = fabsf(t3[di]);
       mx[di] = fmaxf(mx[di], fmaxf(fmaxf(a, b), fmaxf(c, d)));
     }
   }
   for (; n < N; n += kThreads) {
-    const T *tmp = comfy::load_f16x8(base + (int64_t)n * sn);
+    float tmp[kDTile];
+    load_tile(base + (int64_t)n * sn, tmp);
 #pragma unroll
     for (int di = 0; di < kDTile; ++di)
-      mx[di] = fmaxf(mx[di], fabsf(static_cast<float>(tmp[di])));
+      mx[di] = fmaxf(mx[di], fabsf(tmp[di]));
   }
 
   const int warp = threadIdx.x >> 5;
@@ -125,11 +150,12 @@ quant_v_fp8_kernel(const T *__restrict__ v, __nv_fp8_e4m3 *__restrict__ out,
     const int w = src & 15;
     const int dst = (src & ~15) | inv_perm16(w);
 
-    const T *tmp = comfy::load_f16x8(base + (int64_t)src * sn);
+    float tmp[kDTile];
+    load_tile(base + (int64_t)src * sn, tmp);
     float vals[kDTile];
 #pragma unroll
     for (int di = 0; di < kDTile; ++di)
-      vals[di] = static_cast<float>(tmp[di]) * inv_sc[di];
+      vals[di] = tmp[di] * inv_sc[di];
 
 #pragma unroll
     for (int di = 0; di < kDTile; ++di)
@@ -157,7 +183,7 @@ extern "C" void launch_quant_v_fp8_kernel(const void *v, void *out, void *scale,
                                           cudaStream_t stream) {
   const int blocks = B * H * (D / kDTile);
 
-  DISPATCH_HALF_DTYPE(input_dtype_code, T, [&] {
+  DISPATCH_FP_DTYPE(input_dtype_code, T, [&] {
     quant_v_fp8_kernel<T><<<blocks, kThreads, 0, stream>>>(
         static_cast<const T *>(v), static_cast<__nv_fp8_e4m3 *>(out),
         static_cast<float *>(scale), N, padded_N, H, D, sb, sh, sn);

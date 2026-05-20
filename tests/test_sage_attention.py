@@ -33,7 +33,7 @@ requires_triton = pytest.mark.skipif(
 )
 
 FAST_CONFIGS = [(2, 8, 128), (1, 24, 128)]
-DTYPES = [torch.bfloat16, torch.float16]
+DTYPES = [torch.float32, torch.bfloat16, torch.float16]
 
 MODEL_BHD: dict[str, tuple[int, int, int]] = {
     "black-forest-labs/FLUX.2-klein-4B": (1, 24, 128),
@@ -103,8 +103,8 @@ def _per_thread_int8_cuda(
     )
 
     code = DTYPE_TO_CODE[q.dtype]
-    if code not in (1, 2) or k.dtype != q.dtype:
-        raise TypeError("q and k must be fp16 or bf16, same dtype")
+    if code not in (0, 1, 2) or k.dtype != q.dtype:
+        raise TypeError("q and k must be fp32, fp16 or bf16, same dtype")
 
     stream_ptr = torch.cuda.current_stream(q.device).cuda_stream
     _C._quant_qk_per_thread_int8(
@@ -130,7 +130,12 @@ def _run_sage_attn_kernel(q_int8, k_int8, v_quant, q_scale, k_scale, v_scale, dt
     from comfy_kitchen.backends.eager.quantization import DTYPE_TO_CODE
 
     b, h, n, d = q_int8.shape
-    output = torch.empty(b, h, n, d, dtype=dtype, device="cuda")
+    if dtype == torch.float32:
+        output_dtype = torch.bfloat16
+    else:
+        output_dtype = dtype
+
+    output = torch.empty(b, h, n, d, dtype=output_dtype, device="cuda")
     _C._sage_attn(
         _wrap_for_dlpack(q_int8),
         _wrap_for_dlpack(k_int8),
@@ -141,10 +146,12 @@ def _run_sage_attn_kernel(q_int8, k_int8, v_quant, q_scale, k_scale, v_scale, dt
         _wrap_for_dlpack(v_scale),
         is_causal,
         d**-0.5,
-        DTYPE_TO_CODE[dtype],
+        DTYPE_TO_CODE[output_dtype],
         torch.cuda.current_stream().cuda_stream,
     )
     torch.cuda.synchronize()
+    if dtype == torch.float32:
+        return output.to(torch.float32)
     return output
 
 
@@ -410,8 +417,8 @@ class TestEdgeCases:
     def test_wrong_dtype(self):
         from comfy_kitchen.sage_attention import sage_sdpa
 
-        q, k, v = _make_qkv(1, 4, 4, 128, 128, 64, dtype=torch.float32)
-        with pytest.raises(ValueError, match="float16 or bfloat16"):
+        q, k, v = _make_qkv(1, 4, 4, 128, 128, 64, dtype=torch.float64)
+        with pytest.raises(ValueError, match="float32, float16, or bfloat16"):
             sage_sdpa(q, k, v)
 
     @requires_sage

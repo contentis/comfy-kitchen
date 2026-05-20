@@ -21,7 +21,7 @@ import torch
 # sage_attention/sage_attn_launcher.cu and dlpack_bindings.cpp.
 CTA_K = 64
 
-_SUPPORTED_DTYPES = (torch.float16, torch.bfloat16)
+_SUPPORTED_DTYPES = (torch.float32, torch.float16, torch.bfloat16)
 
 
 def _pad_to_cta_k(n: int) -> int:
@@ -134,7 +134,7 @@ def sage_sdpa(
     b, h_q, n_q, d = q.shape
     _, h_k, n_k, _ = k.shape
     if q.dtype not in _SUPPORTED_DTYPES:
-        raise ValueError(f"q.dtype must be float16 or bfloat16, got {q.dtype}")
+        raise ValueError(f"q.dtype must be float32, float16, or bfloat16, got {q.dtype}")
     if d not in (64, 128):
         raise ValueError(f"head_dim must be 64 or 128, got {d}")
     if h_q % h_k != 0:
@@ -167,7 +167,14 @@ def sage_sdpa(
         device=q.device,
     )
     v_scale = torch.empty(b * h_k * d, device=q.device, dtype=torch.float32)
-    output = torch.empty(b, h_q, n_q, d, dtype=q.dtype, device=q.device)
+
+    original_dtype = q.dtype
+    if q.dtype == torch.float32:
+        output_dtype = torch.bfloat16
+    else:
+        output_dtype = q.dtype
+
+    output = torch.empty(b, h_q, n_q, d, dtype=output_dtype, device=q.device)
 
     km_scratch_ptr = 0
     km_done_ptr = 0
@@ -177,8 +184,8 @@ def sage_sdpa(
         km_scratch_ptr = km_scratch.data_ptr()
         km_done_ptr = km_done.data_ptr()
 
-    input_dtype_code = DTYPE_TO_CODE[q.dtype]
-    output_dtype_code = input_dtype_code
+    input_dtype_code = DTYPE_TO_CODE[original_dtype]
+    output_dtype_code = DTYPE_TO_CODE[output_dtype]
     stream_ptr = torch.cuda.current_stream(q.device).cuda_stream
 
     _C.sage_sdpa(
@@ -201,4 +208,6 @@ def sage_sdpa(
         km_scratch_ptr,
         km_done_ptr,
     )
+    if original_dtype == torch.float32:
+        return output.to(torch.float32)
     return output

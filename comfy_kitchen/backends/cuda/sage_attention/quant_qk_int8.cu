@@ -34,6 +34,44 @@ using comfy::warp_reduce_fmax;
 
 namespace {
 
+template <typename T>
+struct VectorLoader4;
+
+template <>
+struct VectorLoader4<half> {
+  __forceinline__ __device__ static void load(const half* ptr, float* out) {
+    float2 raw = __ldg(reinterpret_cast<const float2 *>(ptr));
+    const half *vals = reinterpret_cast<const half *>(&raw);
+    out[0] = static_cast<float>(vals[0]);
+    out[1] = static_cast<float>(vals[1]);
+    out[2] = static_cast<float>(vals[2]);
+    out[3] = static_cast<float>(vals[3]);
+  }
+};
+
+template <>
+struct VectorLoader4<nv_bfloat16> {
+  __forceinline__ __device__ static void load(const nv_bfloat16* ptr, float* out) {
+    float2 raw = __ldg(reinterpret_cast<const float2 *>(ptr));
+    const nv_bfloat16 *vals = reinterpret_cast<const nv_bfloat16 *>(&raw);
+    out[0] = static_cast<float>(vals[0]);
+    out[1] = static_cast<float>(vals[1]);
+    out[2] = static_cast<float>(vals[2]);
+    out[3] = static_cast<float>(vals[3]);
+  }
+};
+
+template <>
+struct VectorLoader4<float> {
+  __forceinline__ __device__ static void load(const float* ptr, float* out) {
+    float4 raw = __ldg(reinterpret_cast<const float4 *>(ptr));
+    out[0] = raw.x;
+    out[1] = raw.y;
+    out[2] = raw.z;
+    out[3] = raw.w;
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Q processing device function
 // ---------------------------------------------------------------------------
@@ -61,13 +99,7 @@ process_q(const T *__restrict__ in, int8_t *__restrict__ out,
       for (int j = 0; j < NR; ++j) {
         const int n = base + j * 8;
         if (n < L) {
-          float2 raw =
-              __ldg(reinterpret_cast<const float2 *>(&in[(int64_t)n * C + ch]));
-          const T *vals = reinterpret_cast<const T *>(&raw);
-          v[j * 4] = static_cast<float>(vals[0]);
-          v[j * 4 + 1] = static_cast<float>(vals[1]);
-          v[j * 4 + 2] = static_cast<float>(vals[2]);
-          v[j * 4 + 3] = static_cast<float>(vals[3]);
+          VectorLoader4<T>::load(&in[(int64_t)n * C + ch], &v[j * 4]);
           mx =
               fmaxf(mx, fmaxf(fmaxf(fabsf(v[j * 4]), fabsf(v[j * 4 + 1])),
                               fmaxf(fabsf(v[j * 4 + 2]), fabsf(v[j * 4 + 3]))));
@@ -171,13 +203,11 @@ process_k(const T *__restrict__ in, int8_t *__restrict__ out,
         const int n = oblk * WARPK + j * 8 + otld * 2 + p;
         const int vi = (j * 2 + p) * 4;
         if (n < L) {
-          float2 raw =
-              __ldg(reinterpret_cast<const float2 *>(&in[(int64_t)n * C + ch]));
-          const T *vals = reinterpret_cast<const T *>(&raw);
-          v[vi] = static_cast<float>(vals[0]) - bias[0];
-          v[vi + 1] = static_cast<float>(vals[1]) - bias[1];
-          v[vi + 2] = static_cast<float>(vals[2]) - bias[2];
-          v[vi + 3] = static_cast<float>(vals[3]) - bias[3];
+          VectorLoader4<T>::load(&in[(int64_t)n * C + ch], &v[vi]);
+          v[vi] -= bias[0];
+          v[vi + 1] -= bias[1];
+          v[vi + 2] -= bias[2];
+          v[vi + 3] -= bias[3];
           mx = fmaxf(mx, fmaxf(fmaxf(fabsf(v[vi]), fabsf(v[vi + 1])),
                                fmaxf(fabsf(v[vi + 2]), fabsf(v[vi + 3]))));
         } else {
@@ -298,13 +328,12 @@ __global__ __launch_bounds__(MEAN_BLK_DIM) void k_mean_reduce(
     for (int r = rw; r < MEAN_ROWS_PER_BLK; r += MEAN_ROW_WORKERS) {
       const int n = row_base + r;
       if (n < Lk) {
-        float2 raw = __ldg(reinterpret_cast<const float2 *>(
-            &k_in[bh_off + (int64_t)n * C + ch]));
-        const T *vals = reinterpret_cast<const T *>(&raw);
-        acc.x += static_cast<float>(vals[0]);
-        acc.y += static_cast<float>(vals[1]);
-        acc.z += static_cast<float>(vals[2]);
-        acc.w += static_cast<float>(vals[3]);
+        float vals[4];
+        VectorLoader4<T>::load(&k_in[bh_off + (int64_t)n * C + ch], vals);
+        acc.x += vals[0];
+        acc.y += vals[1];
+        acc.z += vals[2];
+        acc.w += vals[3];
       }
     }
   }
@@ -447,7 +476,7 @@ extern "C" void launch_quant_qk_per_thread_int8(
     cudaMemsetAsync(km_done, 0, done_bytes, stream);
 
     dim3 gm(mean_blks, H_kv, B);
-    DISPATCH_HALF_DTYPE(input_dtype_code, T, [&] {
+    DISPATCH_FP_DTYPE(input_dtype_code, T, [&] {
       k_mean_reduce<T><<<gm, MEAN_BLK_DIM, 0, stream>>>(
           (const T *)k, (float *)km_scratch, (int *)km_done, Lk, C, H_kv,
           mean_blks, inv_Lk);
@@ -514,7 +543,7 @@ extern "C" void launch_quant_qk_per_thread_int8(
     break;                                                                     \
   }
 
-  DISPATCH_HALF_DTYPE(input_dtype_code, T, [&] { DO(T); });
+  DISPATCH_FP_DTYPE(input_dtype_code, T, [&] { DO(T); });
 
 #undef LAUNCH_SPLIT
 #undef LAUNCH_FUSED

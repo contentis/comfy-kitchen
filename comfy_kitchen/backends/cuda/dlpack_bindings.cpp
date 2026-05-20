@@ -583,6 +583,10 @@ void sage_attn(
         throw std::runtime_error("sage_attn: q, k, v, o must be 4D");
     }
 
+    if (output_dtype_code != 1 && output_dtype_code != 2) {
+        throw std::runtime_error("sage_attn: output_dtype_code must be 1 (fp16) or 2 (bf16)");
+    }
+
     const int64_t st_q_bz = static_cast<int64_t>(q.stride(0));
     const int64_t st_k_bz = static_cast<int64_t>(k.stride(0));
     const int64_t st_v_bz = static_cast<int64_t>(v.stride(0));
@@ -646,8 +650,8 @@ void sage_sdpa(
     const int H_kv = static_cast<int>(k.shape(1));
     const int Lk = static_cast<int>(k.shape(2));
 
-    if (input_dtype_code != 1 && input_dtype_code != 2) {
-        throw std::runtime_error("sage_sdpa: input_dtype_code must be 1 (fp16) or 2 (bf16)");
+    if (input_dtype_code < 0 || input_dtype_code > 2) {
+        throw std::runtime_error("sage_sdpa: input_dtype_code must be 0 (fp32), 1 (fp16), or 2 (bf16)");
     }
 
     constexpr int BLKQ = 128, WARPQ = 32, BLKK = 64, WARPK = 64;
