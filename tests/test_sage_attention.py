@@ -353,7 +353,14 @@ class TestCUDAKernelStandalone:
         v_quant, v_scale = _quantize_v_fp8(v)
 
         output = _run_sage_attn_kernel(
-            q_int8, k_int8, v_quant, q_scale, k_scale, v_scale, dtype, is_causal=is_causal,
+            q_int8,
+            k_int8,
+            v_quant,
+            q_scale,
+            k_scale,
+            v_scale,
+            dtype,
+            is_causal=is_causal,
         )
 
         assert output.shape == (b, h, n, d)
