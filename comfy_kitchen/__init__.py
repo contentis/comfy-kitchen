@@ -42,6 +42,7 @@ __all__ = [
     "set_backend_priority",
     "enable_backend",
     "disable_backend",
+    "stochastic_rounding_fp8",
     "use_backend",
     # Exceptions
     "BackendError",
@@ -92,6 +93,26 @@ def dequantize_per_tensor_fp8(
     """
     dtype_code = DTYPE_TO_CODE[output_type]
     return torch.ops.comfy_kitchen.dequantize_fp8(x, scale, dtype_code)
+
+
+def stochastic_rounding_fp8(
+    x: torch.Tensor,
+    rng: torch.Tensor,
+    output_type: torch.dtype = torch.float8_e4m3fn,
+) -> torch.Tensor:
+    """Stochastically round tensor to FP8 format.
+
+    Args:
+        x: Input tensor
+        rng: Random uint8 tensor with the same shape as x
+        output_type: FP8 dtype (float8_e4m3fn or float8_e5m2)
+
+    Returns:
+        Stochastically rounded FP8 tensor
+    """
+    kwargs = {"x": x, "rng": rng, "output_type": output_type}
+    impl = registry.get_implementation("stochastic_rounding_fp8", kwargs=kwargs)
+    return impl(**kwargs)
 
 
 def quantize_nvfp4(
