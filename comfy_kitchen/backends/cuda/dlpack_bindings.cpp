@@ -53,6 +53,14 @@ extern "C" {
                                       int input_dtype_code, int output_dtype_code,
                                       cudaStream_t stream);
 
+    void launch_stochastic_round_fp8_kernel(void* rng_and_output,
+                                            const void* input,
+                                            int64_t numel,
+                                            int rng_dtype_code,
+                                            int input_dtype_code,
+                                            int output_dtype_code,
+                                            cudaStream_t stream);
+
     void launch_cublas_gemm_blockwise_fp4_kernel(
         const void* B_ptr,
         const void* B_decode_scale_ptr,
@@ -94,6 +102,7 @@ extern "C" {
         int64_t stride_freqs_pair,
         int input_dtype_code,
         int freqs_dtype_code,
+        bool split_half,
         cudaStream_t stream);
 
     void launch_quantize_nvfp4_kernel(
@@ -107,6 +116,7 @@ extern "C" {
         int64_t orig_cols,
         float epsilon,
         int input_dtype_code,
+        bool hi_first,
         cudaStream_t stream);
 
     void launch_dequantize_nvfp4_kernel(
@@ -117,6 +127,7 @@ extern "C" {
         int64_t num_rows,
         int64_t num_cols,
         int output_dtype_code,
+        bool hi_first,
         cudaStream_t stream);
 
     void launch_quantize_mxfp8_kernel(
@@ -154,6 +165,59 @@ extern "C" {
         int v_st_bz, int v_st_h, int v_st_d,
         int o_st_bz, int o_st_n, int o_st_h,
         int is_causal, float sm_scale, int output_dtype_code,
+        cudaStream_t stream);
+
+    // SVDQuant W4A4 — see ops/quantize_svdquant_w4a4.cu
+    void launch_svdquant_quantize_w4a4_kernel(
+        const void* x,
+        const void* smooth,
+        const void* lora_down,
+        void* q_x,
+        void* ascales,
+        void* lora_act,
+        int M,
+        int M_pad,
+        int K,
+        int R,
+        int input_dtype_code,
+        int act_unsigned,
+        cudaStream_t stream);
+
+    // SVDQuant W4A4 — see ops/scaled_mm_svdquant_w4a4.cu
+    void launch_svdquant_scaled_mm_w4a4_kernel(
+        const void* act,
+        const void* wgt,
+        const void* ascales,
+        const void* wscales,
+        const void* lora_act_in,
+        const void* lora_up,
+        const void* bias,
+        void* out,
+        int M,
+        int N,
+        int K,
+        int R,
+        int act_unsigned,
+        int out_dtype_code,
+        int tile_packed,
+        int fast_accum,
+        int shared_scale,
+        int fuse_lora,
+        cudaStream_t stream);
+
+    // AWQ W4A16 — see ops/awq_w4a16.cu. Internal M-routing picks
+    // gemv (M ≤ 8) vs gemm path; bias / LoRA-up are applied externally.
+    void launch_awq_w4a16_kernel(
+        const void* x,
+        const void* qweight,
+        const void* wscales,
+        const void* wzeros,
+        void* out,
+        int M,
+        int N,
+        int K,
+        int G,
+        int dtype_code,
         cudaStream_t stream);
 }
 
@@ -205,6 +269,38 @@ void dequantize_per_tensor_fp8(
     cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
     launch_dequantize_fp8_kernel(input.data(), output.data(), scale.data(),
                                  numel, input_dtype_code, output_dtype_code, stream);
+}
+
+void stochastic_round_fp8(
+    nb::ndarray<nb::device::cuda> rng_and_output,
+    nb::ndarray<nb::device::cuda> input,
+    int output_dtype_code,
+    int64_t numel,
+    uintptr_t stream_ptr) {
+
+    int rng_dtype_code = map_dtype_to_code(rng_and_output.dtype());
+    if (rng_dtype_code != 3) {
+        throw std::runtime_error("stochastic_round_fp8 requires uint8 RNG storage");
+    }
+
+    int input_dtype_code = map_dtype_to_code(input.dtype());
+    if (input_dtype_code < 0 || input_dtype_code > 2) {
+        throw std::runtime_error("Unsupported input dtype for stochastic_round_fp8");
+    }
+
+    if (output_dtype_code < 5 || output_dtype_code > 6) {
+        throw std::runtime_error("Unsupported output dtype for stochastic_round_fp8");
+    }
+
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    launch_stochastic_round_fp8_kernel(
+        rng_and_output.data(),
+        input.data(),
+        numel,
+        rng_dtype_code,
+        input_dtype_code,
+        output_dtype_code,
+        stream);
 }
 
 // Nanobind wrapper for cublas_gemm_blockwise_fp4
@@ -275,6 +371,7 @@ void quantize_nvfp4(
     nb::ndarray<nb::device::cuda> block_scales,
     float epsilon,
     bool pad_16x,
+    bool hi_first,
     uintptr_t stream_ptr) {
 
     // Get input dimensions (orig_rows, orig_cols)
@@ -309,6 +406,7 @@ void quantize_nvfp4(
         orig_cols,
         epsilon,
         input_dtype_code,
+        hi_first,
         stream);
 }
 
@@ -319,6 +417,7 @@ void dequantize_nvfp4(
     nb::ndarray<nb::device::cuda> block_scales,
     nb::ndarray<nb::ndim<2>, nb::device::cuda> output,
     int output_dtype_code,
+    bool hi_first,
     uintptr_t stream_ptr) {
 
     // Get output dimensions (should match input logical dimensions)
@@ -339,6 +438,7 @@ void dequantize_nvfp4(
         num_rows,
         num_cols,
         output_dtype_code,
+        hi_first,
         stream);
 }
 
@@ -390,7 +490,8 @@ void apply_rope(
     nb::ndarray<nb::device::cuda> xq_out,
     nb::object xk_obj,
     nb::object xk_out_obj,
-    uintptr_t stream_ptr) {
+    uintptr_t stream_ptr,
+    bool split_half = false) {
 
     // Get xq dimensions: (batch, dim1, dim2, head_dim) - layout agnostic
     int64_t batch = xq.shape(0);
@@ -499,6 +600,7 @@ void apply_rope(
         stride_freqs_pair,
         input_dtype_code,
         freqs_dtype_code,
+        split_half,
         stream
     );
 }
@@ -713,6 +815,120 @@ void sage_sdpa(
     }
 }
 
+// ---------------------------------------------------------------------------
+// SVDQuant W4A4 — nanobind/DLPack bindings for the native kitchen int4 kernels
+// (see ops/quantize_svdquant_w4a4.cu and ops/scaled_mm_svdquant_w4a4.cu).
+// ---------------------------------------------------------------------------
+
+static int svdquant_dtype_code(const nb::dlpack::dtype& dt) {
+    int c = map_dtype_to_code(dt);
+    if (c < 0) throw std::runtime_error("svdquant: unsupported dtype");
+    return c;
+}
+
+void svdquant_quantize_w4a4(
+    nb::ndarray<nb::device::cuda> x,           // (M, K) bf16/fp16 — pre-shifted if unsigned path
+    nb::ndarray<nb::device::cuda> smooth,      // (K,)
+    nb::ndarray<nb::device::cuda> lora_down,   // (K, R)
+    nb::ndarray<nb::device::cuda> q_x,         // (M_pad, K/2) int8
+    nb::ndarray<nb::device::cuda> ascales,     // (K/G, M_pad)
+    nb::ndarray<nb::device::cuda> lora_act,    // (M_pad, R) fp32
+    bool act_unsigned,
+    uintptr_t stream_ptr)
+{
+    int M = static_cast<int>(x.shape(0));
+    int K = static_cast<int>(x.shape(1));
+    int M_pad = static_cast<int>(q_x.shape(0));
+    int R = static_cast<int>(lora_down.shape(1));
+    int input_code = svdquant_dtype_code(x.dtype());
+
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    launch_svdquant_quantize_w4a4_kernel(
+        x.data(), smooth.data(), lora_down.data(),
+        q_x.data(), ascales.data(), lora_act.data(),
+        M, M_pad, K, R, input_code,
+        static_cast<int>(act_unsigned), stream);
+}
+
+void svdquant_scaled_mm_w4a4(
+    nb::ndarray<nb::device::cuda> act,           // (M, K/2) int8
+    nb::ndarray<nb::device::cuda> wgt,           // (N, K/2) int8
+    nb::ndarray<nb::device::cuda> ascales,       // (K/G, M)
+    nb::ndarray<nb::device::cuda> wscales,       // (K/G, N)
+    nb::ndarray<nb::device::cuda> lora_act_in,   // (M, R) fp32
+    nb::ndarray<nb::device::cuda> lora_up,       // (N, R)
+    nb::ndarray<nb::device::cuda> bias,          // (N,) or empty
+    nb::ndarray<nb::device::cuda> out,           // (M, N)
+    bool act_unsigned,
+    bool fast_accum,
+    bool shared_scale,
+    bool fuse_lora,
+    uintptr_t stream_ptr)
+{
+    int M = static_cast<int>(act.shape(0));
+    int K = static_cast<int>(act.shape(1)) * 2;
+    const bool tile_packed = (wgt.ndim() == 4);
+    int N = tile_packed ? static_cast<int>(wgt.shape(0)) * 128 : static_cast<int>(wgt.shape(0));
+    int R = static_cast<int>(lora_act_in.shape(1));
+    int out_code = svdquant_dtype_code(out.dtype());
+    if (fuse_lora && svdquant_dtype_code(lora_act_in.dtype()) != out_code) {
+        throw std::runtime_error(
+            "svdquant_scaled_mm_w4a4: fused LoRA-up requires lora_act_in dtype "
+            "to match output/lora_up dtype");
+    }
+
+    if (tile_packed) {
+        if (wgt.shape(1) != K / 64 || wgt.shape(2) != 32 || wgt.shape(3) != 128) {
+            throw std::runtime_error(
+                "svdquant_scaled_mm_w4a4: tile-packed weight must have shape "
+                "(N/128, K/64, 32, 128)");
+        }
+        if (wscales.ndim() != 3 || wscales.shape(0) != wgt.shape(0) ||
+            wscales.shape(1) != K / 64 || wscales.shape(2) != 128) {
+            throw std::runtime_error(
+                "svdquant_scaled_mm_w4a4: tile-packed wscales must have shape "
+                "(N/128, K/64, 128)");
+        }
+    }
+
+    const void* bias_ptr = (bias.data() != nullptr && bias.size() > 0) ? bias.data() : nullptr;
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    launch_svdquant_scaled_mm_w4a4_kernel(
+        act.data(), wgt.data(),
+        ascales.data(), wscales.data(),
+        lora_act_in.data(), lora_up.data(), bias_ptr,
+        out.data(),
+        M, N, K, R,
+        static_cast<int>(act_unsigned), out_code,
+        static_cast<int>(tile_packed), static_cast<int>(fast_accum),
+        static_cast<int>(shared_scale), static_cast<int>(fuse_lora), stream);
+}
+
+// ---------------------------------------------------------------------------
+// AWQ W4A16 — int4 weight, fp16/bf16 activation matmul. See ops/awq_w4a16.cu.
+// ---------------------------------------------------------------------------
+void awq_w4a16(
+    nb::ndarray<nb::device::cuda> x,         // (M, K) bf16/fp16
+    nb::ndarray<nb::device::cuda> qweight,   // (N, K/2) int8 packed uint4
+    nb::ndarray<nb::device::cuda> wscales,   // (K/G, N)
+    nb::ndarray<nb::device::cuda> wzeros,    // (K/G, N)
+    nb::ndarray<nb::device::cuda> out,       // (M, N)
+    int group_size,
+    uintptr_t stream_ptr)
+{
+    const int M = static_cast<int>(x.shape(0));
+    const int K = static_cast<int>(x.shape(1));
+    const int N = static_cast<int>(qweight.shape(0));
+    const int dtype_code = svdquant_dtype_code(x.dtype());
+    if (dtype_code != 1 && dtype_code != 2) {
+        throw std::runtime_error("awq_w4a16: only fp16 (1) and bf16 (2) activations supported");
+    }
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    launch_awq_w4a16_kernel(
+        x.data(), qweight.data(), wscales.data(), wzeros.data(), out.data(),
+        M, N, K, group_size, dtype_code, stream);
+}
+
 // Python module definition
 NB_MODULE(_C, m) {
     m.doc() = "comfy_kitchen CUDA kernels - nanobind + DLPack interface (NO PyTorch C++ dependencies)";
@@ -733,6 +949,14 @@ NB_MODULE(_C, m) {
           nb::arg("scale"),
           nb::arg("output"),
           nb::arg("input_dtype_code"),
+          nb::arg("output_dtype_code"),
+          nb::arg("numel"),
+          nb::arg("stream_ptr"));
+
+    m.def("stochastic_round_fp8", &stochastic_round_fp8,
+          "Stochastically round to FP8, overwriting RNG storage with FP8 output",
+          nb::arg("rng_and_output"),
+          nb::arg("input"),
           nb::arg("output_dtype_code"),
           nb::arg("numel"),
           nb::arg("stream_ptr"));
@@ -758,7 +982,8 @@ NB_MODULE(_C, m) {
           nb::arg("xq_out"),
           nb::arg("xk") = nullptr,
           nb::arg("xk_out") = nullptr,
-          nb::arg("stream_ptr"));
+          nb::arg("stream_ptr"),
+          nb::arg("split_half") = false);
 
     m.def("quantize_nvfp4", &quantize_nvfp4,
           "Quantize to FP4 E2M1 with E4M3 block scales using cuBLAS tiled layout",
@@ -768,6 +993,7 @@ NB_MODULE(_C, m) {
           nb::arg("block_scales"),
           nb::arg("epsilon"),
           nb::arg("pad_16x") = false,
+          nb::arg("hi_first") = true,
           nb::arg("stream_ptr"));
 
     m.def("dequantize_nvfp4", &dequantize_nvfp4,
@@ -777,6 +1003,7 @@ NB_MODULE(_C, m) {
           nb::arg("block_scales"),
           nb::arg("output"),
           nb::arg("output_dtype_code"),
+          nb::arg("hi_first") = true,
           nb::arg("stream_ptr"));
 
     m.def("quantize_mxfp8", &quantize_mxfp8,
@@ -848,6 +1075,47 @@ NB_MODULE(_C, m) {
           nb::arg("smooth_k") = 0,
           nb::arg("km_scratch_ptr") = 0,
           nb::arg("km_done_ptr") = 0);
+
+    m.def("svdquant_quantize_w4a4", &svdquant_quantize_w4a4,
+          "SVDQuant W4A4: smooth + int4 quantize (LoRA-down is external). "
+          "act_unsigned selects scale=max/15 + clamp [0,15] for u4 MMA downstream; "
+          "caller must pre-shift x to be non-negative before calling (model-level concern).",
+          nb::arg("x"),
+          nb::arg("smooth"),
+          nb::arg("lora_down"),
+          nb::arg("q_x"),
+          nb::arg("ascales"),
+          nb::arg("lora_act"),
+          nb::arg("act_unsigned"),
+          nb::arg("stream_ptr"));
+
+    m.def("svdquant_scaled_mm_w4a4", &svdquant_scaled_mm_w4a4,
+          "SVDQuant W4A4: int4 GEMM with per-group dequant",
+          nb::arg("act"),
+          nb::arg("wgt"),
+          nb::arg("ascales"),
+          nb::arg("wscales"),
+          nb::arg("lora_act_in"),
+          nb::arg("lora_up"),
+          nb::arg("bias"),
+          nb::arg("out"),
+          nb::arg("act_unsigned"),
+          nb::arg("fast_accum"),
+          nb::arg("shared_scale"),
+          nb::arg("fuse_lora"),
+          nb::arg("stream_ptr"));
+
+    m.def("awq_w4a16", &awq_w4a16,
+          "AWQ W4A16: int4 weight @ fp activation (kitchen-native row-major). "
+          "Internal M-routing picks gemv (M ≤ 8) vs gemm. bias / LoRA-up are "
+          "applied externally; this kernel only does the dequant + matmul.",
+          nb::arg("x"),
+          nb::arg("qweight"),
+          nb::arg("wscales"),
+          nb::arg("wzeros"),
+          nb::arg("out"),
+          nb::arg("group_size"),
+          nb::arg("stream_ptr"));
 
     // Feature availability flag (computed at module load time)
     m.attr("HAS_CUBLASLT") = comfy::CublasLtRuntime::instance().is_available();
