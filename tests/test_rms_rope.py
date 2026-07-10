@@ -241,6 +241,8 @@ class TestRMSRopeSplitHalf:
         backends = get_capable_backends(op_name, device)
         if len(backends) < 2:
             pytest.skip(f"need at least 2 backends for cross-backend test, got {backends}")
+        if "eager" not in backends:
+            pytest.skip("cross-backend test requires eager as the reference backend")
 
         batch, seq_len, heads, head_dim = 2, 256, 16, 128
         x_shape = (batch, seq_len, heads, head_dim)
