@@ -4,6 +4,10 @@ __all__ = [
     "apply_rope1",
     "apply_rope_split_half",
     "apply_rope_split_half1",
+    "rms_rope",
+    "rms_rope1",
+    "rms_rope_split_half",
+    "rms_rope_split_half1",
     "dequantize_mxfp8",
     "dequantize_nvfp4",
     "dequantize_per_tensor_fp8",
@@ -68,7 +72,16 @@ from .quantization import (
     scaled_mm_nvfp4,
     stochastic_rounding_fp8,
 )
-from .rope import apply_rope, apply_rope1, apply_rope_split_half, apply_rope_split_half1
+from .rope import (
+    apply_rope,
+    apply_rope1,
+    apply_rope_split_half,
+    apply_rope_split_half1,
+    rms_rope,
+    rms_rope1,
+    rms_rope_split_half,
+    rms_rope_split_half1,
+)
 from .svdquant import quantize_svdquant_w4a4, scaled_mm_svdquant_w4a4
 
 
@@ -174,6 +187,74 @@ def _build_constraints() -> dict:
                 "xq": ParamConstraint(dtypes=standard_floats),
                 "xk": ParamConstraint(dtypes=standard_floats),
                 "freqs_cis": ParamConstraint(dtypes=standard_floats),
+            },
+            default_devices=all_devices,
+        ),
+        "rms_rope": FunctionConstraints(
+            params={
+                "q": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(4),),
+                ),
+                "k": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(6),),
+                ),
+                "q_scale": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(1),),
+                ),
+                "k_scale": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(1),),
+                ),
+            },
+            default_devices=all_devices,
+        ),
+        "rms_rope1": FunctionConstraints(
+            params={
+                "x": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(6),),
+                ),
+                "scale": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(1),),
+                ),
+            },
+            default_devices=all_devices,
+        ),
+        "rms_rope_split_half": FunctionConstraints(
+            params={
+                "q": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(4),),
+                ),
+                "k": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(6),),
+                ),
+                "q_scale": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(1),),
+                ),
+                "k_scale": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(1),),
+                ),
+            },
+            default_devices=all_devices,
+        ),
+        "rms_rope_split_half1": FunctionConstraints(
+            params={
+                "x": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(6),),
+                ),
+                "scale": ParamConstraint(
+                    dtypes=standard_floats, shape_rules=(ExactDims(1),),
+                ),
             },
             default_devices=all_devices,
         ),

@@ -118,6 +118,39 @@ extern "C" {
         bool hi_first,
         cudaStream_t stream);
 
+    void launch_rms_rope_kernel(
+        const void* q,
+        const void* k,
+        const void* freqs,
+        const void* q_scale,
+        const void* k_scale,
+        void* q_out,
+        void* k_out,
+        int batch,
+        int heads,
+        int seq_len,
+        int head_dim,
+        int64_t stride_q_batch,
+        int64_t stride_q_head,
+        int64_t stride_q_seq,
+        int64_t stride_k_batch,
+        int64_t stride_k_head,
+        int64_t stride_k_seq,
+        int64_t stride_out_batch,
+        int64_t stride_out_head,
+        int64_t stride_out_seq,
+        int64_t stride_freqs_batch,
+        int64_t stride_freqs_seq,
+        int freqs_batch,
+        int freqs_seq_len,
+        float epsilon,
+        int input_dtype_code,
+        int freqs_dtype_code,
+        int scale_dtype_code,
+        bool has_k,
+        bool split_half,
+        cudaStream_t stream);
+
     void launch_dequantize_nvfp4_kernel(
         const void* input,
         const void* global_scale,
@@ -590,6 +623,160 @@ void apply_rope(
         split_half,
         stream
     );
+}
+
+// Nanobind wrapper for paired fused RMSNorm + RoPE.
+void rms_rope(nb::ndarray<nb::device::cuda> q, nb::ndarray<nb::device::cuda> k,
+              nb::ndarray<nb::device::cuda> freqs,
+              nb::ndarray<nb::device::cuda> q_scale,
+              nb::ndarray<nb::device::cuda> k_scale,
+              nb::ndarray<nb::device::cuda> q_out,
+              nb::ndarray<nb::device::cuda> k_out, float epsilon,
+              uintptr_t stream_ptr, bool split_half = false,
+              bool bnhd = false) {
+
+  if (q.ndim() != 4 || k.ndim() != 4 || q_out.ndim() != 4 ||
+      k_out.ndim() != 4) {
+    throw std::runtime_error(
+        "rms_rope Q/K inputs and outputs must be 4D BHND or BNHD tensors");
+  }
+  for (int axis = 0; axis < 4; ++axis) {
+    if (k.shape(axis) != q.shape(axis) || q_out.shape(axis) != q.shape(axis) ||
+        k_out.shape(axis) != q.shape(axis)) {
+      throw std::runtime_error(
+          "rms_rope Q/K input and output shapes must match");
+    }
+  }
+
+  const int64_t batch = q.shape(0);
+  const int head_axis = bnhd ? 2 : 1;
+  const int seq_axis = bnhd ? 1 : 2;
+  const int freqs_broadcast_axis = bnhd ? 2 : 1;
+  const int freqs_seq_axis = bnhd ? 1 : 2;
+  const int64_t heads = q.shape(head_axis);
+  const int64_t seq_len = q.shape(seq_axis);
+  const int64_t head_dim = q.shape(3);
+  if (head_dim < 32 || head_dim % 32 != 0) {
+    throw std::runtime_error(
+        "native rms_rope requires head_dim to be a positive multiple of 32");
+  }
+  if (freqs.ndim() != 6 || (freqs.shape(0) != 1 && freqs.shape(0) != batch) ||
+      freqs.shape(freqs_broadcast_axis) != 1 ||
+      (freqs.shape(freqs_seq_axis) != 1 &&
+       freqs.shape(freqs_seq_axis) != seq_len) ||
+      freqs.shape(3) != head_dim / 2 || freqs.shape(4) != 2 ||
+      freqs.shape(5) != 2) {
+    throw std::runtime_error(
+        "rms_rope freqs must broadcast its non-sequence layout axis");
+  }
+  if (q_scale.ndim() != 1 || k_scale.ndim() != 1 ||
+      q_scale.shape(0) != head_dim || k_scale.shape(0) != head_dim) {
+    throw std::runtime_error(
+        "rms_rope scales must be 1D tensors of length head_dim");
+  }
+
+  const int input_dtype_code = map_dtype_to_code(q.dtype());
+  const int k_dtype_code = map_dtype_to_code(k.dtype());
+  const int q_out_dtype_code = map_dtype_to_code(q_out.dtype());
+  const int k_out_dtype_code = map_dtype_to_code(k_out.dtype());
+  const int freqs_dtype_code = map_dtype_to_code(freqs.dtype());
+  const int scale_dtype_code = map_dtype_to_code(q_scale.dtype());
+  const int k_scale_dtype_code = map_dtype_to_code(k_scale.dtype());
+  if ((input_dtype_code != 1 && input_dtype_code != 2) ||
+      input_dtype_code != k_dtype_code ||
+      input_dtype_code != q_out_dtype_code ||
+      input_dtype_code != k_out_dtype_code) {
+    throw std::runtime_error(
+        "rms_rope Q/K inputs and outputs must share an FP16/BF16 dtype");
+  }
+  if (freqs_dtype_code < 0 || scale_dtype_code < 0 ||
+      scale_dtype_code != k_scale_dtype_code) {
+    throw std::runtime_error("rms_rope frequencies/scales must be FP32, FP16, "
+                             "or BF16; scale dtypes must match");
+  }
+
+  launch_rms_rope_kernel(
+      q.data(), k.data(), freqs.data(), q_scale.data(), k_scale.data(),
+      q_out.data(), k_out.data(), static_cast<int>(batch),
+      static_cast<int>(heads), static_cast<int>(seq_len),
+      static_cast<int>(head_dim), q.stride(0), q.stride(head_axis),
+      q.stride(seq_axis), k.stride(0), k.stride(head_axis), k.stride(seq_axis),
+      q_out.stride(0), q_out.stride(head_axis), q_out.stride(seq_axis),
+      freqs.stride(0), freqs.stride(freqs_seq_axis),
+      static_cast<int>(freqs.shape(0)),
+      static_cast<int>(freqs.shape(freqs_seq_axis)), epsilon, input_dtype_code,
+      freqs_dtype_code, scale_dtype_code, true, split_half,
+      reinterpret_cast<cudaStream_t>(stream_ptr));
+}
+
+// Nanobind wrapper for single-tensor fused RMSNorm + RoPE.
+void rms_rope1(nb::ndarray<nb::device::cuda> q,
+               nb::ndarray<nb::device::cuda> freqs,
+               nb::ndarray<nb::device::cuda> q_scale,
+               nb::ndarray<nb::device::cuda> q_out, float epsilon,
+               uintptr_t stream_ptr, bool split_half = false,
+               bool bnhd = false) {
+
+  if (q.ndim() != 4 || q_out.ndim() != 4) {
+    throw std::runtime_error(
+        "rms_rope1 input and output must be 4D BHND or BNHD tensors");
+  }
+  for (int axis = 0; axis < 4; ++axis) {
+    if (q_out.shape(axis) != q.shape(axis)) {
+      throw std::runtime_error("rms_rope1 output shape must match input shape");
+    }
+  }
+
+  const int64_t batch = q.shape(0);
+  const int head_axis = bnhd ? 2 : 1;
+  const int seq_axis = bnhd ? 1 : 2;
+  const int freqs_broadcast_axis = bnhd ? 2 : 1;
+  const int freqs_seq_axis = bnhd ? 1 : 2;
+  const int64_t heads = q.shape(head_axis);
+  const int64_t seq_len = q.shape(seq_axis);
+  const int64_t head_dim = q.shape(3);
+  if (head_dim < 32 || head_dim % 32 != 0) {
+    throw std::runtime_error(
+        "native rms_rope1 requires head_dim to be a positive multiple of 32");
+  }
+  if (freqs.ndim() != 6 || (freqs.shape(0) != 1 && freqs.shape(0) != batch) ||
+      freqs.shape(freqs_broadcast_axis) != 1 ||
+      (freqs.shape(freqs_seq_axis) != 1 &&
+       freqs.shape(freqs_seq_axis) != seq_len) ||
+      freqs.shape(3) != head_dim / 2 || freqs.shape(4) != 2 ||
+      freqs.shape(5) != 2) {
+    throw std::runtime_error(
+        "rms_rope1 freqs must broadcast its non-sequence layout axis");
+  }
+  if (q_scale.ndim() != 1 || q_scale.shape(0) != head_dim) {
+    throw std::runtime_error(
+        "rms_rope1 scale must be a 1D tensor of length head_dim");
+  }
+
+  const int input_dtype_code = map_dtype_to_code(q.dtype());
+  const int out_dtype_code = map_dtype_to_code(q_out.dtype());
+  const int freqs_dtype_code = map_dtype_to_code(freqs.dtype());
+  const int scale_dtype_code = map_dtype_to_code(q_scale.dtype());
+  if ((input_dtype_code != 1 && input_dtype_code != 2) ||
+      input_dtype_code != out_dtype_code) {
+    throw std::runtime_error(
+        "rms_rope1 input/output must share an FP16/BF16 dtype");
+  }
+  if (freqs_dtype_code < 0 || scale_dtype_code < 0) {
+    throw std::runtime_error(
+        "rms_rope1 frequencies and scale must be FP32, FP16, or BF16");
+  }
+
+  launch_rms_rope_kernel(
+      q.data(), nullptr, freqs.data(), q_scale.data(), nullptr, q_out.data(),
+      nullptr, static_cast<int>(batch), static_cast<int>(heads),
+      static_cast<int>(seq_len), static_cast<int>(head_dim), q.stride(0),
+      q.stride(head_axis), q.stride(seq_axis), 0, 0, 0, q_out.stride(0),
+      q_out.stride(head_axis), q_out.stride(seq_axis), freqs.stride(0),
+      freqs.stride(freqs_seq_axis), static_cast<int>(freqs.shape(0)),
+      static_cast<int>(freqs.shape(freqs_seq_axis)), epsilon, input_dtype_code,
+      freqs_dtype_code, scale_dtype_code, false, split_half,
+      reinterpret_cast<cudaStream_t>(stream_ptr));
 }
 
 // ---------------------------------------------------------------------------
@@ -2166,6 +2353,18 @@ NB_MODULE(_C, m) {
           nb::arg("xk_out") = nullptr,
           nb::arg("stream_ptr"),
           nb::arg("split_half") = false);
+
+    m.def("rms_rope", &rms_rope,
+          "Fused RMSNorm and interleaved RoPE for Q/K tensors", nb::arg("q"),
+          nb::arg("k"), nb::arg("freqs"), nb::arg("q_scale"),
+          nb::arg("k_scale"), nb::arg("q_out"), nb::arg("k_out"),
+          nb::arg("epsilon"), nb::arg("stream_ptr"),
+          nb::arg("split_half") = false, nb::arg("bnhd") = false);
+
+    m.def("rms_rope1", &rms_rope1, "Fused RMSNorm and RoPE for a single tensor",
+          nb::arg("q"), nb::arg("freqs"), nb::arg("q_scale"), nb::arg("q_out"),
+          nb::arg("epsilon"), nb::arg("stream_ptr"),
+          nb::arg("split_half") = false, nb::arg("bnhd") = false);
 
     m.def("quantize_nvfp4", &quantize_nvfp4,
           "Quantize to FP4 E2M1 with E4M3 block scales using cuBLAS tiled layout",
