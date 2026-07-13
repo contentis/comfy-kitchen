@@ -26,6 +26,10 @@ __all__ = [
     "apply_rope1",
     "apply_rope_split_half",
     "apply_rope_split_half1",
+    "rms_rope",
+    "rms_rope1",
+    "rms_rope_split_half",
+    "rms_rope_split_half1",
     "dequantize_nvfp4",
     "dequantize_per_tensor_fp8",
     "dequantize_int8_simple",
@@ -1763,6 +1767,185 @@ def apply_rope(
     return xq_out, xk_out
 
 
+
+def _native_rms_rope_layout(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    *,
+    extension_op: str,
+) -> bool | None:
+    if not (
+        _C is not None
+        and hasattr(_C, extension_op)
+        and x.ndim == 4
+        and x.shape[-1] >= 32
+        and x.shape[-1] % 32 == 0
+        and x.dtype in (torch.float16, torch.bfloat16)
+        and freqs_cis.ndim == 6
+        and freqs_cis.shape[0] in (1, x.shape[0])
+        and freqs_cis.shape[3:] == (x.shape[-1] // 2, 2, 2)
+    ):
+        return None
+
+    # BHND freqs are (B|1, 1, N|1, D/2, 2, 2); BNHD exchanges axes 1/2.
+    if freqs_cis.shape[1] == 1 and freqs_cis.shape[2] in (1, x.shape[2]):
+        return False
+    if freqs_cis.shape[1] in (1, x.shape[1]) and freqs_cis.shape[2] == 1:
+        return True
+    return None
+
+
+def _has_vectorizable_rms_rope_rows(x: torch.Tensor) -> bool:
+    return (
+        x.stride(-1) == 1
+        and x.data_ptr() % 8 == 0
+        and all(stride % 4 == 0 for stride in x.stride()[:-1])
+    )
+
+
+def _rms_rope1_cuda(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float,
+    *,
+    split_half: bool,
+) -> torch.Tensor:
+    bnhd = _native_rms_rope_layout(x, freqs_cis, extension_op="rms_rope1")
+    if bnhd is None:
+        from comfy_kitchen.backends.eager.rope import (
+            rms_rope1 as eager_rms_rope1,
+        )
+        from comfy_kitchen.backends.eager.rope import (
+            rms_rope_split_half1 as eager_rms_rope_split_half1,
+        )
+
+        impl = eager_rms_rope_split_half1 if split_half else eager_rms_rope1
+        return impl(x, freqs_cis, scale, epsilon)
+
+    if not _has_vectorizable_rms_rope_rows(x):
+        x = x.contiguous()
+    freqs_cis = freqs_cis.contiguous()
+    scale = scale.contiguous()
+
+    out = torch.empty(x.shape, dtype=x.dtype, device=x.device)
+    stream_ptr = torch.cuda.current_stream(x.device).cuda_stream
+    _C.rms_rope1(
+        _wrap_for_dlpack(x),
+        _wrap_for_dlpack(freqs_cis),
+        _wrap_for_dlpack(scale),
+        _wrap_for_dlpack(out),
+        epsilon,
+        stream_ptr,
+        split_half,
+        bnhd,
+    )
+    return out
+
+
+def _rms_rope_cuda(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None,
+    epsilon: float,
+    *,
+    split_half: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if k_scale is None:
+        k_scale = q_scale
+
+    bnhd = _native_rms_rope_layout(
+        q, freqs_cis, extension_op="rms_rope"
+    )
+    native_fast_path = (
+        bnhd is not None
+        and k.shape == q.shape
+        and k.dtype == q.dtype
+        and k_scale.ndim == 1
+        and k_scale.numel() == q.shape[-1]
+        and k_scale.dtype == q_scale.dtype
+    )
+    if not native_fast_path:
+        from comfy_kitchen.backends.eager.rope import (
+            rms_rope as eager_rms_rope,
+        )
+        from comfy_kitchen.backends.eager.rope import (
+            rms_rope_split_half as eager_rms_rope_split_half,
+        )
+
+        impl = eager_rms_rope_split_half if split_half else eager_rms_rope
+        return impl(q, k, freqs_cis, q_scale, k_scale, epsilon)
+
+    if not _has_vectorizable_rms_rope_rows(q):
+        q = q.contiguous()
+    if not _has_vectorizable_rms_rope_rows(k):
+        k = k.contiguous()
+    freqs_cis = freqs_cis.contiguous()
+    q_scale = q_scale.contiguous()
+    k_scale = k_scale.contiguous()
+
+    q_out = torch.empty(q.shape, dtype=q.dtype, device=q.device)
+    k_out = torch.empty(k.shape, dtype=k.dtype, device=k.device)
+    stream_ptr = torch.cuda.current_stream(q.device).cuda_stream
+    _C.rms_rope(
+        _wrap_for_dlpack(q),
+        _wrap_for_dlpack(k),
+        _wrap_for_dlpack(freqs_cis),
+        _wrap_for_dlpack(q_scale),
+        _wrap_for_dlpack(k_scale),
+        _wrap_for_dlpack(q_out),
+        _wrap_for_dlpack(k_out),
+        epsilon,
+        stream_ptr,
+        split_half,
+        bnhd,
+    )
+    return q_out, k_out
+
+
+def rms_rope1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    return _rms_rope1_cuda(x, freqs_cis, scale, epsilon, split_half=False)
+
+
+def rms_rope(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    return _rms_rope_cuda(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half=False)
+
+
+def rms_rope_split_half1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    return _rms_rope1_cuda(x, freqs_cis, scale, epsilon, split_half=True)
+
+
+def rms_rope_split_half(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    return _rms_rope_cuda(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half=True)
+
+
+
 def apply_rope_split_half1(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     if not x.is_contiguous():
         x = x.contiguous()
@@ -2249,6 +2432,90 @@ def _build_constraints() -> dict:
                 "freqs_cis": ParamConstraint(
                     dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
                     shape_rules=(ExactDims(6),),
+                ),
+            },
+            default_devices=cuda_devices,
+        ),
+        "rms_rope": FunctionConstraints(
+            params={
+                "q": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(4),),
+                ),
+                "k": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(6),),
+                ),
+                "q_scale": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(1),),
+                ),
+                "k_scale": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(1),),
+                ),
+            },
+            default_devices=cuda_devices,
+        ),
+        "rms_rope1": FunctionConstraints(
+            params={
+                "x": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(6),),
+                ),
+                "scale": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(1),),
+                ),
+            },
+            default_devices=cuda_devices,
+        ),
+        "rms_rope_split_half": FunctionConstraints(
+            params={
+                "q": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(4),),
+                ),
+                "k": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(6),),
+                ),
+                "q_scale": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(1),),
+                ),
+                "k_scale": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(1),),
+                ),
+            },
+            default_devices=cuda_devices,
+        ),
+        "rms_rope_split_half1": FunctionConstraints(
+            params={
+                "x": ParamConstraint(
+                    dtypes=frozenset({torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(4),),
+                ),
+                "freqs_cis": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(6),),
+                ),
+                "scale": ParamConstraint(
+                    dtypes=frozenset({torch.float32, torch.float16, torch.bfloat16}),
+                    shape_rules=(ExactDims(1),),
                 ),
             },
             default_devices=cuda_devices,

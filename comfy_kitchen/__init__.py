@@ -53,6 +53,10 @@ __all__ = [
     "apply_rope1",
     "apply_rope_split_half",
     "apply_rope_split_half1",
+    "rms_rope",
+    "rms_rope1",
+    "rms_rope_split_half",
+    "rms_rope_split_half1",
     # Utilities
     "swap_nibbles",
     "to_blocked",
@@ -428,6 +432,70 @@ def apply_rope(
         Tuple of (transformed_query, transformed_key)
     """
     return torch.ops.comfy_kitchen.apply_rope(xq, xk, freqs_cis)
+
+
+def rms_rope(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Apply per-head RMSNorm followed by interleaved RoPE to query and key tensors.
+
+    Interleaved layout: pair k uses adjacent elements [2k, 2k+1].
+
+    Args:
+        q: Query tensor.
+        k: Key tensor with the same shape as q.
+        freqs_cis: Precomputed frequency tensor.
+        q_scale: Per-dimension RMSNorm scale for q.
+        k_scale: Optional per-dimension RMSNorm scale for k. Defaults to q_scale.
+        epsilon: RMSNorm numerical-stability epsilon.
+
+    Returns:
+        Tuple of normalized and rotated (query, key) tensors.
+    """
+    return torch.ops.comfy_kitchen.rms_rope(q, k, freqs_cis, q_scale, k_scale, epsilon)
+
+
+def rms_rope1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    """Apply per-head RMSNorm followed by interleaved RoPE to a single tensor."""
+    return torch.ops.comfy_kitchen.rms_rope1(x, freqs_cis, scale, epsilon)
+
+
+def rms_rope_split_half(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Apply per-head RMSNorm and split-half RoPE to query and key tensors.
+
+    Split-half layout: pair k uses elements [k] and [k + head_dim//2].
+    """
+    return torch.ops.comfy_kitchen.rms_rope_split_half(q, k, freqs_cis, q_scale, k_scale, epsilon)
+
+
+def rms_rope_split_half1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    """Apply per-head RMSNorm followed by split-half RoPE to a single tensor.
+
+    Split-half layout: pair k uses elements [k] and [k + head_dim//2].
+    """
+    return torch.ops.comfy_kitchen.rms_rope_split_half1(x, freqs_cis, scale, epsilon)
 
 
 def apply_rope1(

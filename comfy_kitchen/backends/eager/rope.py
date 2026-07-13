@@ -32,6 +32,79 @@ def apply_rope_split_half(
     return apply_rope_split_half1(xq, freqs_cis), apply_rope_split_half1(xk, freqs_cis)
 
 
+def _rms_rope1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float,
+    *,
+    split_half: bool,
+) -> torch.Tensor:
+    x_float = x.float()
+    rrms = torch.rsqrt(x_float.square().mean(dim=-1, keepdim=True) + epsilon)
+    # The standalone sequence rounds RMSNorm to the activation dtype before RoPE.
+    x_norm = (x_float * rrms * scale.float()).to(x.dtype).float()
+    freqs = freqs_cis.float()
+    if split_half:
+        pairs = x_norm.reshape(*x.shape[:-1], 2, -1).movedim(-2, -1).unsqueeze(-2)
+        out = freqs[..., 0] * pairs[..., 0] + freqs[..., 1] * pairs[..., 1]
+        return out.movedim(-1, -2).reshape_as(x).to(x.dtype)
+
+    pairs = x_norm.reshape(*x.shape[:-1], -1, 1, 2)
+    out = freqs[..., 0] * pairs[..., 0] + freqs[..., 1] * pairs[..., 1]
+    return out.reshape_as(x).to(x.dtype)
+
+
+def rms_rope1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    return _rms_rope1(x, freqs_cis, scale, epsilon, split_half=False)
+
+
+def rms_rope(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if k_scale is None:
+        k_scale = q_scale
+    return (
+        _rms_rope1(q, freqs_cis, q_scale, epsilon, split_half=False),
+        _rms_rope1(k, freqs_cis, k_scale, epsilon, split_half=False),
+    )
+
+
+def rms_rope_split_half1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    return _rms_rope1(x, freqs_cis, scale, epsilon, split_half=True)
+
+
+def rms_rope_split_half(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if k_scale is None:
+        k_scale = q_scale
+    return (
+        _rms_rope1(q, freqs_cis, q_scale, epsilon, split_half=True),
+        _rms_rope1(k, freqs_cis, k_scale, epsilon, split_half=True),
+    )
+
+
 # =============================================================================
 # torch.library Custom Op Definitions
 # =============================================================================
@@ -51,6 +124,113 @@ def _op_apply_rope(
 @_op_apply_rope.register_fake
 def _op_apply_rope_fake(xq, xk, freqs_cis):
     return torch.empty_like(xq), torch.empty_like(xk)
+
+
+@torch.library.custom_op("comfy_kitchen::rms_rope", mutates_args=())
+def _op_rms_rope(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    from comfy_kitchen.registry import registry
+
+    kwargs = {
+        "q": q,
+        "k": k,
+        "freqs_cis": freqs_cis,
+        "q_scale": q_scale,
+        "k_scale": k_scale,
+        "epsilon": epsilon,
+    }
+    impl = registry.get_implementation("rms_rope", kwargs=kwargs)
+    return impl(**kwargs)
+
+
+@_op_rms_rope.register_fake
+def _op_rms_rope_fake(q, k, freqs_cis, q_scale, k_scale=None, epsilon=1e-6):
+    return torch.empty_like(q), torch.empty_like(k)
+
+
+@torch.library.custom_op("comfy_kitchen::rms_rope1", mutates_args=())
+def _op_rms_rope1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    from comfy_kitchen.registry import registry
+
+    kwargs = {
+        "x": x,
+        "freqs_cis": freqs_cis,
+        "scale": scale,
+        "epsilon": epsilon,
+    }
+    impl = registry.get_implementation("rms_rope1", kwargs=kwargs)
+    return impl(**kwargs)
+
+
+@_op_rms_rope1.register_fake
+def _op_rms_rope1_fake(x, freqs_cis, scale, epsilon=1e-6):
+    return torch.empty_like(x)
+
+
+@torch.library.custom_op("comfy_kitchen::rms_rope_split_half", mutates_args=())
+def _op_rms_rope_split_half(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    from comfy_kitchen.registry import registry
+
+    kwargs = {
+        "q": q,
+        "k": k,
+        "freqs_cis": freqs_cis,
+        "q_scale": q_scale,
+        "k_scale": k_scale,
+        "epsilon": epsilon,
+    }
+    impl = registry.get_implementation("rms_rope_split_half", kwargs=kwargs)
+    return impl(**kwargs)
+
+
+@_op_rms_rope_split_half.register_fake
+def _op_rms_rope_split_half_fake(
+    q, k, freqs_cis, q_scale, k_scale=None, epsilon=1e-6
+):
+    return torch.empty_like(q), torch.empty_like(k)
+
+
+@torch.library.custom_op("comfy_kitchen::rms_rope_split_half1", mutates_args=())
+def _op_rms_rope_split_half1(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float = 1e-6,
+) -> torch.Tensor:
+    from comfy_kitchen.registry import registry
+
+    kwargs = {
+        "x": x,
+        "freqs_cis": freqs_cis,
+        "scale": scale,
+        "epsilon": epsilon,
+    }
+    impl = registry.get_implementation("rms_rope_split_half1", kwargs=kwargs)
+    return impl(**kwargs)
+
+
+@_op_rms_rope_split_half1.register_fake
+def _op_rms_rope_split_half1_fake(x, freqs_cis, scale, epsilon=1e-6):
+    return torch.empty_like(x)
+
 
 
 @torch.library.custom_op("comfy_kitchen::apply_rope1", mutates_args=())
