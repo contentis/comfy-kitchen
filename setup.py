@@ -113,14 +113,15 @@ class CMakeBuildExt(build_ext):
         if generator:
             cmake_args.extend(["-G", generator])
 
-        # ccache/sccache are opt-in: ordinary source builds gain no dependency,
-        # while release builders can share expensive fatbin compilation results.
-        cuda_launcher = os.environ.get("CMAKE_CUDA_COMPILER_LAUNCHER")
+        # Compiler caching is opt-in. Pass project-specific variables so CMake
+        # enables the launchers after compiler identification; wrapping the
+        # identification probes is unreliable with NVCC + MSVC on Windows.
+        cuda_launcher = os.environ.get("COMFY_CUDA_COMPILER_LAUNCHER")
         if cuda_launcher:
-            cmake_args.append(f"-DCMAKE_CUDA_COMPILER_LAUNCHER={cuda_launcher}")
-        cxx_launcher = os.environ.get("CMAKE_CXX_COMPILER_LAUNCHER")
+            cmake_args.append(f"-DCOMFY_CUDA_COMPILER_LAUNCHER={cuda_launcher}")
+        cxx_launcher = os.environ.get("COMFY_CXX_COMPILER_LAUNCHER")
         if cxx_launcher:
-            cmake_args.append(f"-DCMAKE_CXX_COMPILER_LAUNCHER={cxx_launcher}")
+            cmake_args.append(f"-DCOMFY_CXX_COMPILER_LAUNCHER={cxx_launcher}")
 
         cuda_home, nvcc_bin = get_cuda_path()
         cmake_args.append(f"-DCUDAToolkit_ROOT={cuda_home}")
@@ -129,13 +130,9 @@ class CMakeBuildExt(build_ext):
         build_args = ["--config", config]
 
         max_jobs = os.cpu_count() or 1
-        # Use appropriate parallel build syntax for the platform
-        if os.name == "nt":
-            # Windows MSBuild uses /m:N for parallel builds
-            build_args.extend(["--", f"/m:{max_jobs}"])
-        else:
-            # Unix make uses -jN for parallel builds
-            build_args.extend(["--", f"-j{max_jobs}"])
+        # Let CMake translate parallelism for the selected generator. In
+        # particular, Ninja does not accept MSBuild's /m:N syntax.
+        build_args.extend(["--parallel", str(max_jobs)])
 
         # Run CMake configure
         source_dir = ext.source_dir if ext.source_dir else os.path.dirname(os.path.abspath(__file__))
