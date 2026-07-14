@@ -30,6 +30,11 @@ if "--no-cuda" in sys.argv:
 
 
 
+def cmake_path(path: str | os.PathLike[str]) -> str:
+    """Return a CMake-safe path with forward slashes on every platform."""
+    return os.fspath(path).replace("\\", "/")
+
+
 class CMakeExtension(Extension):
     def __init__(self, name: str, source_dir: str = ""):
         super().__init__(name, sources=[])
@@ -99,9 +104,9 @@ class CMakeBuildExt(build_ext):
         enable_lineinfo = self.lineinfo
 
         cmake_args = [
-            f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={ext_dir}",
+            f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={cmake_path(ext_dir)}",
             f"-DCMAKE_BUILD_TYPE={config}",
-            f"-DPython_EXECUTABLE={sys.executable}",
+            f"-DPython_EXECUTABLE={cmake_path(sys.executable)}",
             f"-DCOMFY_CUDA_ARCHS={cuda_archs}",
             f"-DCOMFY_ENABLE_LINEINFO={'ON' if enable_lineinfo else 'OFF'}",
         ]
@@ -124,8 +129,8 @@ class CMakeBuildExt(build_ext):
             cmake_args.append(f"-DCOMFY_CXX_COMPILER_LAUNCHER={cxx_launcher}")
 
         cuda_home, nvcc_bin = get_cuda_path()
-        cmake_args.append(f"-DCUDAToolkit_ROOT={cuda_home}")
-        cmake_args.append(f"-DCMAKE_CUDA_COMPILER={nvcc_bin}")
+        cmake_args.append(f"-DCUDAToolkit_ROOT={cmake_path(cuda_home)}")
+        cmake_args.append(f"-DCMAKE_CUDA_COMPILER={cmake_path(nvcc_bin)}")
 
         build_args = ["--config", config]
 
@@ -135,7 +140,7 @@ class CMakeBuildExt(build_ext):
         build_args.extend(["--parallel", str(max_jobs)])
 
         # Run CMake configure
-        source_dir = ext.source_dir if ext.source_dir else os.path.dirname(os.path.abspath(__file__))
+        source_dir = cmake_path(ext.source_dir if ext.source_dir else os.path.dirname(os.path.abspath(__file__)))
 
         print(f"Configuring CMake for {ext.name}...")
         print(f"  Source directory: {source_dir}")

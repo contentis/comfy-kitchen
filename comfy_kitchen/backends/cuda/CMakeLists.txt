@@ -4,6 +4,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 project(comfy_kitchen_cuda LANGUAGES CXX CUDA)
+
+# Enable compiler launchers only after CMake identifies the host and CUDA
+# compilers. This keeps ccache out of the MSVC/NVCC detection probes on
+# Windows, while still wrapping all target compilation commands.
+if(DEFINED COMFY_CXX_COMPILER_LAUNCHER)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${COMFY_CXX_COMPILER_LAUNCHER}")
+    message(STATUS "C++ compiler launcher: ${CMAKE_CXX_COMPILER_LAUNCHER}")
+endif()
+if(DEFINED COMFY_CUDA_COMPILER_LAUNCHER)
+    set(CMAKE_CUDA_COMPILER_LAUNCHER "${COMFY_CUDA_COMPILER_LAUNCHER}")
+    message(STATUS "CUDA compiler launcher: ${CMAKE_CUDA_COMPILER_LAUNCHER}")
+endif()
+
 find_package(CUDAToolkit REQUIRED)
 
 if(MSVC)
