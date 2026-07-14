@@ -2167,6 +2167,10 @@ void dequantize_int8_convrot_weight(
         stream);
 }
 
+#ifndef COMFY_KITCHEN_VERSION
+#error "COMFY_KITCHEN_VERSION must be defined by CMake"
+#endif
+
 NB_MODULE(_C, m) {
     m.doc() = "comfy_kitchen CUDA kernels - nanobind + DLPack interface (NO PyTorch C++ dependencies)";
     
@@ -2555,7 +2559,7 @@ NB_MODULE(_C, m) {
     m.attr("HAS_CUBLASLT") = comfy::CublasLtRuntime::instance().is_available();
 
     // Add version info
-    m.attr("__version__") = "0.1.0";
+    m.attr("__version__") = COMFY_KITCHEN_VERSION;
     m.attr("__nanobind__") = true;
     m.attr("__stable_abi__") = true;
 }

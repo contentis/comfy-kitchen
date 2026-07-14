@@ -25,6 +25,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-linux-x86_64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
+          restore-keys: |
+            ccache-linux-x86_64-cuda13-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -53,7 +60,7 @@ jobs:
             # Install ONLY the minimal CUDA packages needed for compilation (not the full toolkit)
             dnf install -y cuda-nvcc-13-0 cuda-cudart-devel-13-0 libcublas-devel-13-0 libnvjitlink-devel-13-0
             # Install Python development headers (fallback for CMake FindPython)
-            dnf install -y python3-devel
+            dnf install -y python3-devel ccache ninja-build
             # Verify CUDA installation
             /usr/local/cuda-13.0/bin/nvcc --version
 
@@ -63,6 +70,12 @@ jobs:
             PATH=/usr/local/cuda-13.0/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH
             LIBRARY_PATH=/usr/local/cuda-13.0/lib64/stubs:$LIBRARY_PATH
+            CMAKE_GENERATOR=Ninja
+            CMAKE_CUDA_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            CCACHE_DIR=/project/.ccache
+            CCACHE_BASEDIR=/project
+            CCACHE_COMPILERCHECK=content
 
           # Install Python build dependencies
           CIBW_BEFORE_BUILD: "pip install nanobind cmake setuptools wheel"
@@ -122,6 +135,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-linux-aarch64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
+          restore-keys: |
+            ccache-linux-aarch64-cuda13-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -151,7 +171,7 @@ jobs:
             # Install ONLY the minimal CUDA packages needed for compilation (not the full toolkit)
             dnf install -y cuda-nvcc-13-0 cuda-cudart-devel-13-0 libcublas-devel-13-0 libnvjitlink-devel-13-0
             # Install Python development headers (fallback for CMake FindPython)
-            dnf install -y python3-devel
+            dnf install -y python3-devel ccache ninja-build
             # Verify CUDA installation
             /usr/local/cuda-13.0/bin/nvcc --version
 
@@ -161,6 +181,12 @@ jobs:
             PATH=/usr/local/cuda-13.0/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH
             LIBRARY_PATH=/usr/local/cuda-13.0/lib64/stubs:$LIBRARY_PATH
+            CMAKE_GENERATOR=Ninja
+            CMAKE_CUDA_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            CCACHE_DIR=/project/.ccache
+            CCACHE_BASEDIR=/project
+            CCACHE_COMPILERCHECK=content
 
           # Install Python build dependencies
           CIBW_BEFORE_BUILD: "pip install nanobind cmake setuptools wheel"
@@ -206,6 +232,17 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-windows-x86_64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
+          restore-keys: |
+            ccache-windows-x86_64-cuda13-
+
+      - name: Install compiler cache and Ninja
+        shell: pwsh
+        run: choco install ccache ninja --no-progress --yes
       - name: Install CUDA Toolkit 13.0.2
         uses: Jimver/cuda-toolkit@v0.2.29
         id: cuda-toolkit
@@ -215,10 +252,16 @@ jobs:
           use-github-cache: 'true'
           log-file-suffix: 'windows-2022.txt'
 
-      - name: Set additional CUDA environment variables
+      - name: Set compiler-cache and CUDA environment
         shell: pwsh
         run: |
           echo "CUDA_PATH_V13_0=$env:CUDA_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CMAKE_GENERATOR=Ninja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CMAKE_CUDA_COMPILER_LAUNCHER=ccache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CCACHE_DIR=$env:GITHUB_WORKSPACE\.ccache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CCACHE_BASEDIR=$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CCACHE_COMPILERCHECK=content" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify CUDA installation
         shell: bash
@@ -229,85 +272,6 @@ jobs:
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup CUDA MSBuild integration
-        shell: pwsh
-        run: |
-          # Copy CUDA MSBuild integration files to Visual Studio directory
-          $cudaPath = $env:CUDA_PATH
-          $cudaMSBuildSource = Join-Path $cudaPath "extras\visual_studio_integration\MSBuildExtensions"
-          
-          if (-not (Test-Path $cudaMSBuildSource)) {
-            Write-Error "CUDA MSBuild extensions not found at $cudaMSBuildSource"
-            exit 1
-          }
-          
-          # Find Visual Studio installation
-          $vsBasePaths = @(
-            "C:\Program Files (x86)\Microsoft Visual Studio",
-            "C:\Program Files\Microsoft Visual Studio"
-          )
-          
-          $vsVersions = @("2022", "2019")
-          $vsEditions = @("BuildTools", "Enterprise", "Professional", "Community")
-          $toolsets = @("v170", "v160")
-          
-          $destinations = @()
-          
-          foreach ($basePath in $vsBasePaths) {
-            if (Test-Path $basePath) {
-              foreach ($version in $vsVersions) {
-                foreach ($edition in $vsEditions) {
-                  foreach ($toolset in $toolsets) {
-                    $vsPath = Join-Path $basePath "$version\$edition\MSBuild\Microsoft\VC\$toolset\BuildCustomizations"
-                    if (Test-Path $vsPath) {
-                      $destinations += $vsPath
-                    }
-                  }
-                }
-              }
-            }
-          }
-          
-          if ($destinations.Count -eq 0) {
-            Write-Error "Could not find Visual Studio MSBuild directory"
-            exit 1
-          }
-          
-          # CUDA 13.0 uses versioned filenames that need to be copied as both versioned and standard names
-          $fileMapping = @{
-            "CUDA 13.0.props" = @("CUDA 13.0.props", "CUDA.props")
-            "CUDA 13.0.targets" = @("CUDA 13.0.targets", "CUDA.targets")
-            "CUDA 13.0.xml" = @("CUDA 13.0.xml", "CUDA.xml")
-            "Nvda.Build.CudaTasks.v13.0.dll" = @("Nvda.Build.CudaTasks.v13.0.dll")
-          }
-          
-          $copySuccess = $false
-          
-          foreach ($destDir in $destinations) {
-            try {
-              foreach ($srcFileName in $fileMapping.Keys) {
-                $srcFile = Join-Path $cudaMSBuildSource $srcFileName
-                
-                if (Test-Path $srcFile) {
-                  foreach ($destFileName in $fileMapping[$srcFileName]) {
-                    $destFile = Join-Path $destDir $destFileName
-                    Copy-Item -Path $srcFile -Destination $destFile -Force
-                  }
-                }
-              }
-              $copySuccess = $true
-            } catch {
-              Write-Warning "Failed to copy to $destDir : $_"
-            }
-          }
-          
-          if (-not $copySuccess) {
-            Write-Error "Failed to copy CUDA MSBuild files to any destination"
-            exit 1
-          }
-          
-          Write-Host "CUDA MSBuild integration configured successfully"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -351,6 +315,10 @@ jobs:
           # Build with default platform-specific CUDA architectures from setup.py
           # Python 3.12 will produce abi3 wheel, 3.10/3.11 will be version-specific
           python setup.py bdist_wheel
+
+      - name: Report compiler-cache statistics
+        shell: pwsh
+        run: ccache --show-stats
 
       - name: List built wheels
         shell: bash

@@ -29,6 +29,12 @@ if "--no-cuda" in sys.argv:
     print("=" * 80 + "\n")
 
 
+_PROJECT_TOML = pathlib.Path(__file__).with_name("pyproject.toml")
+with _PROJECT_TOML.open("rb") as _project_file:
+    PROJECT_METADATA = tomllib.load(_project_file).get("project", {})
+PROJECT_VERSION = PROJECT_METADATA["version"]
+
+
 class CMakeExtension(Extension):
     def __init__(self, name: str, source_dir: str = ""):
         super().__init__(name, sources=[])
@@ -92,12 +98,6 @@ class CMakeBuildExt(build_ext):
         build_temp = pathlib.Path(self.build_temp).resolve()
         build_temp.mkdir(parents=True, exist_ok=True)
 
-        # Clean CMake cache if it exists (to avoid stale configuration)
-        cmake_cache = build_temp / "CMakeCache.txt"
-        if cmake_cache.exists():
-            cmake_cache.unlink()
-            print(f"Cleaned stale CMake cache: {cmake_cache}")
-
         # All options have been set in finalize_options with proper defaults
         config = "Debug" if self.debug_build else "Release"
         cuda_archs = self.cuda_archs
@@ -109,7 +109,24 @@ class CMakeBuildExt(build_ext):
             f"-DPython_EXECUTABLE={sys.executable}",
             f"-DCOMFY_CUDA_ARCHS={cuda_archs}",
             f"-DCOMFY_ENABLE_LINEINFO={'ON' if enable_lineinfo else 'OFF'}",
+            f"-DCOMFY_KITCHEN_VERSION={PROJECT_VERSION}",
         ]
+
+        # Let CMake manage its own configuration cache. Reconfiguring with the
+        # explicit arguments above updates changed settings without throwing
+        # away cached compiler checks and the generated build graph.
+        generator = os.environ.get("CMAKE_GENERATOR")
+        if generator:
+            cmake_args.extend(["-G", generator])
+
+        # ccache/sccache are opt-in: ordinary source builds gain no dependency,
+        # while release builders can share expensive fatbin compilation results.
+        cuda_launcher = os.environ.get("CMAKE_CUDA_COMPILER_LAUNCHER")
+        if cuda_launcher:
+            cmake_args.append(f"-DCMAKE_CUDA_COMPILER_LAUNCHER={cuda_launcher}")
+        cxx_launcher = os.environ.get("CMAKE_CXX_COMPILER_LAUNCHER")
+        if cxx_launcher:
+            cmake_args.append(f"-DCMAKE_CXX_COMPILER_LAUNCHER={cxx_launcher}")
 
         cuda_home, nvcc_bin = get_cuda_path()
         cmake_args.append(f"-DCUDAToolkit_ROOT={cuda_home}")
@@ -329,12 +346,8 @@ setup_kwargs = {
 }
 
 if BUILD_NO_CUDA:
-    with open("pyproject.toml", "rb") as f:
-        pyproject = tomllib.load(f)
-
-    project_meta = pyproject.get("project", {})
-    version = project_meta.get("version", "0.1.0")
-    description = project_meta.get("description", "")
+    version = PROJECT_VERSION
+    description = PROJECT_METADATA.get("description", "")
 
     setup_kwargs.update({
         "packages": get_packages(),

@@ -99,6 +99,10 @@ if(COMFY_ENABLE_LINEINFO OR CMAKE_BUILD_TYPE STREQUAL "Debug")
     list(APPEND CUDA_NVCC_FLAGS -lineinfo)
 endif()
 
+if(NOT DEFINED COMFY_KITCHEN_VERSION)
+    message(FATAL_ERROR "COMFY_KITCHEN_VERSION must be passed by setup.py")
+endif()
+
 # Source files
 set(CUDA_SOURCES
     ops/per_tensor_quantize.cu
@@ -123,33 +127,15 @@ set(CPP_SOURCES
     dlpack_bindings.cpp
 )
 
-# Create the nanobind module
-# Python 3.12+: Use stable ABI (abi3) for forward compatibility with 3.13+
-# Python 3.10/3.11: Version-specific module (nanobind stable ABI requires 3.12+)
-if(Python_VERSION VERSION_GREATER_EQUAL "3.12")
-    message(STATUS "Python ${Python_VERSION} detected - enabling stable ABI (abi3)")
-    nanobind_add_module(_C NB_STATIC STABLE_ABI LTO ${CPP_SOURCES} ${CUDA_SOURCES})
-    # Explicitly set abi3 suffix
-    if(WIN32)
-        set_target_properties(_C PROPERTIES SUFFIX ".abi3.pyd")
-    else()
-        set_target_properties(_C PROPERTIES SUFFIX ".abi3.so")
-    endif()
-    target_compile_definitions(_C PRIVATE Py_LIMITED_API=0x030C0000)
-else()
-    message(STATUS "Python ${Python_VERSION} detected - building version-specific wheel")
-    nanobind_add_module(_C NB_STATIC LTO ${CPP_SOURCES} ${CUDA_SOURCES})
-endif()
-
-target_compile_definitions(_C PRIVATE NB_STATIC)
-
-# Set target properties
-target_compile_options(_C PRIVATE
+# Keep CUDA compilation independent of the Python extension target. The
+# kernels consume CUDA, DLPack, and project headers only, so a compiler cache
+# can reuse their fatbin objects across CPython wheel builds. _C remains the
+# only Python-facing shared library.
+add_library(comfy_kitchen_cuda_kernels OBJECT ${CUDA_SOURCES})
+target_compile_options(comfy_kitchen_cuda_kernels PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>
 )
-
-# Include directories
-target_include_directories(_C PRIVATE
+target_include_directories(comfy_kitchen_cuda_kernels PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CUDAToolkit_INCLUDE_DIRS}
 )
@@ -162,11 +148,42 @@ if(NOT DEFINED COMFY_CUTLASS_DIR)
 endif()
 if(EXISTS "${COMFY_CUTLASS_DIR}/cutlass/version.h")
     message(STATUS "CUTLASS found: ${COMFY_CUTLASS_DIR}")
-    target_include_directories(_C PRIVATE ${COMFY_CUTLASS_DIR})
-    target_compile_definitions(_C PRIVATE COMFY_HAVE_CUTLASS)
+    target_include_directories(comfy_kitchen_cuda_kernels PRIVATE ${COMFY_CUTLASS_DIR})
+    target_compile_definitions(comfy_kitchen_cuda_kernels PRIVATE COMFY_HAVE_CUTLASS)
 else()
     message(STATUS "CUTLASS not found at ${COMFY_CUTLASS_DIR} - int8 GEMM uses cuBLAS only")
 endif()
+
+# Create the nanobind module
+# Python 3.12+: Use stable ABI (abi3) for forward compatibility with 3.13+
+# Python 3.10/3.11: Version-specific module (nanobind stable ABI requires 3.12+)
+if(Python_VERSION VERSION_GREATER_EQUAL "3.12")
+    message(STATUS "Python ${Python_VERSION} detected - enabling stable ABI (abi3)")
+    nanobind_add_module(_C NB_STATIC STABLE_ABI LTO ${CPP_SOURCES})
+    # Explicitly set abi3 suffix
+    if(WIN32)
+        set_target_properties(_C PROPERTIES SUFFIX ".abi3.pyd")
+    else()
+        set_target_properties(_C PROPERTIES SUFFIX ".abi3.so")
+    endif()
+    target_compile_definitions(_C PRIVATE Py_LIMITED_API=0x030C0000)
+else()
+    message(STATUS "Python ${Python_VERSION} detected - building version-specific wheel")
+    nanobind_add_module(_C NB_STATIC LTO ${CPP_SOURCES})
+endif()
+
+target_sources(_C PRIVATE $<TARGET_OBJECTS:comfy_kitchen_cuda_kernels>)
+
+target_compile_definitions(_C PRIVATE
+    NB_STATIC
+    COMFY_KITCHEN_VERSION="${COMFY_KITCHEN_VERSION}"
+)
+
+# Include directories
+target_include_directories(_C PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CUDAToolkit_INCLUDE_DIRS}
+)
 
 # Link libraries
 # Note: cuBLASLt is loaded dynamically at runtime via dlopen/LoadLibrary
