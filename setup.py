@@ -128,15 +128,19 @@ class CMakeBuildExt(build_ext):
         if cxx_launcher:
             cmake_args.append(f"-DCOMFY_CXX_COMPILER_LAUNCHER={cxx_launcher}")
 
-        cuda_home, nvcc_bin = get_cuda_path()
+        cuda_paths = get_cuda_path()
+        if cuda_paths is None:
+            raise RuntimeError(
+                "CUDA extension build requested, but nvcc could not be found. "
+                "Set CUDA_HOME to a valid CUDA toolkit or build with --no-cuda."
+            )
+        cuda_home, nvcc_bin = cuda_paths
         cmake_args.append(f"-DCUDAToolkit_ROOT={cmake_path(cuda_home)}")
         cmake_args.append(f"-DCMAKE_CUDA_COMPILER={cmake_path(nvcc_bin)}")
 
         build_args = ["--config", config]
 
         max_jobs = os.cpu_count() or 1
-        # Let CMake translate parallelism for the selected generator. In
-        # particular, Ninja does not accept MSBuild's /m:N syntax.
         build_args.extend(["--parallel", str(max_jobs)])
 
         # Run CMake configure
@@ -175,7 +179,7 @@ class CMakeBuildExt(build_ext):
 
         print(f"Successfully built {ext.name}")
 
-def get_cuda_path():
+def get_cuda_path() -> tuple[pathlib.Path, pathlib.Path] | None:
     nvcc_bin = None
     cuda_home = os.getenv("CUDA_HOME")
     if cuda_home:
@@ -193,12 +197,16 @@ def get_cuda_path():
         return None
 
     if cuda_home is None:
-        cuda_home = str(nvcc_bin.parent.parent)
+        cuda_home = nvcc_bin.parent.parent
 
-    return cuda_home, nvcc_bin
+    return pathlib.Path(cuda_home), nvcc_bin
 
 def get_cuda_version() -> tuple[int, ...] | None:
-    _cuda_home, nvcc_bin = get_cuda_path()
+    cuda_paths = get_cuda_path()
+    if cuda_paths is None:
+        return None
+
+    _cuda_home, nvcc_bin = cuda_paths
     try:
         output = subprocess.run(
             [nvcc_bin, "-V"],
@@ -206,7 +214,7 @@ def get_cuda_version() -> tuple[int, ...] | None:
             check=True,
             text=True,
         )
-    except subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         return None
 
     match = re.search(r"release\s*([\d.]+)", output.stdout)
