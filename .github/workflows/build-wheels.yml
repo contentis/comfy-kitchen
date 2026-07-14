@@ -29,9 +29,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-linux-x86_64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
+          key: ccache-4.13.6-linux-x86_64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
           restore-keys: |
-            ccache-linux-x86_64-cuda13-
+            ccache-4.13.6-linux-x86_64-cuda13-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -60,9 +60,24 @@ jobs:
             # Install ONLY the minimal CUDA packages needed for compilation (not the full toolkit)
             dnf install -y cuda-nvcc-13-0 cuda-cudart-devel-13-0 libcublas-devel-13-0 libnvjitlink-devel-13-0
             # Install Python development headers (fallback for CMake FindPython)
-            dnf install -y python3-devel ccache ninja-build
+            dnf install -y python3-devel curl ninja-build tar xz
+            # EL8 ships ccache 3.7.7, which predates NVCC -x cu handling.
+            # Use the same pinned modern ccache release on both Linux architectures.
+            CCACHE_VERSION=4.13.6
+            CCACHE_ARCH=$(uname -m)
+            case "$CCACHE_ARCH" in
+              x86_64) CCACHE_SHA256=156ec57c5198cc849d92834023d09910b83dc5504c6cf405d09e6ae7b208a3e5 ;;
+              aarch64) CCACHE_SHA256=2098d561e4a8e36bd06a29aedce53ea90c7e365f9573a93d91c230efbf96a958 ;;
+              *) echo "Unsupported ccache architecture: $CCACHE_ARCH" >&2; exit 1 ;;
+            esac
+            CCACHE_ARCHIVE="ccache-$CCACHE_VERSION-linux-$CCACHE_ARCH-musl-static.tar.xz"
+            curl --fail --location --retry 3 --silent --show-error "https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/$CCACHE_ARCHIVE" --output "/tmp/$CCACHE_ARCHIVE"
+            echo "$CCACHE_SHA256  /tmp/$CCACHE_ARCHIVE" | sha256sum --check
+            tar -xJf "/tmp/$CCACHE_ARCHIVE" -C /tmp
+            install -m 755 "/tmp/${CCACHE_ARCHIVE%.tar.xz}/ccache" /usr/local/bin/ccache
+            ccache --version
             # Reset counters, but retain restored compiler objects.
-            CCACHE_DIR=/project/.ccache ccache --zero-stats
+            CCACHE_DIR=/host${{ github.workspace }}/.ccache ccache --zero-stats
             # Verify CUDA installation
             /usr/local/cuda-13.0/bin/nvcc --version
 
@@ -75,7 +90,7 @@ jobs:
             CMAKE_GENERATOR=Ninja
             COMFY_CUDA_COMPILER_LAUNCHER=ccache
             COMFY_CXX_COMPILER_LAUNCHER=ccache
-            CCACHE_DIR=/project/.ccache
+            CCACHE_DIR=/host${{ github.workspace }}/.ccache
             CCACHE_BASEDIR=/project
             CCACHE_COMPILERCHECK=content
 
@@ -98,6 +113,16 @@ jobs:
 
         with:
           output-dir: wheelhouse
+
+      - name: Report final compiler-cache statistics
+        shell: bash
+        run: |
+          ccache_version=4.13.6
+          archive="$RUNNER_TEMP/ccache-$ccache_version-linux-x86_64-musl-static.tar.xz"
+          curl --fail --location --retry 3 --silent --show-error "https://github.com/ccache/ccache/releases/download/v$ccache_version/ccache-$ccache_version-linux-x86_64-musl-static.tar.xz" --output "$archive"
+          echo "156ec57c5198cc849d92834023d09910b83dc5504c6cf405d09e6ae7b208a3e5  $archive" | sha256sum --check
+          tar -xJf "$archive" -C "$RUNNER_TEMP"
+          CCACHE_DIR="$GITHUB_WORKSPACE/.ccache" "$RUNNER_TEMP/ccache-$ccache_version-linux-x86_64-musl-static/ccache" --show-stats
 
       - name: Build CPU-only wheel (py3-none-any)
         shell: bash
@@ -144,9 +169,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-linux-aarch64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
+          key: ccache-4.13.6-linux-aarch64-cuda13-${{ hashFiles('setup.py', 'comfy_kitchen/backends/cuda/**', 'third_party/cutlass/.git') }}
           restore-keys: |
-            ccache-linux-aarch64-cuda13-
+            ccache-4.13.6-linux-aarch64-cuda13-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -176,9 +201,24 @@ jobs:
             # Install ONLY the minimal CUDA packages needed for compilation (not the full toolkit)
             dnf install -y cuda-nvcc-13-0 cuda-cudart-devel-13-0 libcublas-devel-13-0 libnvjitlink-devel-13-0
             # Install Python development headers (fallback for CMake FindPython)
-            dnf install -y python3-devel ccache ninja-build
+            dnf install -y python3-devel curl ninja-build tar xz
+            # EL8 ships ccache 3.7.7, which predates NVCC -x cu handling.
+            # Use the same pinned modern ccache release on both Linux architectures.
+            CCACHE_VERSION=4.13.6
+            CCACHE_ARCH=$(uname -m)
+            case "$CCACHE_ARCH" in
+              x86_64) CCACHE_SHA256=156ec57c5198cc849d92834023d09910b83dc5504c6cf405d09e6ae7b208a3e5 ;;
+              aarch64) CCACHE_SHA256=2098d561e4a8e36bd06a29aedce53ea90c7e365f9573a93d91c230efbf96a958 ;;
+              *) echo "Unsupported ccache architecture: $CCACHE_ARCH" >&2; exit 1 ;;
+            esac
+            CCACHE_ARCHIVE="ccache-$CCACHE_VERSION-linux-$CCACHE_ARCH-musl-static.tar.xz"
+            curl --fail --location --retry 3 --silent --show-error "https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/$CCACHE_ARCHIVE" --output "/tmp/$CCACHE_ARCHIVE"
+            echo "$CCACHE_SHA256  /tmp/$CCACHE_ARCHIVE" | sha256sum --check
+            tar -xJf "/tmp/$CCACHE_ARCHIVE" -C /tmp
+            install -m 755 "/tmp/${CCACHE_ARCHIVE%.tar.xz}/ccache" /usr/local/bin/ccache
+            ccache --version
             # Reset counters, but retain restored compiler objects.
-            CCACHE_DIR=/project/.ccache ccache --zero-stats
+            CCACHE_DIR=/host${{ github.workspace }}/.ccache ccache --zero-stats
             # Verify CUDA installation
             /usr/local/cuda-13.0/bin/nvcc --version
 
@@ -191,7 +231,7 @@ jobs:
             CMAKE_GENERATOR=Ninja
             COMFY_CUDA_COMPILER_LAUNCHER=ccache
             COMFY_CXX_COMPILER_LAUNCHER=ccache
-            CCACHE_DIR=/project/.ccache
+            CCACHE_DIR=/host${{ github.workspace }}/.ccache
             CCACHE_BASEDIR=/project
             CCACHE_COMPILERCHECK=content
 
@@ -214,6 +254,16 @@ jobs:
 
         with:
           output-dir: wheelhouse
+
+      - name: Report final compiler-cache statistics
+        shell: bash
+        run: |
+          ccache_version=4.13.6
+          archive="$RUNNER_TEMP/ccache-$ccache_version-linux-aarch64-musl-static.tar.xz"
+          curl --fail --location --retry 3 --silent --show-error "https://github.com/ccache/ccache/releases/download/v$ccache_version/ccache-$ccache_version-linux-aarch64-musl-static.tar.xz" --output "$archive"
+          echo "2098d561e4a8e36bd06a29aedce53ea90c7e365f9573a93d91c230efbf96a958  $archive" | sha256sum --check
+          tar -xJf "$archive" -C "$RUNNER_TEMP"
+          CCACHE_DIR="$GITHUB_WORKSPACE/.ccache" "$RUNNER_TEMP/ccache-$ccache_version-linux-aarch64-musl-static/ccache" --show-stats
 
       - name: List built wheels
         shell: bash
