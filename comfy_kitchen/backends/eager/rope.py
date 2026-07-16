@@ -40,19 +40,15 @@ def _rms_rope1(
     *,
     split_half: bool,
 ) -> torch.Tensor:
-    x_float = x.float()
-    rrms = torch.rsqrt(x_float.square().mean(dim=-1, keepdim=True) + epsilon)
-    # The standalone sequence rounds RMSNorm to the activation dtype before RoPE.
-    x_norm = (x_float * rrms * scale.float()).to(x.dtype).float()
-    freqs = freqs_cis.float()
+    x_norm = torch.nn.functional.rms_norm(
+        x,
+        (x.shape[-1],),
+        weight=scale,
+        eps=epsilon,
+    )
     if split_half:
-        pairs = x_norm.reshape(*x.shape[:-1], 2, -1).movedim(-2, -1).unsqueeze(-2)
-        out = freqs[..., 0] * pairs[..., 0] + freqs[..., 1] * pairs[..., 1]
-        return out.movedim(-1, -2).reshape_as(x).to(x.dtype)
-
-    pairs = x_norm.reshape(*x.shape[:-1], -1, 1, 2)
-    out = freqs[..., 0] * pairs[..., 0] + freqs[..., 1] * pairs[..., 1]
-    return out.reshape_as(x).to(x.dtype)
+        return apply_rope_split_half1(x_norm, freqs_cis)
+    return apply_rope1(x_norm, freqs_cis)
 
 
 def rms_rope1(
