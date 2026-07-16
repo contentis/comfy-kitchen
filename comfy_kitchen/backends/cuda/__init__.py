@@ -164,6 +164,7 @@ _empty_cuda_tensors: dict[tuple[str, int | None, torch.dtype], torch.Tensor] = {
 _turing_device_cache: dict[int, bool] = {}
 _nvidia_16_series_device_cache: dict[int, bool] = {}
 _cutlass_int8_device_cache: dict[int, bool] = {}
+_device_capability_cache: dict[int, tuple[int, int]] = {}
 _FORCE_INT4_INT8_FALLBACK = os.environ.get("COMFY_KITCHEN_FORCE_INT4_INT8_FALLBACK", "0") == "1"
 _INT4_PACKED_WEIGHT_SMALL_M_MAX = 8
 _INT4_INT8_WEIGHT_CHUNK_N = max(1, int(os.environ.get("COMFY_KITCHEN_INT4_INT8_WEIGHT_CHUNK_N", "4096")))
@@ -181,6 +182,14 @@ _NVIDIA_16_SERIES = (
     "T1000",
     "T1200",
 )
+
+
+def _cuda_device_capability(device_index: int) -> tuple[int, int]:
+    capability = _device_capability_cache.get(device_index)
+    if capability is None:
+        capability = torch.cuda.get_device_capability(device_index)
+        _device_capability_cache[device_index] = capability
+    return capability
 
 
 def _cuda_device_is_turing(device_index: int) -> bool:
@@ -389,15 +398,15 @@ def _int8_weight_scale_arg(weight_scale: torch.Tensor, device: torch.device) -> 
     return weight_scale.to(device=device, dtype=torch.float32).reshape(-1).contiguous()
 
 
-def _prefer_cublas_int8_fallback(m: int, n: int, k: int) -> bool:
-    cutlass_n_le_k_exception = (
-        (n == k and n <= 2560)
-        or (m >= 1024 and n == 2560 and k == 6912)
-    )
-    return m > 1 and (
-        (n <= k and not cutlass_n_le_k_exception)
-        or (m <= 512 and k >= 4096 and n > k and n <= 3 * k)
-    )
+def _prefer_cublas_int8_fallback(
+    m: int,
+    n: int,
+    k: int,
+    device_index: int,
+) -> bool:
+    major = _cuda_device_capability(device_index)[0]
+    activation_threshold = 1_200_000 if major >= 9 else 100 * 1024 * 1024
+    return n < k and m * k >= activation_threshold
 
 
 def _wrap_for_dlpack(tensor: torch.Tensor):
@@ -844,7 +853,12 @@ def _int4_linear_via_int8_values(
             return turing_output
 
     used_cutlass = False
-    prefer_cublas_fallback = _prefer_cublas_int8_fallback(m, n, k)
+    prefer_cublas_fallback = _prefer_cublas_int8_fallback(
+        m,
+        n,
+        k,
+        x_int8.get_device(),
+    )
     if (
         not prefer_cublas_fallback
         and not _DISABLE_CUTLASS_INT8
@@ -1788,7 +1802,12 @@ def int8_linear(
             return turing_out if is_2d_output else turing_out.reshape(*orig_shape[:-1], n)
 
     used_cutlass = False
-    prefer_cublas_fallback = _prefer_cublas_int8_fallback(m, n, k)
+    prefer_cublas_fallback = _prefer_cublas_int8_fallback(
+        m,
+        n,
+        k,
+        x_qdata.get_device(),
+    )
     if (
         not prefer_cublas_fallback
         and not _DISABLE_CUTLASS_INT8
