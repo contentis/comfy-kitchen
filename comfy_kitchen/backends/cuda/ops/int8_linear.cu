@@ -545,8 +545,8 @@ __global__ void dequantize_int8_rowwise_vec4_2d_kernel(
     int rows,
     int inner_dim_vec4)
 {
-    const int row = static_cast<int>(blockIdx.y);
-    const int col4 = static_cast<int>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const int row = static_cast<int>(blockIdx.x);
+    const int col4 = static_cast<int>(blockIdx.y) * blockDim.x + threadIdx.x;
     if (row >= rows || col4 >= inner_dim_vec4) {
         return;
     }
@@ -729,8 +729,8 @@ __global__ void dequantize_int8_convrot_groups64_kernel(
 
     const int sub = threadIdx.x / kGroupThreads;
     const int lane = threadIdx.x % kGroupThreads;
-    const int group = static_cast<int>(blockIdx.x) * GROUPS_PER_BLOCK + sub;
-    const int row = static_cast<int>(blockIdx.y);
+    const int group = static_cast<int>(blockIdx.y) * GROUPS_PER_BLOCK + sub;
+    const int64_t row = blockIdx.x;
     const bool active = group < K / kConvRotGroup;
     const int64_t row_offset = static_cast<int64_t>(row) * K;
     const int group_col = group * kConvRotGroup;
@@ -773,8 +773,8 @@ __global__ void rotate_int8_convrot_groups64_amax_kernel(
 
     const int sub = threadIdx.x / kGroupThreads;
     const int lane = threadIdx.x % kGroupThreads;
-    const int group = static_cast<int>(blockIdx.x) * GROUPS_PER_BLOCK + sub;
-    const int row = static_cast<int>(blockIdx.y);
+    const int group = static_cast<int>(blockIdx.y) * GROUPS_PER_BLOCK + sub;
+    const int64_t row = blockIdx.x;
     const int n_groups = K / kConvRotGroup;
     const bool active = group < n_groups;
     const int64_t row_offset = static_cast<int64_t>(row) * K;
@@ -828,8 +828,8 @@ __global__ void rotate_int8_convrot_groups64_kernel(
 
     const int sub = threadIdx.x / kGroupThreads;
     const int lane = threadIdx.x % kGroupThreads;
-    const int group = static_cast<int>(blockIdx.x) * GROUPS_PER_BLOCK + sub;
-    const int row = static_cast<int>(blockIdx.y);
+    const int group = static_cast<int>(blockIdx.y) * GROUPS_PER_BLOCK + sub;
+    const int64_t row = blockIdx.x;
     const bool active = group < K / kConvRotGroup;
     const int64_t row_offset = static_cast<int64_t>(row) * K;
     const int group_col = group * kConvRotGroup;
@@ -1147,7 +1147,9 @@ void launch_rotate_int8_convrot_weight_kernel(
     const int group_blocks =
         static_cast<int>((num_cols / comfy::kConvRotGroup + groups_per_block - 1) / groups_per_block);
     const size_t smem_bytes = groups_per_block * 2 * comfy::kConvRotGroup * sizeof(float);
-    dim3 grid(static_cast<unsigned int>(group_blocks), static_cast<unsigned int>(num_rows));
+    const dim3 grid(
+        static_cast<unsigned int>(num_rows),
+        static_cast<unsigned int>(group_blocks));
 
     DISPATCH_FP_DTYPE(input_dtype_code, InputType, [&] {
         DISPATCH_FP_DTYPE(output_dtype_code, OutputType, [&] {
@@ -1198,7 +1200,9 @@ void launch_quantize_int8_convrot_staged_kernel(
     const int group_blocks =
         static_cast<int>((num_cols / comfy::kConvRotGroup + groups_per_block - 1) / groups_per_block);
     const size_t smem_bytes = groups_per_block * 2 * comfy::kConvRotGroup * sizeof(float);
-    dim3 rotate_grid(static_cast<unsigned int>(group_blocks), static_cast<unsigned int>(num_rows));
+    const dim3 rotate_grid(
+        static_cast<unsigned int>(num_rows),
+        static_cast<unsigned int>(group_blocks));
 
     DISPATCH_FP_DTYPE(input_dtype_code, InputType, [&] {
         DISPATCH_FP_DTYPE(rotated_dtype_code, RotatedType, [&] {
@@ -1559,7 +1563,7 @@ void launch_dequantize_int8_simple_kernel(
         if (inner_dim >= 1024 && rows <= static_cast<int64_t>(std::numeric_limits<int>::max())) {
             const int block_threads = inner_dim >= 4096 ? 512 : comfy::kInt8Threads;
             const int blocks_x = static_cast<int>((inner_dim_vec4 + block_threads - 1) / block_threads);
-            dim3 grid(static_cast<unsigned int>(blocks_x), static_cast<unsigned int>(rows));
+            dim3 grid(static_cast<unsigned int>(rows), static_cast<unsigned int>(blocks_x));
             DISPATCH_FP_DTYPE(output_dtype_code, OutputType, [&] {
                 comfy::dequantize_int8_rowwise_vec4_2d_kernel<OutputType>
                     <<<grid, block_threads, 0, stream>>>(
@@ -1672,7 +1676,9 @@ void launch_dequantize_int8_convrot_kernel(
             const int group_blocks =
                 static_cast<int>((num_cols / comfy::kConvRotGroup + groups_per_block - 1) / groups_per_block);
             const size_t smem_bytes = groups_per_block * 2 * comfy::kConvRotGroup * sizeof(float);
-            dim3 grid(static_cast<unsigned int>(group_blocks), static_cast<unsigned int>(num_rows));
+            const dim3 grid(
+                static_cast<unsigned int>(num_rows),
+                static_cast<unsigned int>(group_blocks));
             DISPATCH_FP_DTYPE(output_dtype_code, OutputType, [&] {
                 comfy::dequantize_int8_convrot_groups64_kernel<groups_per_block, OutputType>
                     <<<grid, block_threads, smem_bytes, stream>>>(

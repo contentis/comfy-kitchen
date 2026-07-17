@@ -1377,8 +1377,8 @@ __global__ void dequantize_int4_convrot_small_kernel(
 
     const int sub = threadIdx.x / kGroupThreads;
     const int lane = threadIdx.x % kGroupThreads;
-    const int group = static_cast<int>(blockIdx.x) * GROUPS_PER_BLOCK + sub;
-    const int row = static_cast<int>(blockIdx.y);
+    const int group = static_cast<int>(blockIdx.y) * GROUPS_PER_BLOCK + sub;
+    const int row = static_cast<int>(blockIdx.x);
     const bool active = !CHECK_BOUNDS || group < K / GROUP_SIZE;
     const int64_t row_offset = static_cast<int64_t>(row) * K;
     const int group_col = group * GROUP_SIZE;
@@ -1432,8 +1432,8 @@ __global__ void dequantize_int4_convrot64_kernel(
 
     const int sub = threadIdx.x / kGroupThreads;
     const int lane = threadIdx.x % kGroupThreads;
-    const int group = static_cast<int>(blockIdx.x) * GROUPS_PER_BLOCK + sub;
-    const int row = static_cast<int>(blockIdx.y);
+    const int group = static_cast<int>(blockIdx.y) * GROUPS_PER_BLOCK + sub;
+    const int row = static_cast<int>(blockIdx.x);
     const bool active = !CHECK_BOUNDS || group < K / kConvRotGroup;
     const int64_t row_offset = static_cast<int64_t>(row) * K;
     const int group_col = group * kConvRotGroup;
@@ -1488,8 +1488,8 @@ __global__ void dequantize_int4_convrot64_warp32_kernel(
 
     const int sub = threadIdx.x / kGroupThreads;
     const int lane = threadIdx.x & (kGroupThreads - 1);
-    const int group = static_cast<int>(blockIdx.x) * GROUPS_PER_BLOCK + sub;
-    const int row = static_cast<int>(blockIdx.y);
+    const int group = static_cast<int>(blockIdx.y) * GROUPS_PER_BLOCK + sub;
+    const int row = static_cast<int>(blockIdx.x);
     const bool active = !CHECK_BOUNDS || group < K / kConvRotGroup;
     const int64_t row_offset = static_cast<int64_t>(row) * K;
     const int group_col = group * kConvRotGroup;
@@ -2351,7 +2351,7 @@ void launch_dequantize_int4_convrot64_kernel(
         constexpr int block_threads = groups_per_block * (small_group_size / 4);
         const int group_blocks =
             static_cast<int>((num_cols / small_group_size + groups_per_block - 1) / groups_per_block);
-        dim3 grid(static_cast<unsigned int>(group_blocks), static_cast<unsigned int>(num_rows));
+        dim3 grid(static_cast<unsigned int>(num_rows), static_cast<unsigned int>(group_blocks));
         const bool check_bounds = ((num_cols / small_group_size) % groups_per_block) != 0;
         const bool scale_per_row = scale_size != 1;
 
@@ -2489,7 +2489,7 @@ void launch_dequantize_int4_convrot64_kernel(
         constexpr int block_threads = groups_per_block * 64;
         const int group_blocks =
             static_cast<int>((num_cols / kConvRotGroup + groups_per_block - 1) / groups_per_block);
-        dim3 grid(static_cast<unsigned int>(group_blocks), static_cast<unsigned int>(num_rows));
+        dim3 grid(static_cast<unsigned int>(num_rows), static_cast<unsigned int>(group_blocks));
         const bool check_bounds = ((num_cols / kConvRotGroup) % groups_per_block) != 0;
         const bool scale_per_row = scale_size != 1;
 
@@ -2618,7 +2618,7 @@ void launch_dequantize_int4_convrot64_kernel(
         constexpr int block_threads = groups_per_block * 32;
         const int group_blocks =
             static_cast<int>((num_cols / kConvRotGroup + groups_per_block - 1) / groups_per_block);
-        dim3 grid(static_cast<unsigned int>(group_blocks), static_cast<unsigned int>(num_rows));
+        dim3 grid(static_cast<unsigned int>(num_rows), static_cast<unsigned int>(group_blocks));
         const bool check_bounds = ((num_cols / kConvRotGroup) % groups_per_block) != 0;
         const bool scale_per_row = scale_size != 1;
 

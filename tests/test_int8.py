@@ -674,6 +674,36 @@ class TestTensorWiseINT8Layout:
         rel_err = (w.float() - dq.float()).abs() / (w.float().abs().max() + 1e-8)
         assert rel_err.mean().item() < 0.02
 
+    def test_convrot_int8_supports_65536_rows(self):
+        """INT8 and INT4 kernels put large row counts in CUDA's grid.x dimension."""
+        rows, cols = 1 << 16, 256
+        row = torch.linspace(-1.0, 1.0, cols, device="cuda", dtype=torch.bfloat16)
+        weight = row.expand(rows, cols).contiguous()
+
+        q_rowwise, scale_rowwise = cuda.quantize_int8_rowwise(weight)
+        dequantized_rowwise = cuda.dequantize_int8_simple_dtype(
+            q_rowwise, scale_rowwise, 2
+        )
+        assert torch.equal(dequantized_rowwise[0], dequantized_rowwise[-1])
+
+        rotated = cuda.rotate_int8_convrot_weight(weight, 256)
+        assert torch.equal(rotated[0], rotated[-1])
+
+        q, scale = cuda.quantize_int8_convrot_staged(weight, 256)
+        assert torch.equal(q[0], q[-1])
+        assert torch.equal(scale[0], scale[-1])
+
+        dequantized = cuda.dequantize_int8_convrot_weight_dtype(q, scale, 256, 2)
+        assert torch.equal(dequantized[0], dequantized[-1])
+
+        q_int4, scale_int4 = cuda.quantize_int4_rowwise_convrot64(weight, 256)
+        dequantized_int4 = cuda.dequantize_convrot_w4a4_weight(
+            q_int4,
+            scale_int4.reshape(-1),
+            output_dtype=torch.bfloat16,
+        )
+        assert torch.equal(dequantized_int4[0], dequantized_int4[-1])
+
     def test_convrot_divisibility(self, seed):
         """Verify error when channels are not divisible by convrot_groupsize."""
         from comfy_kitchen.tensor import QuantizedTensor
