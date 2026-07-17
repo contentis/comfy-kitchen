@@ -1,0 +1,684 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "Flux",
+  "profiles": [
+    "default"
+  ],
+  "created_at": "2026-07-17T06:25:53.694570+00:00",
+  "meta": {},
+  "events": [
+    {
+      "op": "sdpa",
+      "family": "attention",
+      "layer": "sdpa.001",
+      "static": {
+        "batch": 1,
+        "heads": 32,
+        "head_dim": 128,
+        "dtype": "bfloat16",
+        "causal": false,
+        "dropout_p": 0.0,
+        "kv_heads": 32
+      },
+      "dynamic": {
+        "q_tokens": {
+          "role": "q_tokens",
+          "values": {
+            "default": 4608
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        },
+        "kv_tokens": {
+          "role": "kv_tokens",
+          "values": {
+            "default": 4608
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 32
+      },
+      "layout": "BHND",
+      "tags": [
+        "sdpa",
+        "sdpa.002",
+        "sdpa.003",
+        "sdpa.004",
+        "sdpa.005",
+        "sdpa.006",
+        "sdpa.007",
+        "sdpa.008",
+        "sdpa.009",
+        "sdpa.010",
+        "sdpa.011",
+        "sdpa.012",
+        "sdpa.013",
+        "sdpa.014",
+        "sdpa.015",
+        "sdpa.016",
+        "sdpa.017",
+        "sdpa.018",
+        "sdpa.019",
+        "sdpa.020",
+        "sdpa.021",
+        "sdpa.022",
+        "sdpa.023",
+        "sdpa.024",
+        "sdpa.025",
+        "sdpa.026",
+        "sdpa.027",
+        "sdpa.028",
+        "sdpa.029",
+        "sdpa.030",
+        "sdpa.031",
+        "sdpa.032"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "img_in",
+      "static": {
+        "N": 4096,
+        "K": 128,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4096
+          },
+          "varies": false,
+          "binding": "img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "time_in.in_layer",
+      "static": {
+        "N": 4096,
+        "K": 256,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "time_in.out_layer",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 512
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 17
+      },
+      "layout": null,
+      "tags": [
+        "double_blocks.0.img_attn.proj",
+        "double_blocks.0.txt_attn.proj",
+        "double_blocks.1.img_attn.proj",
+        "double_blocks.1.txt_attn.proj",
+        "double_blocks.2.img_attn.proj",
+        "double_blocks.2.txt_attn.proj",
+        "double_blocks.3.img_attn.proj",
+        "double_blocks.3.txt_attn.proj",
+        "double_blocks.4.img_attn.proj",
+        "double_blocks.4.txt_attn.proj",
+        "double_blocks.5.img_attn.proj",
+        "double_blocks.5.txt_attn.proj",
+        "double_blocks.6.img_attn.proj",
+        "double_blocks.6.txt_attn.proj",
+        "double_blocks.7.img_attn.proj",
+        "double_blocks.7.txt_attn.proj"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txt_in",
+      "static": {
+        "N": 4096,
+        "K": 12288,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 512
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 17
+      },
+      "layout": null,
+      "tags": [
+        "double_blocks.0.img_mlp.2",
+        "double_blocks.0.txt_mlp.2",
+        "double_blocks.1.img_mlp.2",
+        "double_blocks.1.txt_mlp.2",
+        "double_blocks.2.img_mlp.2",
+        "double_blocks.2.txt_mlp.2",
+        "double_blocks.3.img_mlp.2",
+        "double_blocks.3.txt_mlp.2",
+        "double_blocks.4.img_mlp.2",
+        "double_blocks.4.txt_mlp.2",
+        "double_blocks.5.img_mlp.2",
+        "double_blocks.5.txt_mlp.2",
+        "double_blocks.6.img_mlp.2",
+        "double_blocks.6.txt_mlp.2",
+        "double_blocks.7.img_mlp.2",
+        "double_blocks.7.txt_mlp.2"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "layer_norm",
+      "layer": "double_blocks.0.img_norm1",
+      "static": {
+        "normalized_shape": [
+          4096
+        ],
+        "affine": false,
+        "dtype": "bfloat16",
+        "norm_type": "layer_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              4096
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 16777216
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 57
+      },
+      "layout": null,
+      "tags": [
+        "norm",
+        "double_blocks.0.img_norm2",
+        "double_blocks.0.txt_norm1",
+        "double_blocks.0.txt_norm2",
+        "double_blocks.1.img_norm1",
+        "double_blocks.1.img_norm2",
+        "double_blocks.1.txt_norm1",
+        "double_blocks.1.txt_norm2",
+        "double_blocks.2.img_norm1",
+        "double_blocks.2.img_norm2",
+        "double_blocks.2.txt_norm1",
+        "double_blocks.2.txt_norm2",
+        "double_blocks.3.img_norm1",
+        "double_blocks.3.img_norm2",
+        "double_blocks.3.txt_norm1",
+        "double_blocks.3.txt_norm2",
+        "double_blocks.4.img_norm1",
+        "double_blocks.4.img_norm2",
+        "double_blocks.4.txt_norm1",
+        "double_blocks.4.txt_norm2",
+        "double_blocks.5.img_norm1",
+        "double_blocks.5.img_norm2",
+        "double_blocks.5.txt_norm1",
+        "double_blocks.5.txt_norm2",
+        "double_blocks.6.img_norm1",
+        "double_blocks.6.img_norm2",
+        "double_blocks.6.txt_norm1",
+        "double_blocks.6.txt_norm2",
+        "double_blocks.7.img_norm1",
+        "double_blocks.7.img_norm2",
+        "double_blocks.7.txt_norm1",
+        "double_blocks.7.txt_norm2",
+        "single_blocks.0.pre_norm",
+        "single_blocks.1.pre_norm",
+        "single_blocks.2.pre_norm",
+        "single_blocks.3.pre_norm",
+        "single_blocks.4.pre_norm",
+        "single_blocks.5.pre_norm",
+        "single_blocks.6.pre_norm",
+        "single_blocks.7.pre_norm",
+        "single_blocks.8.pre_norm",
+        "single_blocks.9.pre_norm",
+        "single_blocks.10.pre_norm",
+        "single_blocks.11.pre_norm",
+        "single_blocks.12.pre_norm",
+        "single_blocks.13.pre_norm",
+        "single_blocks.14.pre_norm",
+        "single_blocks.15.pre_norm",
+        "single_blocks.16.pre_norm",
+        "single_blocks.17.pre_norm",
+        "single_blocks.18.pre_norm",
+        "single_blocks.19.pre_norm",
+        "single_blocks.20.pre_norm",
+        "single_blocks.21.pre_norm",
+        "single_blocks.22.pre_norm",
+        "single_blocks.23.pre_norm",
+        "final_layer.norm_final"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "double_blocks.0.img_attn.qkv",
+      "static": {
+        "N": 12288,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 17
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "double_blocks.0.txt_attn.qkv",
+        "double_blocks.1.img_attn.qkv",
+        "double_blocks.1.txt_attn.qkv",
+        "double_blocks.2.img_attn.qkv",
+        "double_blocks.2.txt_attn.qkv",
+        "double_blocks.3.img_attn.qkv",
+        "double_blocks.3.txt_attn.qkv",
+        "double_blocks.4.img_attn.qkv",
+        "double_blocks.4.txt_attn.qkv",
+        "double_blocks.5.img_attn.qkv",
+        "double_blocks.5.txt_attn.qkv",
+        "double_blocks.6.img_attn.qkv",
+        "double_blocks.6.txt_attn.qkv",
+        "double_blocks.7.img_attn.qkv",
+        "double_blocks.7.txt_attn.qkv",
+        "single_stream_modulation.lin"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "rms_norm",
+      "layer": "double_blocks.0.img_attn.norm.query_norm",
+      "static": {
+        "normalized_shape": [
+          128
+        ],
+        "affine": true,
+        "dtype": "bfloat16",
+        "norm_type": "rms_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              32,
+              4608
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 18874368
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 80
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "norm",
+        "double_blocks.0.img_attn.norm.key_norm",
+        "double_blocks.0.txt_attn.norm.query_norm",
+        "double_blocks.0.txt_attn.norm.key_norm",
+        "double_blocks.1.img_attn.norm.query_norm",
+        "double_blocks.1.img_attn.norm.key_norm",
+        "double_blocks.1.txt_attn.norm.query_norm",
+        "double_blocks.1.txt_attn.norm.key_norm",
+        "double_blocks.2.img_attn.norm.query_norm",
+        "double_blocks.2.img_attn.norm.key_norm",
+        "double_blocks.2.txt_attn.norm.query_norm",
+        "double_blocks.2.txt_attn.norm.key_norm",
+        "double_blocks.3.img_attn.norm.query_norm",
+        "double_blocks.3.img_attn.norm.key_norm",
+        "double_blocks.3.txt_attn.norm.query_norm",
+        "double_blocks.3.txt_attn.norm.key_norm",
+        "double_blocks.4.img_attn.norm.query_norm",
+        "double_blocks.4.img_attn.norm.key_norm",
+        "double_blocks.4.txt_attn.norm.query_norm",
+        "double_blocks.4.txt_attn.norm.key_norm",
+        "double_blocks.5.img_attn.norm.query_norm",
+        "double_blocks.5.img_attn.norm.key_norm",
+        "double_blocks.5.txt_attn.norm.query_norm",
+        "double_blocks.5.txt_attn.norm.key_norm",
+        "double_blocks.6.img_attn.norm.query_norm",
+        "double_blocks.6.img_attn.norm.key_norm",
+        "double_blocks.6.txt_attn.norm.query_norm",
+        "double_blocks.6.txt_attn.norm.key_norm",
+        "double_blocks.7.img_attn.norm.query_norm",
+        "double_blocks.7.img_attn.norm.key_norm",
+        "double_blocks.7.txt_attn.norm.query_norm",
+        "double_blocks.7.txt_attn.norm.key_norm",
+        "single_blocks.0.norm.query_norm",
+        "single_blocks.0.norm.key_norm",
+        "single_blocks.1.norm.query_norm",
+        "single_blocks.1.norm.key_norm",
+        "single_blocks.2.norm.query_norm",
+        "single_blocks.2.norm.key_norm",
+        "single_blocks.3.norm.query_norm",
+        "single_blocks.3.norm.key_norm",
+        "single_blocks.4.norm.query_norm",
+        "single_blocks.4.norm.key_norm",
+        "single_blocks.5.norm.query_norm",
+        "single_blocks.5.norm.key_norm",
+        "single_blocks.6.norm.query_norm",
+        "single_blocks.6.norm.key_norm",
+        "single_blocks.7.norm.query_norm",
+        "single_blocks.7.norm.key_norm",
+        "single_blocks.8.norm.query_norm",
+        "single_blocks.8.norm.key_norm",
+        "single_blocks.9.norm.query_norm",
+        "single_blocks.9.norm.key_norm",
+        "single_blocks.10.norm.query_norm",
+        "single_blocks.10.norm.key_norm",
+        "single_blocks.11.norm.query_norm",
+        "single_blocks.11.norm.key_norm",
+        "single_blocks.12.norm.query_norm",
+        "single_blocks.12.norm.key_norm",
+        "single_blocks.13.norm.query_norm",
+        "single_blocks.13.norm.key_norm",
+        "single_blocks.14.norm.query_norm",
+        "single_blocks.14.norm.key_norm",
+        "single_blocks.15.norm.query_norm",
+        "single_blocks.15.norm.key_norm",
+        "single_blocks.16.norm.query_norm",
+        "single_blocks.16.norm.key_norm",
+        "single_blocks.17.norm.query_norm",
+        "single_blocks.17.norm.key_norm",
+        "single_blocks.18.norm.query_norm",
+        "single_blocks.18.norm.key_norm",
+        "single_blocks.19.norm.query_norm",
+        "single_blocks.19.norm.key_norm",
+        "single_blocks.20.norm.query_norm",
+        "single_blocks.20.norm.key_norm",
+        "single_blocks.21.norm.query_norm",
+        "single_blocks.21.norm.key_norm",
+        "single_blocks.22.norm.query_norm",
+        "single_blocks.22.norm.key_norm",
+        "single_blocks.23.norm.query_norm",
+        "single_blocks.23.norm.key_norm"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "double_blocks.0.img_mlp.0",
+      "static": {
+        "N": 24576,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 18
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "double_blocks.0.txt_mlp.0",
+        "double_blocks.1.img_mlp.0",
+        "double_blocks.1.txt_mlp.0",
+        "double_blocks.2.img_mlp.0",
+        "double_blocks.2.txt_mlp.0",
+        "double_blocks.3.img_mlp.0",
+        "double_blocks.3.txt_mlp.0",
+        "double_blocks.4.img_mlp.0",
+        "double_blocks.4.txt_mlp.0",
+        "double_blocks.5.img_mlp.0",
+        "double_blocks.5.txt_mlp.0",
+        "double_blocks.6.img_mlp.0",
+        "double_blocks.6.txt_mlp.0",
+        "double_blocks.7.img_mlp.0",
+        "double_blocks.7.txt_mlp.0",
+        "double_stream_modulation_img.lin",
+        "double_stream_modulation_txt.lin"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "single_blocks.0.linear1",
+      "static": {
+        "N": 36864,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4608
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 24
+      },
+      "layout": null,
+      "tags": [
+        "single_blocks.1.linear1",
+        "single_blocks.2.linear1",
+        "single_blocks.3.linear1",
+        "single_blocks.4.linear1",
+        "single_blocks.5.linear1",
+        "single_blocks.6.linear1",
+        "single_blocks.7.linear1",
+        "single_blocks.8.linear1",
+        "single_blocks.9.linear1",
+        "single_blocks.10.linear1",
+        "single_blocks.11.linear1",
+        "single_blocks.12.linear1",
+        "single_blocks.13.linear1",
+        "single_blocks.14.linear1",
+        "single_blocks.15.linear1",
+        "single_blocks.16.linear1",
+        "single_blocks.17.linear1",
+        "single_blocks.18.linear1",
+        "single_blocks.19.linear1",
+        "single_blocks.20.linear1",
+        "single_blocks.21.linear1",
+        "single_blocks.22.linear1",
+        "single_blocks.23.linear1"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "single_blocks.0.linear2",
+      "static": {
+        "N": 4096,
+        "K": 16384,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4608
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 24
+      },
+      "layout": null,
+      "tags": [
+        "single_blocks.1.linear2",
+        "single_blocks.2.linear2",
+        "single_blocks.3.linear2",
+        "single_blocks.4.linear2",
+        "single_blocks.5.linear2",
+        "single_blocks.6.linear2",
+        "single_blocks.7.linear2",
+        "single_blocks.8.linear2",
+        "single_blocks.9.linear2",
+        "single_blocks.10.linear2",
+        "single_blocks.11.linear2",
+        "single_blocks.12.linear2",
+        "single_blocks.13.linear2",
+        "single_blocks.14.linear2",
+        "single_blocks.15.linear2",
+        "single_blocks.16.linear2",
+        "single_blocks.17.linear2",
+        "single_blocks.18.linear2",
+        "single_blocks.19.linear2",
+        "single_blocks.20.linear2",
+        "single_blocks.21.linear2",
+        "single_blocks.22.linear2",
+        "single_blocks.23.linear2"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "final_layer.linear",
+      "static": {
+        "N": 128,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4096
+          },
+          "varies": false,
+          "binding": "img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "final_layer.adaLN_modulation.1",
+      "static": {
+        "N": 8192,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    }
+  ]
+}

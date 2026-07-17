@@ -1,0 +1,817 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "SingleStreamDiT",
+  "profiles": [
+    "default"
+  ],
+  "created_at": "2026-07-16T10:34:20.871337+00:00",
+  "meta": {},
+  "events": [
+    {
+      "op": "sdpa",
+      "family": "attention",
+      "layer": "sdpa.001",
+      "static": {
+        "heads": 20,
+        "head_dim": 128,
+        "dtype": "bfloat16",
+        "causal": false,
+        "dropout_p": 0.0,
+        "kv_heads": 20
+      },
+      "dynamic": {
+        "batch": {
+          "role": "batch",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        },
+        "q_tokens": {
+          "role": "q_tokens",
+          "values": {
+            "default": 12
+          },
+          "varies": false
+        },
+        "kv_tokens": {
+          "role": "kv_tokens",
+          "values": {
+            "default": 12
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 2
+      },
+      "layout": "BHND",
+      "tags": [
+        "sdpa",
+        "sdpa.002"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "sdpa",
+      "family": "attention",
+      "layer": "sdpa.003",
+      "static": {
+        "batch": 1,
+        "heads": 20,
+        "head_dim": 128,
+        "dtype": "bfloat16",
+        "causal": false,
+        "dropout_p": 0.0,
+        "kv_heads": 20
+      },
+      "dynamic": {
+        "q_tokens": {
+          "role": "q_tokens",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        },
+        "kv_tokens": {
+          "role": "kv_tokens",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 2
+      },
+      "layout": "BHND",
+      "tags": [
+        "sdpa",
+        "sdpa.004"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "sdpa",
+      "family": "attention",
+      "layer": "sdpa.005",
+      "static": {
+        "batch": 1,
+        "heads": 48,
+        "head_dim": 128,
+        "dtype": "bfloat16",
+        "causal": false,
+        "dropout_p": 0.0,
+        "kv_heads": 48
+      },
+      "dynamic": {
+        "q_tokens": {
+          "role": "q_tokens",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        },
+        "kv_tokens": {
+          "role": "kv_tokens",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 28
+      },
+      "layout": "BHND",
+      "tags": [
+        "sdpa",
+        "sdpa.006",
+        "sdpa.007",
+        "sdpa.008",
+        "sdpa.009",
+        "sdpa.010",
+        "sdpa.011",
+        "sdpa.012",
+        "sdpa.013",
+        "sdpa.014",
+        "sdpa.015",
+        "sdpa.016",
+        "sdpa.017",
+        "sdpa.018",
+        "sdpa.019",
+        "sdpa.020",
+        "sdpa.021",
+        "sdpa.022",
+        "sdpa.023",
+        "sdpa.024",
+        "sdpa.025",
+        "sdpa.026",
+        "sdpa.027",
+        "sdpa.028",
+        "sdpa.029",
+        "sdpa.030",
+        "sdpa.031",
+        "sdpa.032"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "first",
+      "static": {
+        "N": 6144,
+        "K": 64,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "img_tokens",
+          "values": {
+            "default": 4096
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "blocks.0.attn.wq",
+      "static": {
+        "N": 6144,
+        "K": 6144,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 84
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "q_proj",
+        "blocks.0.attn.gate",
+        "blocks.0.attn.wo",
+        "blocks.1.attn.wq",
+        "blocks.1.attn.gate",
+        "blocks.1.attn.wo",
+        "blocks.2.attn.wq",
+        "blocks.2.attn.gate",
+        "blocks.2.attn.wo",
+        "blocks.3.attn.wq",
+        "blocks.3.attn.gate",
+        "blocks.3.attn.wo",
+        "blocks.4.attn.wq",
+        "blocks.4.attn.gate",
+        "blocks.4.attn.wo",
+        "blocks.5.attn.wq",
+        "blocks.5.attn.gate",
+        "blocks.5.attn.wo",
+        "blocks.6.attn.wq",
+        "blocks.6.attn.gate",
+        "blocks.6.attn.wo",
+        "blocks.7.attn.wq",
+        "blocks.7.attn.gate",
+        "blocks.7.attn.wo",
+        "blocks.8.attn.wq",
+        "blocks.8.attn.gate",
+        "blocks.8.attn.wo",
+        "blocks.9.attn.wq",
+        "blocks.9.attn.gate",
+        "blocks.9.attn.wo",
+        "blocks.10.attn.wq",
+        "blocks.10.attn.gate",
+        "blocks.10.attn.wo",
+        "blocks.11.attn.wq",
+        "blocks.11.attn.gate",
+        "blocks.11.attn.wo",
+        "blocks.12.attn.wq",
+        "blocks.12.attn.gate",
+        "blocks.12.attn.wo",
+        "blocks.13.attn.wq",
+        "blocks.13.attn.gate",
+        "blocks.13.attn.wo",
+        "blocks.14.attn.wq",
+        "blocks.14.attn.gate",
+        "blocks.14.attn.wo",
+        "blocks.15.attn.wq",
+        "blocks.15.attn.gate",
+        "blocks.15.attn.wo",
+        "blocks.16.attn.wq",
+        "blocks.16.attn.gate",
+        "blocks.16.attn.wo",
+        "blocks.17.attn.wq",
+        "blocks.17.attn.gate",
+        "blocks.17.attn.wo",
+        "blocks.18.attn.wq",
+        "blocks.18.attn.gate",
+        "blocks.18.attn.wo",
+        "blocks.19.attn.wq",
+        "blocks.19.attn.gate",
+        "blocks.19.attn.wo",
+        "blocks.20.attn.wq",
+        "blocks.20.attn.gate",
+        "blocks.20.attn.wo",
+        "blocks.21.attn.wq",
+        "blocks.21.attn.gate",
+        "blocks.21.attn.wo",
+        "blocks.22.attn.wq",
+        "blocks.22.attn.gate",
+        "blocks.22.attn.wo",
+        "blocks.23.attn.wq",
+        "blocks.23.attn.gate",
+        "blocks.23.attn.wo",
+        "blocks.24.attn.wq",
+        "blocks.24.attn.gate",
+        "blocks.24.attn.wo",
+        "blocks.25.attn.wq",
+        "blocks.25.attn.gate",
+        "blocks.25.attn.wo",
+        "blocks.26.attn.wq",
+        "blocks.26.attn.gate",
+        "blocks.26.attn.wo",
+        "blocks.27.attn.wq",
+        "blocks.27.attn.gate",
+        "blocks.27.attn.wo"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "blocks.0.attn.wk",
+      "static": {
+        "N": 1536,
+        "K": 6144,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 56
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "k_proj",
+        "blocks.0.attn.wv",
+        "blocks.1.attn.wk",
+        "blocks.1.attn.wv",
+        "blocks.2.attn.wk",
+        "blocks.2.attn.wv",
+        "blocks.3.attn.wk",
+        "blocks.3.attn.wv",
+        "blocks.4.attn.wk",
+        "blocks.4.attn.wv",
+        "blocks.5.attn.wk",
+        "blocks.5.attn.wv",
+        "blocks.6.attn.wk",
+        "blocks.6.attn.wv",
+        "blocks.7.attn.wk",
+        "blocks.7.attn.wv",
+        "blocks.8.attn.wk",
+        "blocks.8.attn.wv",
+        "blocks.9.attn.wk",
+        "blocks.9.attn.wv",
+        "blocks.10.attn.wk",
+        "blocks.10.attn.wv",
+        "blocks.11.attn.wk",
+        "blocks.11.attn.wv",
+        "blocks.12.attn.wk",
+        "blocks.12.attn.wv",
+        "blocks.13.attn.wk",
+        "blocks.13.attn.wv",
+        "blocks.14.attn.wk",
+        "blocks.14.attn.wv",
+        "blocks.15.attn.wk",
+        "blocks.15.attn.wv",
+        "blocks.16.attn.wk",
+        "blocks.16.attn.wv",
+        "blocks.17.attn.wk",
+        "blocks.17.attn.wv",
+        "blocks.18.attn.wk",
+        "blocks.18.attn.wv",
+        "blocks.19.attn.wk",
+        "blocks.19.attn.wv",
+        "blocks.20.attn.wk",
+        "blocks.20.attn.wv",
+        "blocks.21.attn.wk",
+        "blocks.21.attn.wv",
+        "blocks.22.attn.wk",
+        "blocks.22.attn.wv",
+        "blocks.23.attn.wk",
+        "blocks.23.attn.wv",
+        "blocks.24.attn.wk",
+        "blocks.24.attn.wv",
+        "blocks.25.attn.wk",
+        "blocks.25.attn.wv",
+        "blocks.26.attn.wk",
+        "blocks.26.attn.wv",
+        "blocks.27.attn.wk",
+        "blocks.27.attn.wv"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "blocks.0.mlp.gate",
+      "static": {
+        "N": 16384,
+        "K": 6144,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 56
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "gate",
+        "blocks.0.mlp.up",
+        "blocks.1.mlp.gate",
+        "blocks.1.mlp.up",
+        "blocks.2.mlp.gate",
+        "blocks.2.mlp.up",
+        "blocks.3.mlp.gate",
+        "blocks.3.mlp.up",
+        "blocks.4.mlp.gate",
+        "blocks.4.mlp.up",
+        "blocks.5.mlp.gate",
+        "blocks.5.mlp.up",
+        "blocks.6.mlp.gate",
+        "blocks.6.mlp.up",
+        "blocks.7.mlp.gate",
+        "blocks.7.mlp.up",
+        "blocks.8.mlp.gate",
+        "blocks.8.mlp.up",
+        "blocks.9.mlp.gate",
+        "blocks.9.mlp.up",
+        "blocks.10.mlp.gate",
+        "blocks.10.mlp.up",
+        "blocks.11.mlp.gate",
+        "blocks.11.mlp.up",
+        "blocks.12.mlp.gate",
+        "blocks.12.mlp.up",
+        "blocks.13.mlp.gate",
+        "blocks.13.mlp.up",
+        "blocks.14.mlp.gate",
+        "blocks.14.mlp.up",
+        "blocks.15.mlp.gate",
+        "blocks.15.mlp.up",
+        "blocks.16.mlp.gate",
+        "blocks.16.mlp.up",
+        "blocks.17.mlp.gate",
+        "blocks.17.mlp.up",
+        "blocks.18.mlp.gate",
+        "blocks.18.mlp.up",
+        "blocks.19.mlp.gate",
+        "blocks.19.mlp.up",
+        "blocks.20.mlp.gate",
+        "blocks.20.mlp.up",
+        "blocks.21.mlp.gate",
+        "blocks.21.mlp.up",
+        "blocks.22.mlp.gate",
+        "blocks.22.mlp.up",
+        "blocks.23.mlp.gate",
+        "blocks.23.mlp.up",
+        "blocks.24.mlp.gate",
+        "blocks.24.mlp.up",
+        "blocks.25.mlp.gate",
+        "blocks.25.mlp.up",
+        "blocks.26.mlp.gate",
+        "blocks.26.mlp.up",
+        "blocks.27.mlp.gate",
+        "blocks.27.mlp.up"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "blocks.0.mlp.down",
+      "static": {
+        "N": 6144,
+        "K": 16384,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 28
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "down",
+        "blocks.1.mlp.down",
+        "blocks.2.mlp.down",
+        "blocks.3.mlp.down",
+        "blocks.4.mlp.down",
+        "blocks.5.mlp.down",
+        "blocks.6.mlp.down",
+        "blocks.7.mlp.down",
+        "blocks.8.mlp.down",
+        "blocks.9.mlp.down",
+        "blocks.10.mlp.down",
+        "blocks.11.mlp.down",
+        "blocks.12.mlp.down",
+        "blocks.13.mlp.down",
+        "blocks.14.mlp.down",
+        "blocks.15.mlp.down",
+        "blocks.16.mlp.down",
+        "blocks.17.mlp.down",
+        "blocks.18.mlp.down",
+        "blocks.19.mlp.down",
+        "blocks.20.mlp.down",
+        "blocks.21.mlp.down",
+        "blocks.22.mlp.down",
+        "blocks.23.mlp.down",
+        "blocks.24.mlp.down",
+        "blocks.25.mlp.down",
+        "blocks.26.mlp.down",
+        "blocks.27.mlp.down"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "tmlp.0",
+      "static": {
+        "N": 6144,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [
+        "mlp"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "tmlp.2",
+      "static": {
+        "N": 6144,
+        "K": 6144,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 2
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "txtmlp.3"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txtfusion.layerwise_blocks.0.attn.wq",
+      "static": {
+        "N": 2560,
+        "K": 2560,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 20
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "q_proj",
+        "txtfusion.layerwise_blocks.0.attn.wk",
+        "txtfusion.layerwise_blocks.0.attn.wv",
+        "txtfusion.layerwise_blocks.0.attn.gate",
+        "txtfusion.layerwise_blocks.0.attn.wo",
+        "txtfusion.layerwise_blocks.1.attn.wq",
+        "txtfusion.layerwise_blocks.1.attn.wk",
+        "txtfusion.layerwise_blocks.1.attn.wv",
+        "txtfusion.layerwise_blocks.1.attn.gate",
+        "txtfusion.layerwise_blocks.1.attn.wo",
+        "txtfusion.refiner_blocks.0.attn.wq",
+        "txtfusion.refiner_blocks.0.attn.wk",
+        "txtfusion.refiner_blocks.0.attn.wv",
+        "txtfusion.refiner_blocks.0.attn.gate",
+        "txtfusion.refiner_blocks.0.attn.wo",
+        "txtfusion.refiner_blocks.1.attn.wq",
+        "txtfusion.refiner_blocks.1.attn.wk",
+        "txtfusion.refiner_blocks.1.attn.wv",
+        "txtfusion.refiner_blocks.1.attn.gate",
+        "txtfusion.refiner_blocks.1.attn.wo"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txtfusion.layerwise_blocks.0.mlp.gate",
+      "static": {
+        "N": 6912,
+        "K": 2560,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 8
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "gate",
+        "txtfusion.layerwise_blocks.0.mlp.up",
+        "txtfusion.layerwise_blocks.1.mlp.gate",
+        "txtfusion.layerwise_blocks.1.mlp.up",
+        "txtfusion.refiner_blocks.0.mlp.gate",
+        "txtfusion.refiner_blocks.0.mlp.up",
+        "txtfusion.refiner_blocks.1.mlp.gate",
+        "txtfusion.refiner_blocks.1.mlp.up"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txtfusion.layerwise_blocks.0.mlp.down",
+      "static": {
+        "N": 2560,
+        "K": 6912,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 4
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "down",
+        "txtfusion.layerwise_blocks.1.mlp.down",
+        "txtfusion.refiner_blocks.0.mlp.down",
+        "txtfusion.refiner_blocks.1.mlp.down"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txtfusion.projector",
+      "static": {
+        "N": 1,
+        "K": 12,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 386560
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txtmlp.1",
+      "static": {
+        "N": 6144,
+        "K": 2560,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens",
+          "values": {
+            "default": 151
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [
+        "mlp"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "last.linear",
+      "static": {
+        "N": 64,
+        "K": 6144,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "binding": "txt_tokens+img_tokens",
+          "values": {
+            "default": 4247
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "tproj.1",
+      "static": {
+        "N": 36864,
+        "K": 6144,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    }
+  ]
+}

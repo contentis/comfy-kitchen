@@ -1,0 +1,17 @@
+{
+  "dit_t2i_1024": {
+    "models": ["SingleStreamDiT", "Flux"],
+    "txt_tokens": 512,
+    "img_tokens": 4096
+  },
+  "dit_i2i_1024": {
+    "models": ["Flux"],
+    "txt_tokens": 512,
+    "img_tokens": 8192
+  },
+  "zit_t2i_1024": {
+    "models": ["NextDiT"],
+    "txt_tokens": 64,
+    "img_tokens": 4096
+  }
+}

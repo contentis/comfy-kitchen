@@ -1,0 +1,1112 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "Flux",
+  "profiles": [
+    "default"
+  ],
+  "created_at": "2026-07-17T06:22:08.979501+00:00",
+  "meta": {},
+  "events": [
+    {
+      "op": "sdpa",
+      "family": "attention",
+      "layer": "sdpa.001",
+      "static": {
+        "batch": 1,
+        "heads": 24,
+        "head_dim": 128,
+        "dtype": "bfloat16",
+        "causal": false,
+        "dropout_p": 0.0,
+        "kv_heads": 24
+      },
+      "dynamic": {
+        "q_tokens": {
+          "role": "q_tokens",
+          "values": {
+            "default": 4352
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        },
+        "kv_tokens": {
+          "role": "kv_tokens",
+          "values": {
+            "default": 4352
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 57
+      },
+      "layout": "BHND",
+      "tags": [
+        "sdpa",
+        "sdpa.002",
+        "sdpa.003",
+        "sdpa.004",
+        "sdpa.005",
+        "sdpa.006",
+        "sdpa.007",
+        "sdpa.008",
+        "sdpa.009",
+        "sdpa.010",
+        "sdpa.011",
+        "sdpa.012",
+        "sdpa.013",
+        "sdpa.014",
+        "sdpa.015",
+        "sdpa.016",
+        "sdpa.017",
+        "sdpa.018",
+        "sdpa.019",
+        "sdpa.020",
+        "sdpa.021",
+        "sdpa.022",
+        "sdpa.023",
+        "sdpa.024",
+        "sdpa.025",
+        "sdpa.026",
+        "sdpa.027",
+        "sdpa.028",
+        "sdpa.029",
+        "sdpa.030",
+        "sdpa.031",
+        "sdpa.032",
+        "sdpa.033",
+        "sdpa.034",
+        "sdpa.035",
+        "sdpa.036",
+        "sdpa.037",
+        "sdpa.038",
+        "sdpa.039",
+        "sdpa.040",
+        "sdpa.041",
+        "sdpa.042",
+        "sdpa.043",
+        "sdpa.044",
+        "sdpa.045",
+        "sdpa.046",
+        "sdpa.047",
+        "sdpa.048",
+        "sdpa.049",
+        "sdpa.050",
+        "sdpa.051",
+        "sdpa.052",
+        "sdpa.053",
+        "sdpa.054",
+        "sdpa.055",
+        "sdpa.056",
+        "sdpa.057"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "img_in",
+      "static": {
+        "N": 3072,
+        "K": 64,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4096
+          },
+          "varies": false,
+          "binding": "img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "time_in.in_layer",
+      "static": {
+        "N": 3072,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 2
+      },
+      "layout": null,
+      "tags": [
+        "guidance_in.in_layer"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "time_in.out_layer",
+      "static": {
+        "N": 3072,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 256
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 41
+      },
+      "layout": null,
+      "tags": [
+        "vector_in.out_layer",
+        "guidance_in.out_layer",
+        "double_blocks.0.img_attn.proj",
+        "double_blocks.0.txt_attn.proj",
+        "double_blocks.1.img_attn.proj",
+        "double_blocks.1.txt_attn.proj",
+        "double_blocks.2.img_attn.proj",
+        "double_blocks.2.txt_attn.proj",
+        "double_blocks.3.img_attn.proj",
+        "double_blocks.3.txt_attn.proj",
+        "double_blocks.4.img_attn.proj",
+        "double_blocks.4.txt_attn.proj",
+        "double_blocks.5.img_attn.proj",
+        "double_blocks.5.txt_attn.proj",
+        "double_blocks.6.img_attn.proj",
+        "double_blocks.6.txt_attn.proj",
+        "double_blocks.7.img_attn.proj",
+        "double_blocks.7.txt_attn.proj",
+        "double_blocks.8.img_attn.proj",
+        "double_blocks.8.txt_attn.proj",
+        "double_blocks.9.img_attn.proj",
+        "double_blocks.9.txt_attn.proj",
+        "double_blocks.10.img_attn.proj",
+        "double_blocks.10.txt_attn.proj",
+        "double_blocks.11.img_attn.proj",
+        "double_blocks.11.txt_attn.proj",
+        "double_blocks.12.img_attn.proj",
+        "double_blocks.12.txt_attn.proj",
+        "double_blocks.13.img_attn.proj",
+        "double_blocks.13.txt_attn.proj",
+        "double_blocks.14.img_attn.proj",
+        "double_blocks.14.txt_attn.proj",
+        "double_blocks.15.img_attn.proj",
+        "double_blocks.15.txt_attn.proj",
+        "double_blocks.16.img_attn.proj",
+        "double_blocks.16.txt_attn.proj",
+        "double_blocks.17.img_attn.proj",
+        "double_blocks.17.txt_attn.proj",
+        "double_blocks.18.img_attn.proj",
+        "double_blocks.18.txt_attn.proj"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "vector_in.in_layer",
+      "static": {
+        "N": 3072,
+        "K": 768,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "txt_in",
+      "static": {
+        "N": 3072,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 256
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "double_blocks.0.img_mod.lin",
+      "static": {
+        "N": 18432,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 38
+      },
+      "layout": null,
+      "tags": [
+        "double_blocks.0.txt_mod.lin",
+        "double_blocks.1.img_mod.lin",
+        "double_blocks.1.txt_mod.lin",
+        "double_blocks.2.img_mod.lin",
+        "double_blocks.2.txt_mod.lin",
+        "double_blocks.3.img_mod.lin",
+        "double_blocks.3.txt_mod.lin",
+        "double_blocks.4.img_mod.lin",
+        "double_blocks.4.txt_mod.lin",
+        "double_blocks.5.img_mod.lin",
+        "double_blocks.5.txt_mod.lin",
+        "double_blocks.6.img_mod.lin",
+        "double_blocks.6.txt_mod.lin",
+        "double_blocks.7.img_mod.lin",
+        "double_blocks.7.txt_mod.lin",
+        "double_blocks.8.img_mod.lin",
+        "double_blocks.8.txt_mod.lin",
+        "double_blocks.9.img_mod.lin",
+        "double_blocks.9.txt_mod.lin",
+        "double_blocks.10.img_mod.lin",
+        "double_blocks.10.txt_mod.lin",
+        "double_blocks.11.img_mod.lin",
+        "double_blocks.11.txt_mod.lin",
+        "double_blocks.12.img_mod.lin",
+        "double_blocks.12.txt_mod.lin",
+        "double_blocks.13.img_mod.lin",
+        "double_blocks.13.txt_mod.lin",
+        "double_blocks.14.img_mod.lin",
+        "double_blocks.14.txt_mod.lin",
+        "double_blocks.15.img_mod.lin",
+        "double_blocks.15.txt_mod.lin",
+        "double_blocks.16.img_mod.lin",
+        "double_blocks.16.txt_mod.lin",
+        "double_blocks.17.img_mod.lin",
+        "double_blocks.17.txt_mod.lin",
+        "double_blocks.18.img_mod.lin",
+        "double_blocks.18.txt_mod.lin"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "layer_norm",
+      "layer": "double_blocks.0.img_norm1",
+      "static": {
+        "normalized_shape": [
+          3072
+        ],
+        "affine": false,
+        "dtype": "bfloat16",
+        "norm_type": "layer_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              4096
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 12582912
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 115
+      },
+      "layout": null,
+      "tags": [
+        "norm",
+        "double_blocks.0.img_norm2",
+        "double_blocks.0.txt_norm1",
+        "double_blocks.0.txt_norm2",
+        "double_blocks.1.img_norm1",
+        "double_blocks.1.img_norm2",
+        "double_blocks.1.txt_norm1",
+        "double_blocks.1.txt_norm2",
+        "double_blocks.2.img_norm1",
+        "double_blocks.2.img_norm2",
+        "double_blocks.2.txt_norm1",
+        "double_blocks.2.txt_norm2",
+        "double_blocks.3.img_norm1",
+        "double_blocks.3.img_norm2",
+        "double_blocks.3.txt_norm1",
+        "double_blocks.3.txt_norm2",
+        "double_blocks.4.img_norm1",
+        "double_blocks.4.img_norm2",
+        "double_blocks.4.txt_norm1",
+        "double_blocks.4.txt_norm2",
+        "double_blocks.5.img_norm1",
+        "double_blocks.5.img_norm2",
+        "double_blocks.5.txt_norm1",
+        "double_blocks.5.txt_norm2",
+        "double_blocks.6.img_norm1",
+        "double_blocks.6.img_norm2",
+        "double_blocks.6.txt_norm1",
+        "double_blocks.6.txt_norm2",
+        "double_blocks.7.img_norm1",
+        "double_blocks.7.img_norm2",
+        "double_blocks.7.txt_norm1",
+        "double_blocks.7.txt_norm2",
+        "double_blocks.8.img_norm1",
+        "double_blocks.8.img_norm2",
+        "double_blocks.8.txt_norm1",
+        "double_blocks.8.txt_norm2",
+        "double_blocks.9.img_norm1",
+        "double_blocks.9.img_norm2",
+        "double_blocks.9.txt_norm1",
+        "double_blocks.9.txt_norm2",
+        "double_blocks.10.img_norm1",
+        "double_blocks.10.img_norm2",
+        "double_blocks.10.txt_norm1",
+        "double_blocks.10.txt_norm2",
+        "double_blocks.11.img_norm1",
+        "double_blocks.11.img_norm2",
+        "double_blocks.11.txt_norm1",
+        "double_blocks.11.txt_norm2",
+        "double_blocks.12.img_norm1",
+        "double_blocks.12.img_norm2",
+        "double_blocks.12.txt_norm1",
+        "double_blocks.12.txt_norm2",
+        "double_blocks.13.img_norm1",
+        "double_blocks.13.img_norm2",
+        "double_blocks.13.txt_norm1",
+        "double_blocks.13.txt_norm2",
+        "double_blocks.14.img_norm1",
+        "double_blocks.14.img_norm2",
+        "double_blocks.14.txt_norm1",
+        "double_blocks.14.txt_norm2",
+        "double_blocks.15.img_norm1",
+        "double_blocks.15.img_norm2",
+        "double_blocks.15.txt_norm1",
+        "double_blocks.15.txt_norm2",
+        "double_blocks.16.img_norm1",
+        "double_blocks.16.img_norm2",
+        "double_blocks.16.txt_norm1",
+        "double_blocks.16.txt_norm2",
+        "double_blocks.17.img_norm1",
+        "double_blocks.17.img_norm2",
+        "double_blocks.17.txt_norm1",
+        "double_blocks.17.txt_norm2",
+        "double_blocks.18.img_norm1",
+        "double_blocks.18.img_norm2",
+        "double_blocks.18.txt_norm1",
+        "double_blocks.18.txt_norm2",
+        "single_blocks.0.pre_norm",
+        "single_blocks.1.pre_norm",
+        "single_blocks.2.pre_norm",
+        "single_blocks.3.pre_norm",
+        "single_blocks.4.pre_norm",
+        "single_blocks.5.pre_norm",
+        "single_blocks.6.pre_norm",
+        "single_blocks.7.pre_norm",
+        "single_blocks.8.pre_norm",
+        "single_blocks.9.pre_norm",
+        "single_blocks.10.pre_norm",
+        "single_blocks.11.pre_norm",
+        "single_blocks.12.pre_norm",
+        "single_blocks.13.pre_norm",
+        "single_blocks.14.pre_norm",
+        "single_blocks.15.pre_norm",
+        "single_blocks.16.pre_norm",
+        "single_blocks.17.pre_norm",
+        "single_blocks.18.pre_norm",
+        "single_blocks.19.pre_norm",
+        "single_blocks.20.pre_norm",
+        "single_blocks.21.pre_norm",
+        "single_blocks.22.pre_norm",
+        "single_blocks.23.pre_norm",
+        "single_blocks.24.pre_norm",
+        "single_blocks.25.pre_norm",
+        "single_blocks.26.pre_norm",
+        "single_blocks.27.pre_norm",
+        "single_blocks.28.pre_norm",
+        "single_blocks.29.pre_norm",
+        "single_blocks.30.pre_norm",
+        "single_blocks.31.pre_norm",
+        "single_blocks.32.pre_norm",
+        "single_blocks.33.pre_norm",
+        "single_blocks.34.pre_norm",
+        "single_blocks.35.pre_norm",
+        "single_blocks.36.pre_norm",
+        "single_blocks.37.pre_norm",
+        "final_layer.norm_final"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "double_blocks.0.img_attn.qkv",
+      "static": {
+        "N": 9216,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 76
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "double_blocks.0.txt_attn.qkv",
+        "double_blocks.1.img_attn.qkv",
+        "double_blocks.1.txt_attn.qkv",
+        "double_blocks.2.img_attn.qkv",
+        "double_blocks.2.txt_attn.qkv",
+        "double_blocks.3.img_attn.qkv",
+        "double_blocks.3.txt_attn.qkv",
+        "double_blocks.4.img_attn.qkv",
+        "double_blocks.4.txt_attn.qkv",
+        "double_blocks.5.img_attn.qkv",
+        "double_blocks.5.txt_attn.qkv",
+        "double_blocks.6.img_attn.qkv",
+        "double_blocks.6.txt_attn.qkv",
+        "double_blocks.7.img_attn.qkv",
+        "double_blocks.7.txt_attn.qkv",
+        "double_blocks.8.img_attn.qkv",
+        "double_blocks.8.txt_attn.qkv",
+        "double_blocks.9.img_attn.qkv",
+        "double_blocks.9.txt_attn.qkv",
+        "double_blocks.10.img_attn.qkv",
+        "double_blocks.10.txt_attn.qkv",
+        "double_blocks.11.img_attn.qkv",
+        "double_blocks.11.txt_attn.qkv",
+        "double_blocks.12.img_attn.qkv",
+        "double_blocks.12.txt_attn.qkv",
+        "double_blocks.13.img_attn.qkv",
+        "double_blocks.13.txt_attn.qkv",
+        "double_blocks.14.img_attn.qkv",
+        "double_blocks.14.txt_attn.qkv",
+        "double_blocks.15.img_attn.qkv",
+        "double_blocks.15.txt_attn.qkv",
+        "double_blocks.16.img_attn.qkv",
+        "double_blocks.16.txt_attn.qkv",
+        "double_blocks.17.img_attn.qkv",
+        "double_blocks.17.txt_attn.qkv",
+        "double_blocks.18.img_attn.qkv",
+        "double_blocks.18.txt_attn.qkv",
+        "single_blocks.0.modulation.lin",
+        "single_blocks.1.modulation.lin",
+        "single_blocks.2.modulation.lin",
+        "single_blocks.3.modulation.lin",
+        "single_blocks.4.modulation.lin",
+        "single_blocks.5.modulation.lin",
+        "single_blocks.6.modulation.lin",
+        "single_blocks.7.modulation.lin",
+        "single_blocks.8.modulation.lin",
+        "single_blocks.9.modulation.lin",
+        "single_blocks.10.modulation.lin",
+        "single_blocks.11.modulation.lin",
+        "single_blocks.12.modulation.lin",
+        "single_blocks.13.modulation.lin",
+        "single_blocks.14.modulation.lin",
+        "single_blocks.15.modulation.lin",
+        "single_blocks.16.modulation.lin",
+        "single_blocks.17.modulation.lin",
+        "single_blocks.18.modulation.lin",
+        "single_blocks.19.modulation.lin",
+        "single_blocks.20.modulation.lin",
+        "single_blocks.21.modulation.lin",
+        "single_blocks.22.modulation.lin",
+        "single_blocks.23.modulation.lin",
+        "single_blocks.24.modulation.lin",
+        "single_blocks.25.modulation.lin",
+        "single_blocks.26.modulation.lin",
+        "single_blocks.27.modulation.lin",
+        "single_blocks.28.modulation.lin",
+        "single_blocks.29.modulation.lin",
+        "single_blocks.30.modulation.lin",
+        "single_blocks.31.modulation.lin",
+        "single_blocks.32.modulation.lin",
+        "single_blocks.33.modulation.lin",
+        "single_blocks.34.modulation.lin",
+        "single_blocks.35.modulation.lin",
+        "single_blocks.36.modulation.lin",
+        "single_blocks.37.modulation.lin"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "rms_norm",
+      "layer": "double_blocks.0.img_attn.norm.query_norm",
+      "static": {
+        "normalized_shape": [
+          128
+        ],
+        "affine": true,
+        "dtype": "bfloat16",
+        "norm_type": "rms_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              24,
+              4352
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 13369344
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 152
+      },
+      "layout": null,
+      "tags": [
+        "attn",
+        "norm",
+        "double_blocks.0.img_attn.norm.key_norm",
+        "double_blocks.0.txt_attn.norm.query_norm",
+        "double_blocks.0.txt_attn.norm.key_norm",
+        "double_blocks.1.img_attn.norm.query_norm",
+        "double_blocks.1.img_attn.norm.key_norm",
+        "double_blocks.1.txt_attn.norm.query_norm",
+        "double_blocks.1.txt_attn.norm.key_norm",
+        "double_blocks.2.img_attn.norm.query_norm",
+        "double_blocks.2.img_attn.norm.key_norm",
+        "double_blocks.2.txt_attn.norm.query_norm",
+        "double_blocks.2.txt_attn.norm.key_norm",
+        "double_blocks.3.img_attn.norm.query_norm",
+        "double_blocks.3.img_attn.norm.key_norm",
+        "double_blocks.3.txt_attn.norm.query_norm",
+        "double_blocks.3.txt_attn.norm.key_norm",
+        "double_blocks.4.img_attn.norm.query_norm",
+        "double_blocks.4.img_attn.norm.key_norm",
+        "double_blocks.4.txt_attn.norm.query_norm",
+        "double_blocks.4.txt_attn.norm.key_norm",
+        "double_blocks.5.img_attn.norm.query_norm",
+        "double_blocks.5.img_attn.norm.key_norm",
+        "double_blocks.5.txt_attn.norm.query_norm",
+        "double_blocks.5.txt_attn.norm.key_norm",
+        "double_blocks.6.img_attn.norm.query_norm",
+        "double_blocks.6.img_attn.norm.key_norm",
+        "double_blocks.6.txt_attn.norm.query_norm",
+        "double_blocks.6.txt_attn.norm.key_norm",
+        "double_blocks.7.img_attn.norm.query_norm",
+        "double_blocks.7.img_attn.norm.key_norm",
+        "double_blocks.7.txt_attn.norm.query_norm",
+        "double_blocks.7.txt_attn.norm.key_norm",
+        "double_blocks.8.img_attn.norm.query_norm",
+        "double_blocks.8.img_attn.norm.key_norm",
+        "double_blocks.8.txt_attn.norm.query_norm",
+        "double_blocks.8.txt_attn.norm.key_norm",
+        "double_blocks.9.img_attn.norm.query_norm",
+        "double_blocks.9.img_attn.norm.key_norm",
+        "double_blocks.9.txt_attn.norm.query_norm",
+        "double_blocks.9.txt_attn.norm.key_norm",
+        "double_blocks.10.img_attn.norm.query_norm",
+        "double_blocks.10.img_attn.norm.key_norm",
+        "double_blocks.10.txt_attn.norm.query_norm",
+        "double_blocks.10.txt_attn.norm.key_norm",
+        "double_blocks.11.img_attn.norm.query_norm",
+        "double_blocks.11.img_attn.norm.key_norm",
+        "double_blocks.11.txt_attn.norm.query_norm",
+        "double_blocks.11.txt_attn.norm.key_norm",
+        "double_blocks.12.img_attn.norm.query_norm",
+        "double_blocks.12.img_attn.norm.key_norm",
+        "double_blocks.12.txt_attn.norm.query_norm",
+        "double_blocks.12.txt_attn.norm.key_norm",
+        "double_blocks.13.img_attn.norm.query_norm",
+        "double_blocks.13.img_attn.norm.key_norm",
+        "double_blocks.13.txt_attn.norm.query_norm",
+        "double_blocks.13.txt_attn.norm.key_norm",
+        "double_blocks.14.img_attn.norm.query_norm",
+        "double_blocks.14.img_attn.norm.key_norm",
+        "double_blocks.14.txt_attn.norm.query_norm",
+        "double_blocks.14.txt_attn.norm.key_norm",
+        "double_blocks.15.img_attn.norm.query_norm",
+        "double_blocks.15.img_attn.norm.key_norm",
+        "double_blocks.15.txt_attn.norm.query_norm",
+        "double_blocks.15.txt_attn.norm.key_norm",
+        "double_blocks.16.img_attn.norm.query_norm",
+        "double_blocks.16.img_attn.norm.key_norm",
+        "double_blocks.16.txt_attn.norm.query_norm",
+        "double_blocks.16.txt_attn.norm.key_norm",
+        "double_blocks.17.img_attn.norm.query_norm",
+        "double_blocks.17.img_attn.norm.key_norm",
+        "double_blocks.17.txt_attn.norm.query_norm",
+        "double_blocks.17.txt_attn.norm.key_norm",
+        "double_blocks.18.img_attn.norm.query_norm",
+        "double_blocks.18.img_attn.norm.key_norm",
+        "double_blocks.18.txt_attn.norm.query_norm",
+        "double_blocks.18.txt_attn.norm.key_norm",
+        "single_blocks.0.norm.query_norm",
+        "single_blocks.0.norm.key_norm",
+        "single_blocks.1.norm.query_norm",
+        "single_blocks.1.norm.key_norm",
+        "single_blocks.2.norm.query_norm",
+        "single_blocks.2.norm.key_norm",
+        "single_blocks.3.norm.query_norm",
+        "single_blocks.3.norm.key_norm",
+        "single_blocks.4.norm.query_norm",
+        "single_blocks.4.norm.key_norm",
+        "single_blocks.5.norm.query_norm",
+        "single_blocks.5.norm.key_norm",
+        "single_blocks.6.norm.query_norm",
+        "single_blocks.6.norm.key_norm",
+        "single_blocks.7.norm.query_norm",
+        "single_blocks.7.norm.key_norm",
+        "single_blocks.8.norm.query_norm",
+        "single_blocks.8.norm.key_norm",
+        "single_blocks.9.norm.query_norm",
+        "single_blocks.9.norm.key_norm",
+        "single_blocks.10.norm.query_norm",
+        "single_blocks.10.norm.key_norm",
+        "single_blocks.11.norm.query_norm",
+        "single_blocks.11.norm.key_norm",
+        "single_blocks.12.norm.query_norm",
+        "single_blocks.12.norm.key_norm",
+        "single_blocks.13.norm.query_norm",
+        "single_blocks.13.norm.key_norm",
+        "single_blocks.14.norm.query_norm",
+        "single_blocks.14.norm.key_norm",
+        "single_blocks.15.norm.query_norm",
+        "single_blocks.15.norm.key_norm",
+        "single_blocks.16.norm.query_norm",
+        "single_blocks.16.norm.key_norm",
+        "single_blocks.17.norm.query_norm",
+        "single_blocks.17.norm.key_norm",
+        "single_blocks.18.norm.query_norm",
+        "single_blocks.18.norm.key_norm",
+        "single_blocks.19.norm.query_norm",
+        "single_blocks.19.norm.key_norm",
+        "single_blocks.20.norm.query_norm",
+        "single_blocks.20.norm.key_norm",
+        "single_blocks.21.norm.query_norm",
+        "single_blocks.21.norm.key_norm",
+        "single_blocks.22.norm.query_norm",
+        "single_blocks.22.norm.key_norm",
+        "single_blocks.23.norm.query_norm",
+        "single_blocks.23.norm.key_norm",
+        "single_blocks.24.norm.query_norm",
+        "single_blocks.24.norm.key_norm",
+        "single_blocks.25.norm.query_norm",
+        "single_blocks.25.norm.key_norm",
+        "single_blocks.26.norm.query_norm",
+        "single_blocks.26.norm.key_norm",
+        "single_blocks.27.norm.query_norm",
+        "single_blocks.27.norm.key_norm",
+        "single_blocks.28.norm.query_norm",
+        "single_blocks.28.norm.key_norm",
+        "single_blocks.29.norm.query_norm",
+        "single_blocks.29.norm.key_norm",
+        "single_blocks.30.norm.query_norm",
+        "single_blocks.30.norm.key_norm",
+        "single_blocks.31.norm.query_norm",
+        "single_blocks.31.norm.key_norm",
+        "single_blocks.32.norm.query_norm",
+        "single_blocks.32.norm.key_norm",
+        "single_blocks.33.norm.query_norm",
+        "single_blocks.33.norm.key_norm",
+        "single_blocks.34.norm.query_norm",
+        "single_blocks.34.norm.key_norm",
+        "single_blocks.35.norm.query_norm",
+        "single_blocks.35.norm.key_norm",
+        "single_blocks.36.norm.query_norm",
+        "single_blocks.36.norm.key_norm",
+        "single_blocks.37.norm.query_norm",
+        "single_blocks.37.norm.key_norm"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "double_blocks.0.img_mlp.0",
+      "static": {
+        "N": 12288,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 256
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 38
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "double_blocks.0.txt_mlp.0",
+        "double_blocks.1.img_mlp.0",
+        "double_blocks.1.txt_mlp.0",
+        "double_blocks.2.img_mlp.0",
+        "double_blocks.2.txt_mlp.0",
+        "double_blocks.3.img_mlp.0",
+        "double_blocks.3.txt_mlp.0",
+        "double_blocks.4.img_mlp.0",
+        "double_blocks.4.txt_mlp.0",
+        "double_blocks.5.img_mlp.0",
+        "double_blocks.5.txt_mlp.0",
+        "double_blocks.6.img_mlp.0",
+        "double_blocks.6.txt_mlp.0",
+        "double_blocks.7.img_mlp.0",
+        "double_blocks.7.txt_mlp.0",
+        "double_blocks.8.img_mlp.0",
+        "double_blocks.8.txt_mlp.0",
+        "double_blocks.9.img_mlp.0",
+        "double_blocks.9.txt_mlp.0",
+        "double_blocks.10.img_mlp.0",
+        "double_blocks.10.txt_mlp.0",
+        "double_blocks.11.img_mlp.0",
+        "double_blocks.11.txt_mlp.0",
+        "double_blocks.12.img_mlp.0",
+        "double_blocks.12.txt_mlp.0",
+        "double_blocks.13.img_mlp.0",
+        "double_blocks.13.txt_mlp.0",
+        "double_blocks.14.img_mlp.0",
+        "double_blocks.14.txt_mlp.0",
+        "double_blocks.15.img_mlp.0",
+        "double_blocks.15.txt_mlp.0",
+        "double_blocks.16.img_mlp.0",
+        "double_blocks.16.txt_mlp.0",
+        "double_blocks.17.img_mlp.0",
+        "double_blocks.17.txt_mlp.0",
+        "double_blocks.18.img_mlp.0",
+        "double_blocks.18.txt_mlp.0"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "double_blocks.0.img_mlp.2",
+      "static": {
+        "N": 3072,
+        "K": 12288,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 256
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 38
+      },
+      "layout": null,
+      "tags": [
+        "mlp",
+        "double_blocks.0.txt_mlp.2",
+        "double_blocks.1.img_mlp.2",
+        "double_blocks.1.txt_mlp.2",
+        "double_blocks.2.img_mlp.2",
+        "double_blocks.2.txt_mlp.2",
+        "double_blocks.3.img_mlp.2",
+        "double_blocks.3.txt_mlp.2",
+        "double_blocks.4.img_mlp.2",
+        "double_blocks.4.txt_mlp.2",
+        "double_blocks.5.img_mlp.2",
+        "double_blocks.5.txt_mlp.2",
+        "double_blocks.6.img_mlp.2",
+        "double_blocks.6.txt_mlp.2",
+        "double_blocks.7.img_mlp.2",
+        "double_blocks.7.txt_mlp.2",
+        "double_blocks.8.img_mlp.2",
+        "double_blocks.8.txt_mlp.2",
+        "double_blocks.9.img_mlp.2",
+        "double_blocks.9.txt_mlp.2",
+        "double_blocks.10.img_mlp.2",
+        "double_blocks.10.txt_mlp.2",
+        "double_blocks.11.img_mlp.2",
+        "double_blocks.11.txt_mlp.2",
+        "double_blocks.12.img_mlp.2",
+        "double_blocks.12.txt_mlp.2",
+        "double_blocks.13.img_mlp.2",
+        "double_blocks.13.txt_mlp.2",
+        "double_blocks.14.img_mlp.2",
+        "double_blocks.14.txt_mlp.2",
+        "double_blocks.15.img_mlp.2",
+        "double_blocks.15.txt_mlp.2",
+        "double_blocks.16.img_mlp.2",
+        "double_blocks.16.txt_mlp.2",
+        "double_blocks.17.img_mlp.2",
+        "double_blocks.17.txt_mlp.2",
+        "double_blocks.18.img_mlp.2",
+        "double_blocks.18.txt_mlp.2"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "single_blocks.0.linear1",
+      "static": {
+        "N": 21504,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4352
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 38
+      },
+      "layout": null,
+      "tags": [
+        "single_blocks.1.linear1",
+        "single_blocks.2.linear1",
+        "single_blocks.3.linear1",
+        "single_blocks.4.linear1",
+        "single_blocks.5.linear1",
+        "single_blocks.6.linear1",
+        "single_blocks.7.linear1",
+        "single_blocks.8.linear1",
+        "single_blocks.9.linear1",
+        "single_blocks.10.linear1",
+        "single_blocks.11.linear1",
+        "single_blocks.12.linear1",
+        "single_blocks.13.linear1",
+        "single_blocks.14.linear1",
+        "single_blocks.15.linear1",
+        "single_blocks.16.linear1",
+        "single_blocks.17.linear1",
+        "single_blocks.18.linear1",
+        "single_blocks.19.linear1",
+        "single_blocks.20.linear1",
+        "single_blocks.21.linear1",
+        "single_blocks.22.linear1",
+        "single_blocks.23.linear1",
+        "single_blocks.24.linear1",
+        "single_blocks.25.linear1",
+        "single_blocks.26.linear1",
+        "single_blocks.27.linear1",
+        "single_blocks.28.linear1",
+        "single_blocks.29.linear1",
+        "single_blocks.30.linear1",
+        "single_blocks.31.linear1",
+        "single_blocks.32.linear1",
+        "single_blocks.33.linear1",
+        "single_blocks.34.linear1",
+        "single_blocks.35.linear1",
+        "single_blocks.36.linear1",
+        "single_blocks.37.linear1"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "single_blocks.0.linear2",
+      "static": {
+        "N": 3072,
+        "K": 15360,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4352
+          },
+          "varies": false,
+          "binding": "txt_tokens+img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 38
+      },
+      "layout": null,
+      "tags": [
+        "single_blocks.1.linear2",
+        "single_blocks.2.linear2",
+        "single_blocks.3.linear2",
+        "single_blocks.4.linear2",
+        "single_blocks.5.linear2",
+        "single_blocks.6.linear2",
+        "single_blocks.7.linear2",
+        "single_blocks.8.linear2",
+        "single_blocks.9.linear2",
+        "single_blocks.10.linear2",
+        "single_blocks.11.linear2",
+        "single_blocks.12.linear2",
+        "single_blocks.13.linear2",
+        "single_blocks.14.linear2",
+        "single_blocks.15.linear2",
+        "single_blocks.16.linear2",
+        "single_blocks.17.linear2",
+        "single_blocks.18.linear2",
+        "single_blocks.19.linear2",
+        "single_blocks.20.linear2",
+        "single_blocks.21.linear2",
+        "single_blocks.22.linear2",
+        "single_blocks.23.linear2",
+        "single_blocks.24.linear2",
+        "single_blocks.25.linear2",
+        "single_blocks.26.linear2",
+        "single_blocks.27.linear2",
+        "single_blocks.28.linear2",
+        "single_blocks.29.linear2",
+        "single_blocks.30.linear2",
+        "single_blocks.31.linear2",
+        "single_blocks.32.linear2",
+        "single_blocks.33.linear2",
+        "single_blocks.34.linear2",
+        "single_blocks.35.linear2",
+        "single_blocks.36.linear2",
+        "single_blocks.37.linear2"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "final_layer.linear",
+      "static": {
+        "N": 64,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4096
+          },
+          "varies": false,
+          "binding": "img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "final_layer.adaLN_modulation.1",
+      "static": {
+        "N": 6144,
+        "K": 3072,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    }
+  ]
+}

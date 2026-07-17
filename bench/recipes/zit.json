@@ -1,0 +1,944 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "NextDiT",
+  "profiles": [
+    "default"
+  ],
+  "created_at": "2026-07-17T06:31:01.375426+00:00",
+  "meta": {},
+  "events": [
+    {
+      "op": "sdpa",
+      "family": "attention",
+      "layer": "sdpa.001",
+      "static": {
+        "batch": 1,
+        "heads": 30,
+        "head_dim": 128,
+        "dtype": "bfloat16",
+        "causal": false,
+        "dropout_p": 0.0,
+        "kv_heads": 30
+      },
+      "dynamic": {
+        "q_tokens": {
+          "role": "q_tokens",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        },
+        "kv_tokens": {
+          "role": "kv_tokens",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 34
+      },
+      "layout": "BHND",
+      "tags": [
+        "sdpa",
+        "sdpa.002",
+        "sdpa.003",
+        "sdpa.004",
+        "sdpa.005",
+        "sdpa.006",
+        "sdpa.007",
+        "sdpa.008",
+        "sdpa.009",
+        "sdpa.010",
+        "sdpa.011",
+        "sdpa.012",
+        "sdpa.013",
+        "sdpa.014",
+        "sdpa.015",
+        "sdpa.016",
+        "sdpa.017",
+        "sdpa.018",
+        "sdpa.019",
+        "sdpa.020",
+        "sdpa.021",
+        "sdpa.022",
+        "sdpa.023",
+        "sdpa.024",
+        "sdpa.025",
+        "sdpa.026",
+        "sdpa.027",
+        "sdpa.028",
+        "sdpa.029",
+        "sdpa.030",
+        "sdpa.031",
+        "sdpa.032",
+        "sdpa.033",
+        "sdpa.034"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "x_embedder",
+      "static": {
+        "N": 3840,
+        "K": 64,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4096
+          },
+          "varies": false,
+          "binding": "img_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "noise_refiner.0.attention.qkv",
+      "static": {
+        "N": 11520,
+        "K": 3840,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 34
+      },
+      "layout": null,
+      "tags": [
+        "noise_refiner.1.attention.qkv",
+        "context_refiner.0.attention.qkv",
+        "context_refiner.1.attention.qkv",
+        "layers.0.attention.qkv",
+        "layers.1.attention.qkv",
+        "layers.2.attention.qkv",
+        "layers.3.attention.qkv",
+        "layers.4.attention.qkv",
+        "layers.5.attention.qkv",
+        "layers.6.attention.qkv",
+        "layers.7.attention.qkv",
+        "layers.8.attention.qkv",
+        "layers.9.attention.qkv",
+        "layers.10.attention.qkv",
+        "layers.11.attention.qkv",
+        "layers.12.attention.qkv",
+        "layers.13.attention.qkv",
+        "layers.14.attention.qkv",
+        "layers.15.attention.qkv",
+        "layers.16.attention.qkv",
+        "layers.17.attention.qkv",
+        "layers.18.attention.qkv",
+        "layers.19.attention.qkv",
+        "layers.20.attention.qkv",
+        "layers.21.attention.qkv",
+        "layers.22.attention.qkv",
+        "layers.23.attention.qkv",
+        "layers.24.attention.qkv",
+        "layers.25.attention.qkv",
+        "layers.26.attention.qkv",
+        "layers.27.attention.qkv",
+        "layers.28.attention.qkv",
+        "layers.29.attention.qkv"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "noise_refiner.0.attention.out",
+      "static": {
+        "N": 3840,
+        "K": 3840,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 34
+      },
+      "layout": null,
+      "tags": [
+        "noise_refiner.1.attention.out",
+        "context_refiner.0.attention.out",
+        "context_refiner.1.attention.out",
+        "layers.0.attention.out",
+        "layers.1.attention.out",
+        "layers.2.attention.out",
+        "layers.3.attention.out",
+        "layers.4.attention.out",
+        "layers.5.attention.out",
+        "layers.6.attention.out",
+        "layers.7.attention.out",
+        "layers.8.attention.out",
+        "layers.9.attention.out",
+        "layers.10.attention.out",
+        "layers.11.attention.out",
+        "layers.12.attention.out",
+        "layers.13.attention.out",
+        "layers.14.attention.out",
+        "layers.15.attention.out",
+        "layers.16.attention.out",
+        "layers.17.attention.out",
+        "layers.18.attention.out",
+        "layers.19.attention.out",
+        "layers.20.attention.out",
+        "layers.21.attention.out",
+        "layers.22.attention.out",
+        "layers.23.attention.out",
+        "layers.24.attention.out",
+        "layers.25.attention.out",
+        "layers.26.attention.out",
+        "layers.27.attention.out",
+        "layers.28.attention.out",
+        "layers.29.attention.out"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "rms_norm",
+      "layer": "noise_refiner.0.attention.q_norm",
+      "static": {
+        "normalized_shape": [
+          128
+        ],
+        "affine": true,
+        "dtype": "bfloat16",
+        "norm_type": "rms_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              4160,
+              30
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 15974400
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 68
+      },
+      "layout": null,
+      "tags": [
+        "norm",
+        "noise_refiner.0.attention.k_norm",
+        "noise_refiner.1.attention.q_norm",
+        "noise_refiner.1.attention.k_norm",
+        "context_refiner.0.attention.q_norm",
+        "context_refiner.0.attention.k_norm",
+        "context_refiner.1.attention.q_norm",
+        "context_refiner.1.attention.k_norm",
+        "layers.0.attention.q_norm",
+        "layers.0.attention.k_norm",
+        "layers.1.attention.q_norm",
+        "layers.1.attention.k_norm",
+        "layers.2.attention.q_norm",
+        "layers.2.attention.k_norm",
+        "layers.3.attention.q_norm",
+        "layers.3.attention.k_norm",
+        "layers.4.attention.q_norm",
+        "layers.4.attention.k_norm",
+        "layers.5.attention.q_norm",
+        "layers.5.attention.k_norm",
+        "layers.6.attention.q_norm",
+        "layers.6.attention.k_norm",
+        "layers.7.attention.q_norm",
+        "layers.7.attention.k_norm",
+        "layers.8.attention.q_norm",
+        "layers.8.attention.k_norm",
+        "layers.9.attention.q_norm",
+        "layers.9.attention.k_norm",
+        "layers.10.attention.q_norm",
+        "layers.10.attention.k_norm",
+        "layers.11.attention.q_norm",
+        "layers.11.attention.k_norm",
+        "layers.12.attention.q_norm",
+        "layers.12.attention.k_norm",
+        "layers.13.attention.q_norm",
+        "layers.13.attention.k_norm",
+        "layers.14.attention.q_norm",
+        "layers.14.attention.k_norm",
+        "layers.15.attention.q_norm",
+        "layers.15.attention.k_norm",
+        "layers.16.attention.q_norm",
+        "layers.16.attention.k_norm",
+        "layers.17.attention.q_norm",
+        "layers.17.attention.k_norm",
+        "layers.18.attention.q_norm",
+        "layers.18.attention.k_norm",
+        "layers.19.attention.q_norm",
+        "layers.19.attention.k_norm",
+        "layers.20.attention.q_norm",
+        "layers.20.attention.k_norm",
+        "layers.21.attention.q_norm",
+        "layers.21.attention.k_norm",
+        "layers.22.attention.q_norm",
+        "layers.22.attention.k_norm",
+        "layers.23.attention.q_norm",
+        "layers.23.attention.k_norm",
+        "layers.24.attention.q_norm",
+        "layers.24.attention.k_norm",
+        "layers.25.attention.q_norm",
+        "layers.25.attention.k_norm",
+        "layers.26.attention.q_norm",
+        "layers.26.attention.k_norm",
+        "layers.27.attention.q_norm",
+        "layers.27.attention.k_norm",
+        "layers.28.attention.q_norm",
+        "layers.28.attention.k_norm",
+        "layers.29.attention.q_norm",
+        "layers.29.attention.k_norm"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "noise_refiner.0.feed_forward.w1",
+      "static": {
+        "N": 10240,
+        "K": 3840,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 68
+      },
+      "layout": null,
+      "tags": [
+        "noise_refiner.0.feed_forward.w3",
+        "noise_refiner.1.feed_forward.w1",
+        "noise_refiner.1.feed_forward.w3",
+        "context_refiner.0.feed_forward.w1",
+        "context_refiner.0.feed_forward.w3",
+        "context_refiner.1.feed_forward.w1",
+        "context_refiner.1.feed_forward.w3",
+        "layers.0.feed_forward.w1",
+        "layers.0.feed_forward.w3",
+        "layers.1.feed_forward.w1",
+        "layers.1.feed_forward.w3",
+        "layers.2.feed_forward.w1",
+        "layers.2.feed_forward.w3",
+        "layers.3.feed_forward.w1",
+        "layers.3.feed_forward.w3",
+        "layers.4.feed_forward.w1",
+        "layers.4.feed_forward.w3",
+        "layers.5.feed_forward.w1",
+        "layers.5.feed_forward.w3",
+        "layers.6.feed_forward.w1",
+        "layers.6.feed_forward.w3",
+        "layers.7.feed_forward.w1",
+        "layers.7.feed_forward.w3",
+        "layers.8.feed_forward.w1",
+        "layers.8.feed_forward.w3",
+        "layers.9.feed_forward.w1",
+        "layers.9.feed_forward.w3",
+        "layers.10.feed_forward.w1",
+        "layers.10.feed_forward.w3",
+        "layers.11.feed_forward.w1",
+        "layers.11.feed_forward.w3",
+        "layers.12.feed_forward.w1",
+        "layers.12.feed_forward.w3",
+        "layers.13.feed_forward.w1",
+        "layers.13.feed_forward.w3",
+        "layers.14.feed_forward.w1",
+        "layers.14.feed_forward.w3",
+        "layers.15.feed_forward.w1",
+        "layers.15.feed_forward.w3",
+        "layers.16.feed_forward.w1",
+        "layers.16.feed_forward.w3",
+        "layers.17.feed_forward.w1",
+        "layers.17.feed_forward.w3",
+        "layers.18.feed_forward.w1",
+        "layers.18.feed_forward.w3",
+        "layers.19.feed_forward.w1",
+        "layers.19.feed_forward.w3",
+        "layers.20.feed_forward.w1",
+        "layers.20.feed_forward.w3",
+        "layers.21.feed_forward.w1",
+        "layers.21.feed_forward.w3",
+        "layers.22.feed_forward.w1",
+        "layers.22.feed_forward.w3",
+        "layers.23.feed_forward.w1",
+        "layers.23.feed_forward.w3",
+        "layers.24.feed_forward.w1",
+        "layers.24.feed_forward.w3",
+        "layers.25.feed_forward.w1",
+        "layers.25.feed_forward.w3",
+        "layers.26.feed_forward.w1",
+        "layers.26.feed_forward.w3",
+        "layers.27.feed_forward.w1",
+        "layers.27.feed_forward.w3",
+        "layers.28.feed_forward.w1",
+        "layers.28.feed_forward.w3",
+        "layers.29.feed_forward.w1",
+        "layers.29.feed_forward.w3"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "noise_refiner.0.feed_forward.w2",
+      "static": {
+        "N": 3840,
+        "K": 10240,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 34
+      },
+      "layout": null,
+      "tags": [
+        "noise_refiner.1.feed_forward.w2",
+        "context_refiner.0.feed_forward.w2",
+        "context_refiner.1.feed_forward.w2",
+        "layers.0.feed_forward.w2",
+        "layers.1.feed_forward.w2",
+        "layers.2.feed_forward.w2",
+        "layers.3.feed_forward.w2",
+        "layers.4.feed_forward.w2",
+        "layers.5.feed_forward.w2",
+        "layers.6.feed_forward.w2",
+        "layers.7.feed_forward.w2",
+        "layers.8.feed_forward.w2",
+        "layers.9.feed_forward.w2",
+        "layers.10.feed_forward.w2",
+        "layers.11.feed_forward.w2",
+        "layers.12.feed_forward.w2",
+        "layers.13.feed_forward.w2",
+        "layers.14.feed_forward.w2",
+        "layers.15.feed_forward.w2",
+        "layers.16.feed_forward.w2",
+        "layers.17.feed_forward.w2",
+        "layers.18.feed_forward.w2",
+        "layers.19.feed_forward.w2",
+        "layers.20.feed_forward.w2",
+        "layers.21.feed_forward.w2",
+        "layers.22.feed_forward.w2",
+        "layers.23.feed_forward.w2",
+        "layers.24.feed_forward.w2",
+        "layers.25.feed_forward.w2",
+        "layers.26.feed_forward.w2",
+        "layers.27.feed_forward.w2",
+        "layers.28.feed_forward.w2",
+        "layers.29.feed_forward.w2"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "rms_norm",
+      "layer": "noise_refiner.0.attention_norm1",
+      "static": {
+        "normalized_shape": [
+          3840
+        ],
+        "affine": true,
+        "dtype": "bfloat16",
+        "norm_type": "rms_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              4160
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 15974400
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 136
+      },
+      "layout": null,
+      "tags": [
+        "norm",
+        "noise_refiner.0.ffn_norm1",
+        "noise_refiner.0.attention_norm2",
+        "noise_refiner.0.ffn_norm2",
+        "noise_refiner.1.attention_norm1",
+        "noise_refiner.1.ffn_norm1",
+        "noise_refiner.1.attention_norm2",
+        "noise_refiner.1.ffn_norm2",
+        "context_refiner.0.attention_norm1",
+        "context_refiner.0.ffn_norm1",
+        "context_refiner.0.attention_norm2",
+        "context_refiner.0.ffn_norm2",
+        "context_refiner.1.attention_norm1",
+        "context_refiner.1.ffn_norm1",
+        "context_refiner.1.attention_norm2",
+        "context_refiner.1.ffn_norm2",
+        "layers.0.attention_norm1",
+        "layers.0.ffn_norm1",
+        "layers.0.attention_norm2",
+        "layers.0.ffn_norm2",
+        "layers.1.attention_norm1",
+        "layers.1.ffn_norm1",
+        "layers.1.attention_norm2",
+        "layers.1.ffn_norm2",
+        "layers.2.attention_norm1",
+        "layers.2.ffn_norm1",
+        "layers.2.attention_norm2",
+        "layers.2.ffn_norm2",
+        "layers.3.attention_norm1",
+        "layers.3.ffn_norm1",
+        "layers.3.attention_norm2",
+        "layers.3.ffn_norm2",
+        "layers.4.attention_norm1",
+        "layers.4.ffn_norm1",
+        "layers.4.attention_norm2",
+        "layers.4.ffn_norm2",
+        "layers.5.attention_norm1",
+        "layers.5.ffn_norm1",
+        "layers.5.attention_norm2",
+        "layers.5.ffn_norm2",
+        "layers.6.attention_norm1",
+        "layers.6.ffn_norm1",
+        "layers.6.attention_norm2",
+        "layers.6.ffn_norm2",
+        "layers.7.attention_norm1",
+        "layers.7.ffn_norm1",
+        "layers.7.attention_norm2",
+        "layers.7.ffn_norm2",
+        "layers.8.attention_norm1",
+        "layers.8.ffn_norm1",
+        "layers.8.attention_norm2",
+        "layers.8.ffn_norm2",
+        "layers.9.attention_norm1",
+        "layers.9.ffn_norm1",
+        "layers.9.attention_norm2",
+        "layers.9.ffn_norm2",
+        "layers.10.attention_norm1",
+        "layers.10.ffn_norm1",
+        "layers.10.attention_norm2",
+        "layers.10.ffn_norm2",
+        "layers.11.attention_norm1",
+        "layers.11.ffn_norm1",
+        "layers.11.attention_norm2",
+        "layers.11.ffn_norm2",
+        "layers.12.attention_norm1",
+        "layers.12.ffn_norm1",
+        "layers.12.attention_norm2",
+        "layers.12.ffn_norm2",
+        "layers.13.attention_norm1",
+        "layers.13.ffn_norm1",
+        "layers.13.attention_norm2",
+        "layers.13.ffn_norm2",
+        "layers.14.attention_norm1",
+        "layers.14.ffn_norm1",
+        "layers.14.attention_norm2",
+        "layers.14.ffn_norm2",
+        "layers.15.attention_norm1",
+        "layers.15.ffn_norm1",
+        "layers.15.attention_norm2",
+        "layers.15.ffn_norm2",
+        "layers.16.attention_norm1",
+        "layers.16.ffn_norm1",
+        "layers.16.attention_norm2",
+        "layers.16.ffn_norm2",
+        "layers.17.attention_norm1",
+        "layers.17.ffn_norm1",
+        "layers.17.attention_norm2",
+        "layers.17.ffn_norm2",
+        "layers.18.attention_norm1",
+        "layers.18.ffn_norm1",
+        "layers.18.attention_norm2",
+        "layers.18.ffn_norm2",
+        "layers.19.attention_norm1",
+        "layers.19.ffn_norm1",
+        "layers.19.attention_norm2",
+        "layers.19.ffn_norm2",
+        "layers.20.attention_norm1",
+        "layers.20.ffn_norm1",
+        "layers.20.attention_norm2",
+        "layers.20.ffn_norm2",
+        "layers.21.attention_norm1",
+        "layers.21.ffn_norm1",
+        "layers.21.attention_norm2",
+        "layers.21.ffn_norm2",
+        "layers.22.attention_norm1",
+        "layers.22.ffn_norm1",
+        "layers.22.attention_norm2",
+        "layers.22.ffn_norm2",
+        "layers.23.attention_norm1",
+        "layers.23.ffn_norm1",
+        "layers.23.attention_norm2",
+        "layers.23.ffn_norm2",
+        "layers.24.attention_norm1",
+        "layers.24.ffn_norm1",
+        "layers.24.attention_norm2",
+        "layers.24.ffn_norm2",
+        "layers.25.attention_norm1",
+        "layers.25.ffn_norm1",
+        "layers.25.attention_norm2",
+        "layers.25.ffn_norm2",
+        "layers.26.attention_norm1",
+        "layers.26.ffn_norm1",
+        "layers.26.attention_norm2",
+        "layers.26.ffn_norm2",
+        "layers.27.attention_norm1",
+        "layers.27.ffn_norm1",
+        "layers.27.attention_norm2",
+        "layers.27.ffn_norm2",
+        "layers.28.attention_norm1",
+        "layers.28.ffn_norm1",
+        "layers.28.attention_norm2",
+        "layers.28.ffn_norm2",
+        "layers.29.attention_norm1",
+        "layers.29.ffn_norm1",
+        "layers.29.attention_norm2",
+        "layers.29.ffn_norm2"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "noise_refiner.0.adaLN_modulation.0",
+      "static": {
+        "N": 15360,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 32
+      },
+      "layout": null,
+      "tags": [
+        "noise_refiner.1.adaLN_modulation.0",
+        "layers.0.adaLN_modulation.0",
+        "layers.1.adaLN_modulation.0",
+        "layers.2.adaLN_modulation.0",
+        "layers.3.adaLN_modulation.0",
+        "layers.4.adaLN_modulation.0",
+        "layers.5.adaLN_modulation.0",
+        "layers.6.adaLN_modulation.0",
+        "layers.7.adaLN_modulation.0",
+        "layers.8.adaLN_modulation.0",
+        "layers.9.adaLN_modulation.0",
+        "layers.10.adaLN_modulation.0",
+        "layers.11.adaLN_modulation.0",
+        "layers.12.adaLN_modulation.0",
+        "layers.13.adaLN_modulation.0",
+        "layers.14.adaLN_modulation.0",
+        "layers.15.adaLN_modulation.0",
+        "layers.16.adaLN_modulation.0",
+        "layers.17.adaLN_modulation.0",
+        "layers.18.adaLN_modulation.0",
+        "layers.19.adaLN_modulation.0",
+        "layers.20.adaLN_modulation.0",
+        "layers.21.adaLN_modulation.0",
+        "layers.22.adaLN_modulation.0",
+        "layers.23.adaLN_modulation.0",
+        "layers.24.adaLN_modulation.0",
+        "layers.25.adaLN_modulation.0",
+        "layers.26.adaLN_modulation.0",
+        "layers.27.adaLN_modulation.0",
+        "layers.28.adaLN_modulation.0",
+        "layers.29.adaLN_modulation.0"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "t_embedder.mlp.0",
+      "static": {
+        "N": 1024,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [
+        "mlp"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "t_embedder.mlp.2",
+      "static": {
+        "N": 256,
+        "K": 1024,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [
+        "mlp"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "rms_norm",
+      "layer": "cap_embedder.0",
+      "static": {
+        "normalized_shape": [
+          2560
+        ],
+        "affine": true,
+        "dtype": "bfloat16",
+        "norm_type": "rms_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              39
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 99840
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "cap_embedder.1",
+      "static": {
+        "N": 3840,
+        "K": 2560,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 39
+          },
+          "varies": false,
+          "binding": "txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "norm",
+      "family": "layer_norm",
+      "layer": "final_layer.norm_final",
+      "static": {
+        "normalized_shape": [
+          3840
+        ],
+        "affine": false,
+        "dtype": "bfloat16",
+        "norm_type": "layer_norm"
+      },
+      "dynamic": {
+        "leading_shape": {
+          "role": "leading_shape",
+          "values": {
+            "default": [
+              1,
+              4160
+            ]
+          },
+          "varies": false
+        },
+        "numel": {
+          "role": "numel",
+          "values": {
+            "default": 15974400
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [
+        "norm"
+      ],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "final_layer.linear",
+      "static": {
+        "N": 64,
+        "K": 3840,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 4160
+          },
+          "varies": false,
+          "binding": "img_tokens+txt_tokens"
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "final_layer.adaLN_modulation.1",
+      "static": {
+        "N": 3840,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "role": "M",
+          "values": {
+            "default": 1
+          },
+          "varies": false
+        }
+      },
+      "call_count": {
+        "default": 1
+      },
+      "layout": null,
+      "tags": [],
+      "schema": "ck.triage.op_event.v1"
+    }
+  ]
+}
