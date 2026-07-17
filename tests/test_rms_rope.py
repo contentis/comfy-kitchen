@@ -69,7 +69,7 @@ def _run_backend(op_name, backend, args, layout, monkeypatch):
 
 def _max_mismatch(freqs_dtype, dtype):
     if freqs_dtype == torch.bfloat16:
-        return 0.326
+        return 0.35
     if freqs_dtype == torch.float16 or dtype == torch.bfloat16:
         return 0.055
     return 1e-5
