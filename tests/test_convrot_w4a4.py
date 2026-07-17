@@ -119,6 +119,39 @@ def test_convrot_int4_fused_shared_memory_bytes(m, k, group_size, dtype_size, ex
     assert cuda_backend._convrot_int4_fused_shared_memory_bytes(m, k, group_size, dtype_size) == expected
 
 
+@pytest.mark.parametrize(
+    ("m", "n", "k", "expected"),
+    [
+        (1, 5120, 5120, True),
+        (512, 5120, 5120, False),
+        (64, 11520, 3840, True),
+        (64, 12288, 3072, False),
+        (65, 6144, 6144, False),
+        (65, 9216, 3072, False),
+        (77, 5120, 5120, True),
+        (77, 6144, 6144, False),
+        (128, 6144, 6144, True),
+        (512, 1536, 1536, False),
+        (64, 15360, 256, True),
+        (512, 2048, 1024, False),
+        (1, 55296, 6144, False),
+    ],
+)
+def test_prefer_legacy_int4_kernel_ada(monkeypatch, m, n, k, expected):
+    device_index = 0
+    monkeypatch.setitem(cuda_backend._device_multiprocessor_count_cache, device_index, 142)
+
+    assert cuda_backend._prefer_legacy_int4_kernel(m, n, k, device_index) is expected
+
+
+def test_prefer_legacy_int4_kernel_scales_for_ampere(monkeypatch):
+    device_index = 0
+    monkeypatch.setitem(cuda_backend._device_multiprocessor_count_cache, device_index, 108)
+
+    assert cuda_backend._prefer_legacy_int4_kernel(64, 8192, 4096, device_index)
+    assert not cuda_backend._prefer_legacy_int4_kernel(64, 10240, 4096, device_index)
+
+
 def test_convrot_w4a4_rejects_bad_groups(seed):
     w = torch.randn(16, 250, dtype=torch.float32)
     with pytest.raises(ValueError, match="not divisible by convrot_groupsize"):

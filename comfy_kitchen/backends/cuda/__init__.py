@@ -165,6 +165,7 @@ _turing_device_cache: dict[int, bool] = {}
 _nvidia_16_series_device_cache: dict[int, bool] = {}
 _cutlass_int8_device_cache: dict[int, bool] = {}
 _device_capability_cache: dict[int, tuple[int, int]] = {}
+_device_multiprocessor_count_cache: dict[int, int] = {}
 _FORCE_INT4_INT8_FALLBACK = os.environ.get("COMFY_KITCHEN_FORCE_INT4_INT8_FALLBACK", "0") == "1"
 _INT4_PACKED_WEIGHT_SMALL_M_MAX = 8
 _INT4_INT8_WEIGHT_CHUNK_N = max(1, int(os.environ.get("COMFY_KITCHEN_INT4_INT8_WEIGHT_CHUNK_N", "4096")))
@@ -190,6 +191,14 @@ def _cuda_device_capability(device_index: int) -> tuple[int, int]:
         capability = torch.cuda.get_device_capability(device_index)
         _device_capability_cache[device_index] = capability
     return capability
+
+
+def _cuda_device_multiprocessor_count(device_index: int) -> int:
+    count = _device_multiprocessor_count_cache.get(device_index)
+    if count is None:
+        count = torch.cuda.get_device_properties(device_index).multi_processor_count
+        _device_multiprocessor_count_cache[device_index] = count
+    return count
 
 
 def _cuda_device_is_turing(device_index: int) -> bool:
@@ -240,11 +249,28 @@ def _cuda_device_supports_cutlass_int8_dequant(tensor: torch.Tensor) -> bool:
 def _cuda_device_supports_native_int4_mma(tensor: torch.Tensor) -> bool:
     if not tensor.is_cuda or _FORCE_INT4_INT8_FALLBACK:
         return False
-    major, _minor = torch.cuda.get_device_capability(tensor.get_device())
+    major, _minor = _cuda_device_capability(tensor.get_device())
     # The current ConvRot W4A4 kernel emits m16n8k64 s4 MMA, which is the
     # sm80+ integer MMA shape. Hopper is routed through the INT8 fallback for
     # better behavior with this implementation.
     return major == 8
+
+
+def _prefer_legacy_int4_kernel(
+    m: int,
+    n: int,
+    k: int,
+    device_index: int,
+) -> bool:
+    """Select the low-latency kernel for native SM8x INT4 shapes."""
+    m_tile = max(32, 1 << (m - 1).bit_length())
+    base_threshold = 1_048_576 if k <= 1_024 else 786_432
+    threshold = base_threshold * _cuda_device_multiprocessor_count(device_index) // 142
+    workload = m_tile * n
+    return n < 32_768 and (
+        workload < threshold
+        or (k > 1_024 and workload == threshold and 128 <= m == m_tile < 512)
+    )
 
 
 def _should_use_turing_int4(tensor: torch.Tensor) -> bool:
@@ -1012,8 +1038,9 @@ def int4_linear(
         raise ValueError("INT4 linear expects 2D activation and weight tensors")
     if x_qdata.shape[1] != weight.shape[1]:
         raise ValueError("INT4 linear activation/weight K dimensions do not match")
-    m, _k_half = x_qdata.shape
+    m, k_half = x_qdata.shape
     n = weight.shape[0]
+    k = k_half * 2
     output = torch.empty((m, n), dtype=out_dtype, device=x_qdata.device)
     x_scale_arg = x_scale.to(device=x_qdata.device, dtype=torch.float32).reshape(-1).contiguous()
     weight_scale_arg = weight_scale.to(device=x_qdata.device, dtype=torch.float32).reshape(-1).contiguous()
@@ -1048,7 +1075,7 @@ def int4_linear(
     used_cutlass = False
     if (
         not _DISABLE_CUTLASS_INT8
-        and _cuda_device_supports_native_int4_mma(x_qdata)
+        and not _prefer_legacy_int4_kernel(m, n, k, x_qdata.get_device())
         and _cuda_device_supports_cutlass_int8_dequant(x_qdata)
         and hasattr(_C, "cutlass_int4_dequant")
     ):
