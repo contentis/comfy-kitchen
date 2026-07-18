@@ -99,7 +99,7 @@ if(MSVC)
 endif()
 
 # Optimization flags
-list(APPEND CUDA_NVCC_FLAGS -O3 --threads=2)
+list(APPEND CUDA_NVCC_FLAGS -O3)
 
 # Line info for profiling (Nsight Compute/Systems)
 # Can be enabled via setup.py --lineinfo
