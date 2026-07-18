@@ -430,9 +430,7 @@ def _prefer_cublas_int8_fallback(
     k: int,
     device_index: int,
 ) -> bool:
-    major = _cuda_device_capability(device_index)[0]
-    activation_threshold = 1_200_000 if major >= 9 else 100 * 1024 * 1024
-    return n < k and m * k >= activation_threshold
+    return False
 
 
 def _wrap_for_dlpack(tensor: torch.Tensor):

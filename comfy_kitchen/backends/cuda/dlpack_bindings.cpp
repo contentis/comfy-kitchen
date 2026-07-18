@@ -1056,6 +1056,19 @@ extern "C" {
         int out_dtype_code,
         cudaStream_t stream);
 
+    bool launch_cutlass_int8_dequant_config(
+        const void* A,
+        const void* B,
+        const void* xs,
+        const void* ws,
+        void* D,
+        int64_t M,
+        int64_t N,
+        int64_t K,
+        int out_dtype_code,
+        int config,
+        cudaStream_t stream);
+
     bool launch_cutlass_turing_int8_dequant(
         const void* A,
         const void* B,
@@ -1664,6 +1677,78 @@ bool cutlass_int8_dequant(
     const void* bias_ptr = bias.size() > 0 ? bias.data() : nullptr;
     return launch_cutlass_int8_dequant(a.data(), b.data(), xs.data(), ws.data(),
                                        bias_ptr, d.data(), M, N, K, out_dtype_code, stream);
+}
+
+bool cutlass_int8_dequant_config(
+    nb::ndarray<int8_t, nb::ndim<2>, nb::device::cuda> a,
+    nb::ndarray<int8_t, nb::ndim<2>, nb::device::cuda> b,
+    nb::ndarray<float, nb::device::cuda> xs,
+    nb::ndarray<float, nb::device::cuda> ws,
+    nb::ndarray<nb::ndim<2>, nb::device::cuda> d,
+    int out_dtype_code,
+    int config,
+    uintptr_t stream_ptr) {
+    const int64_t M = a.shape(0);
+    const int64_t K = a.shape(1);
+    const int64_t N = b.shape(0);
+    if (b.shape(1) != K) throw std::runtime_error("cutlass_int8_dequant_config: K mismatch");
+    if (d.shape(0) != M || d.shape(1) != N) {
+        throw std::runtime_error("cutlass_int8_dequant_config: D shape mismatch");
+    }
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    return launch_cutlass_int8_dequant_config(
+        a.data(), b.data(), xs.data(), ws.data(), d.data(), M, N, K,
+        out_dtype_code, config, stream);
+}
+
+float benchmark_cutlass_int8_dequant_config(
+    nb::ndarray<int8_t, nb::ndim<2>, nb::device::cuda> a,
+    nb::ndarray<int8_t, nb::ndim<2>, nb::device::cuda> b,
+    nb::ndarray<float, nb::device::cuda> xs,
+    nb::ndarray<float, nb::device::cuda> ws,
+    nb::ndarray<nb::ndim<2>, nb::device::cuda> d,
+    int out_dtype_code,
+    int config,
+    int iterations,
+    uintptr_t stream_ptr) {
+    if (iterations <= 0) {
+        throw std::runtime_error(
+            "benchmark_cutlass_int8_dequant_config: iterations must be positive");
+    }
+    const int64_t M = a.shape(0);
+    const int64_t K = a.shape(1);
+    const int64_t N = b.shape(0);
+    if (b.shape(1) != K) {
+        throw std::runtime_error(
+            "benchmark_cutlass_int8_dequant_config: K mismatch");
+    }
+    if (d.shape(0) != M || d.shape(1) != N) {
+        throw std::runtime_error(
+            "benchmark_cutlass_int8_dequant_config: D shape mismatch");
+    }
+
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    cudaEvent_t start;
+    cudaEvent_t end;
+    cudaEventCreate(&start);
+    cudaEventCreate(&end);
+    cudaEventRecord(start, stream);
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        if (!launch_cutlass_int8_dequant_config(
+                a.data(), b.data(), xs.data(), ws.data(), d.data(), M, N, K,
+                out_dtype_code, config, stream)) {
+            cudaEventDestroy(start);
+            cudaEventDestroy(end);
+            return -1.f;
+        }
+    }
+    cudaEventRecord(end, stream);
+    cudaEventSynchronize(end);
+    float elapsed_ms = 0.f;
+    cudaEventElapsedTime(&elapsed_ms, start, end);
+    cudaEventDestroy(start);
+    cudaEventDestroy(end);
+    return elapsed_ms;
 }
 
 bool cutlass_turing_int8_dequant(
@@ -2319,6 +2404,30 @@ NB_MODULE(_C, m) {
           nb::arg("bias"),
           nb::arg("d"),
           nb::arg("out_dtype_code"),
+          nb::arg("stream_ptr"));
+
+    m.def("cutlass_int8_dequant_config", &cutlass_int8_dequant_config,
+          "Benchmark one fused CUTLASS INT8 kernel configuration",
+          nb::arg("a"),
+          nb::arg("b"),
+          nb::arg("xs"),
+          nb::arg("ws"),
+          nb::arg("d"),
+          nb::arg("out_dtype_code"),
+          nb::arg("config"),
+          nb::arg("stream_ptr"));
+
+    m.def("benchmark_cutlass_int8_dequant_config",
+          &benchmark_cutlass_int8_dequant_config,
+          "Time a tight loop of one fused CUTLASS INT8 kernel configuration",
+          nb::arg("a"),
+          nb::arg("b"),
+          nb::arg("xs"),
+          nb::arg("ws"),
+          nb::arg("d"),
+          nb::arg("out_dtype_code"),
+          nb::arg("config"),
+          nb::arg("iterations"),
           nb::arg("stream_ptr"));
 
     m.def("cutlass_turing_int8_dequant", &cutlass_turing_int8_dequant,
