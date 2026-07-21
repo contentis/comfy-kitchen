@@ -558,6 +558,7 @@ jobs:
             "cublas_13.4",
             "cublas_dev_13.4",
             "nvjitlink_13.4",
+            "nvvm_13.4",
             "thrust_13.4",
             "visual_studio_integration_13.4"
           )
@@ -623,6 +624,7 @@ jobs:
 
           $cudaRoot = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"
           $nvcc = Join-Path $cudaRoot "bin\nvcc.exe"
+          $cicc = Join-Path $cudaRoot "nvvm\bin\cicc.exe"
           if ($null -eq $installExit) {
             Write-Error "CUDA installer did not return an exit code (see uploaded woa-cuda-diagnostics artifact)"
             exit 1
@@ -636,6 +638,10 @@ jobs:
           if (-not (Test-Path $nvcc)) {
             Write-Error "nvcc not found under $cudaRoot after install (see uploaded woa-cuda-diagnostics artifact)"
             Get-ChildItem "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA" -ErrorAction SilentlyContinue
+            exit 1
+          }
+          if (-not (Test-Path $cicc)) {
+            Write-Error "NVVM compiler cicc not found under $cudaRoot after install (see uploaded woa-cuda-diagnostics artifact)"
             exit 1
           }
 
