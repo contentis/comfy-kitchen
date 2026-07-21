@@ -565,8 +565,15 @@ jobs:
           $installArgs = @("-s", "-n", "-log:$logDir", "-loglevel:6") + $packages
           Write-Host "Installing CUDA packages: $($packages -join ', ')"
           Write-Host "Command: $installer $($installArgs -join ' ')"
-          & $installer @installArgs
-          $installExit = $LASTEXITCODE
+          # The CUDA executable is a bootstrapper: direct invocation returns
+          # after spawning the real installer and leaves $LASTEXITCODE unset.
+          # Start-Process -Wait tracks the child process tree to completion.
+          $installProcess = Start-Process `
+            -FilePath $installer `
+            -ArgumentList $installArgs `
+            -Wait `
+            -PassThru
+          $installExit = $installProcess.ExitCode
           Write-Host "CUDA installer exit code: $installExit"
 
           # Also scoop default NVIDIA log locations in case -log was ignored.
@@ -616,7 +623,13 @@ jobs:
 
           $cudaRoot = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"
           $nvcc = Join-Path $cudaRoot "bin\nvcc.exe"
-          if ($installExit -ne 0) {
+          if ($null -eq $installExit) {
+            Write-Error "CUDA installer did not return an exit code (see uploaded woa-cuda-diagnostics artifact)"
+            exit 1
+          }
+          # NVIDIA exit code 1 means success with a reboot requested. A reboot
+          # is unnecessary for compiling, so accept it if nvcc was installed.
+          if ($installExit -notin 0, 1) {
             Write-Error "CUDA installer failed with exit code $installExit (see uploaded woa-cuda-diagnostics artifact)"
             exit $installExit
           }
