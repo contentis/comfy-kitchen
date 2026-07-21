@@ -96,8 +96,10 @@ if(MSVC)
     list(APPEND CUDA_NVCC_FLAGS -Xcompiler=/Zc:preprocessor)
     # Work around MSVC's dependent non-type parameter-pack deduction bug in
     # CuTe (NVIDIA/cutlass#3065). C++20 implicitly enables /permissive-,
-    # which produces C3545 in cute/stride.hpp.
-    list(APPEND CUDA_NVCC_FLAGS -Xcompiler=/permissive)
+    # which produces C3545 in cute/stride.hpp on Windows ARM64.
+    if(COMFY_MSVC_PERMISSIVE)
+        list(APPEND CUDA_NVCC_FLAGS -Xcompiler=/permissive)
+    endif()
     # Suppress harmless warnings from CCCL headers (unused variables in constexpr contexts)
     list(APPEND CUDA_NVCC_FLAGS --diag-suppress=177)
 endif()

@@ -65,10 +65,12 @@ class CMakeBuildExt(build_ext):
     def finalize_options(self):
         super().finalize_options()
 
-        # Apply platform-specific default for CUDA architectures if not specified
+        # An environment override also reaches build_ext when another command
+        # (such as bdist_wheel) creates it internally.
         if self.cuda_archs is None:
-            self.cuda_archs = (
-                self.DEFAULT_CUDA_ARCHS_WINDOWS if os.name == "nt"
+            self.cuda_archs = os.environ.get("COMFY_CUDA_ARCHS") or (
+                self.DEFAULT_CUDA_ARCHS_WINDOWS
+                if os.name == "nt"
                 else self.DEFAULT_CUDA_ARCHS_LINUX
             )
 
@@ -150,6 +152,7 @@ class CMakeBuildExt(build_ext):
                     f"Windows ARM64 CUDA runtime library not found: {arm64_cudart}"
                 )
             cmake_args.append(f"-DCUDA_CUDART={cmake_path(arm64_cudart)}")
+            cmake_args.append("-DCOMFY_MSVC_PERMISSIVE=ON")
 
         build_args = ["--config", config]
 

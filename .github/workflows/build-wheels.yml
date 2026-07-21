@@ -577,22 +577,6 @@ jobs:
           $installExit = $installProcess.ExitCode
           Write-Host "CUDA installer exit code: $installExit"
 
-          # Also scoop default NVIDIA log locations in case -log was ignored.
-          $defaultLogRoots = @(
-            (Join-Path $env:LOCALAPPDATA "Temp\NvidiaLogging"),
-            (Join-Path $env:TEMP "NvidiaLogging"),
-            $env:TEMP
-          )
-          foreach ($root in $defaultLogRoots) {
-            if (Test-Path $root) {
-              Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -match 'cuda|nvidia|nvi|setup' -or $_.Extension -in '.log','.txt' } |
-                ForEach-Object {
-                  $dest = Join-Path $diagDir ("from_" + ($root -replace '[:\\]', '_') + "_" + $_.Name)
-                  Copy-Item $_.FullName $dest -Force -ErrorAction SilentlyContinue
-                }
-            }
-          }
           if (Test-Path $logDir) {
             Copy-Item -Path (Join-Path $logDir "*") -Destination $diagDir -Recurse -Force -ErrorAction SilentlyContinue
           }
@@ -616,31 +600,37 @@ jobs:
             }
           }
 
-          Write-Host "=== Installer log tail (if any) ==="
-          Get-ChildItem $diagDir -File -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "---- $($_.Name) ($($_.Length) bytes) ----"
-            Get-Content $_.FullName -Tail 80 -ErrorAction SilentlyContinue
+          function Show-InstallerLogTail {
+            Write-Host "=== Installer log tail (if any) ==="
+            Get-ChildItem $diagDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "---- $($_.Name) ($($_.Length) bytes) ----"
+              Get-Content $_.FullName -Tail 80 -ErrorAction SilentlyContinue
+            }
           }
 
           $cudaRoot = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"
           $nvcc = Join-Path $cudaRoot "bin\nvcc.exe"
           $cicc = Join-Path $cudaRoot "nvvm\bin\cicc.exe"
           if ($null -eq $installExit) {
+            Show-InstallerLogTail
             Write-Error "CUDA installer did not return an exit code (see uploaded woa-cuda-diagnostics artifact)"
             exit 1
           }
           # NVIDIA exit code 1 means success with a reboot requested. A reboot
           # is unnecessary for compiling, so accept it if nvcc was installed.
           if ($installExit -notin 0, 1) {
+            Show-InstallerLogTail
             Write-Error "CUDA installer failed with exit code $installExit (see uploaded woa-cuda-diagnostics artifact)"
             exit $installExit
           }
           if (-not (Test-Path $nvcc)) {
+            Show-InstallerLogTail
             Write-Error "nvcc not found under $cudaRoot after install (see uploaded woa-cuda-diagnostics artifact)"
             Get-ChildItem "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA" -ErrorAction SilentlyContinue
             exit 1
           }
           if (-not (Test-Path $cicc)) {
+            Show-InstallerLogTail
             Write-Error "NVVM compiler cicc not found under $cudaRoot after install (see uploaded woa-cuda-diagnostics artifact)"
             exit 1
           }
@@ -651,7 +641,7 @@ jobs:
           echo "$cudaRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Upload WoA CUDA install diagnostics
-        if: always()
+        if: always() && steps.install-cuda.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: woa-cuda-diagnostics
@@ -724,13 +714,15 @@ jobs:
           python -c "import sys, platform; print(sys.version); print(platform.platform()); print(platform.machine())"
 
       - name: Build CUDA abi3 wheel
+        env:
+          COMFY_CUDA_ARCHS: "120f"
         shell: bash
         run: |
           set -x
           # Python 3.12 produces the cp312-abi3 wheel (covers 3.12+).
           # WoA / RTX Spark targets Blackwell (SM 120). Keep the arch set narrow
           # so the 4-core windows-11-arm runners stay within CI time budgets.
-          python setup.py build_ext --cuda-archs="120f" bdist_wheel -v
+          python setup.py bdist_wheel -v
 
       - name: Report compiler-cache statistics
         if: always()
