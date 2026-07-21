@@ -525,10 +525,27 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP "cuda_installer"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
           $installer = Join-Path $dir "cuda_13.4.0_windows_arm64.exe"
+          if ((Test-Path $installer) -and (Get-Item $installer).Length -lt 3GB) {
+            Write-Warning "Discarding incomplete cached CUDA installer"
+            Remove-Item $installer -Force
+          }
           if (-not (Test-Path $installer)) {
             $uri = "https://packages.nvidia.com/prerelease/cuda/13.4.0/local_installers/cuda_13.4.0_windows_arm64.exe"
+            $partial = "$installer.part"
             Write-Host "Downloading $uri"
-            curl.exe --fail --location --retry 3 --retry-delay 5 --output $installer $uri
+            curl.exe `
+              --fail `
+              --location `
+              --retry 5 `
+              --retry-all-errors `
+              --retry-delay 10 `
+              --continue-at - `
+              --output $partial `
+              $uri
+            if ($LASTEXITCODE -ne 0) {
+              throw "CUDA installer download failed with curl exit code $LASTEXITCODE"
+            }
+            Move-Item -Path $partial -Destination $installer
           }
           Get-Item $installer | Format-List FullName, Length
 
