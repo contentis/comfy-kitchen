@@ -1,5 +1,6 @@
 import os
 import pathlib
+import platform
 import re
 import shutil
 import subprocess
@@ -137,6 +138,18 @@ class CMakeBuildExt(build_ext):
         cuda_home, nvcc_bin = cuda_paths
         cmake_args.append(f"-DCUDAToolkit_ROOT={cmake_path(cuda_home)}")
         cmake_args.append(f"-DCMAKE_CUDA_COMPILER={cmake_path(nvcc_bin)}")
+
+        # FindCUDAToolkit only learned the Windows ARM64 library layout in
+        # CMake 4.4. Help older CMake releases find cudart under lib/arm64;
+        # once CUDA_CUDART is known, the module uses its directory for the
+        # remaining CUDA imported targets as well.
+        if os.name == "nt" and platform.machine().lower() in {"arm64", "aarch64"}:
+            arm64_cudart = pathlib.Path(cuda_home) / "lib" / "arm64" / "cudart.lib"
+            if not arm64_cudart.is_file():
+                raise RuntimeError(
+                    f"Windows ARM64 CUDA runtime library not found: {arm64_cudart}"
+                )
+            cmake_args.append(f"-DCUDA_CUDART={cmake_path(arm64_cudart)}")
 
         build_args = ["--config", config]
 
