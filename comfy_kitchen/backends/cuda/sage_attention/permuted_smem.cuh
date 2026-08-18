@@ -189,20 +189,81 @@ template <SwizzleMode swizzle_mode, uint32_t stride> struct smem_t {
     mma::ldmatrix_m8n8x4_trans(R, smem_ptr);
   }
 
-  template <cp_async::SharedMemFillMode fill_mode, typename T>
+  template <cp_async::SharedMemFillMode fill_mode,
+            cp_async::PrefetchMode prefetch_mode =
+                cp_async::PrefetchMode::kPrefetch,
+            typename T>
   __device__ __forceinline__ void
   load_128b_async(const uint32_t &offset, const T *gptr, bool predicate) const {
     b128_t *smem_ptr = base + offset;
-    cp_async::pred_load_128b<cp_async::PrefetchMode::kPrefetch, fill_mode>(
+    cp_async::pred_load_128b<prefetch_mode, fill_mode>(
         smem_ptr, reinterpret_cast<const b128_t *>(gptr), predicate);
   }
 
-  template <typename T>
+  template <cp_async::PrefetchMode prefetch_mode =
+                cp_async::PrefetchMode::kPrefetch,
+            typename T>
   __device__ __forceinline__ void load_128b_async(const uint32_t &offset,
                                                   const T *gptr) const {
     b128_t *smem_ptr = base + offset;
-    cp_async::load_128b<cp_async::PrefetchMode::kPrefetch>(
+    cp_async::load_128b<prefetch_mode>(
         smem_ptr, reinterpret_cast<const b128_t *>(gptr));
+  }
+
+  /*! \brief Cooperatively load complete contiguous rows into permuted shared
+   * memory. Both source_stride and the source pointer are expressed in T
+   * elements; the destination row width is the smem_t stride. */
+  template <uint32_t rows, uint32_t threads,
+            cp_async::PrefetchMode prefetch_mode =
+                cp_async::PrefetchMode::kPrefetch,
+            typename T>
+  __device__ __forceinline__ void load_rows_async(
+      const T *gptr, uint32_t source_stride, uint32_t thread) const {
+    static_assert(sizeof(b128_t) % sizeof(T) == 0,
+                  "The element type must evenly divide a 128-bit copy");
+    constexpr uint32_t elements_per_copy = sizeof(b128_t) / sizeof(T);
+    constexpr uint32_t copies = rows * stride;
+    static_assert(copies % threads == 0,
+                  "The tile must divide evenly across cooperative threads");
+
+#pragma unroll
+    for (uint32_t iteration = 0; iteration < copies / threads; ++iteration) {
+      const uint32_t copy = iteration * threads + thread;
+      const uint32_t row = copy / stride;
+      const uint32_t column = copy % stride;
+      load_128b_async<prefetch_mode>(
+          get_permuted_offset(row, column),
+          gptr + row * source_stride + column * elements_per_copy);
+    }
+  }
+
+  /*! \brief Predicate complete rows while cooperatively loading a tile. */
+  template <uint32_t rows, uint32_t threads,
+            cp_async::PrefetchMode prefetch_mode =
+                cp_async::PrefetchMode::kPrefetch,
+            cp_async::SharedMemFillMode fill_mode =
+                cp_async::SharedMemFillMode::kFillZero,
+            typename T>
+  __device__ __forceinline__ void load_rows_async(
+      const T *gptr, uint32_t source_stride, uint32_t valid_rows,
+      uint32_t thread) const {
+    static_assert(sizeof(b128_t) % sizeof(T) == 0,
+                  "The element type must evenly divide a 128-bit copy");
+    constexpr uint32_t elements_per_copy = sizeof(b128_t) / sizeof(T);
+    constexpr uint32_t copies = rows * stride;
+    static_assert(copies % threads == 0,
+                  "The tile must divide evenly across cooperative threads");
+
+#pragma unroll
+    for (uint32_t iteration = 0; iteration < copies / threads; ++iteration) {
+      const uint32_t copy = iteration * threads + thread;
+      const uint32_t row = copy / stride;
+      const uint32_t column = copy % stride;
+      load_128b_async<fill_mode, prefetch_mode>(
+          get_permuted_offset(row, column),
+          gptr + row * source_stride + column * elements_per_copy,
+          row < valid_rows);
+    }
   }
 
   template <typename T>

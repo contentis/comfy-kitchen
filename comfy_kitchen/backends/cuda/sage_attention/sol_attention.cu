@@ -3,7 +3,7 @@
 // BF16 SOL attention: fused summary preprocessing, block routing, approximate
 // centroid attention, and exact attention for locally important blocks.
 
-#include "sage_attention/sol_common.cuh"
+#include "sage_attention/permuted_smem.cuh"
 
 #include <float.h>
 #include <stdint.h>
@@ -12,8 +12,6 @@
 
 #include <cuda_bf16.h>
 
-using namespace comfy::sol_attention;
-
 namespace {
 
 constexpr int BLOCK_Q = 64;
@@ -21,43 +19,49 @@ constexpr int BLOCK_KV = 64;
 constexpr int GROUP = 32;
 constexpr int DIM = 128;
 constexpr int NUM_WARPS = 4;
-constexpr int TB_SIZE = NUM_WARPS * WARP_SIZE;
+constexpr int WARP_THREADS = 32;
+constexpr int TB_SIZE = NUM_WARPS * WARP_THREADS;
 constexpr int WARP_Q = BLOCK_Q / NUM_WARPS;
 constexpr int MMA_M = 16;
 constexpr int MMA_N = 8;
 constexpr int MMA_K = 16;
 constexpr float NEG_INF = -1.0e20f;
+using SolSmem = smem_t<SwizzleMode::k128B,
+                       DIM * sizeof(nv_bfloat16) / sizeof(b128_t)>;
 
 __device__ inline void load_Q_rmem(
-    uint32_t Q_rmem[WARP_Q / MMA_M][DIM / MMA_K][4], uint32_t Q_smem_thread) {
+    uint32_t Q_rmem[WARP_Q / MMA_M][DIM / MMA_K][4],
+    const SolSmem &Q_smem, int warp_id, int lane_id) {
   for (int mq = 0; mq < WARP_Q / MMA_M; mq++)
     for (int md = 0; md < DIM / MMA_K; md++) {
-      uint32_t addr = Q_smem_thread;
-      addr += mq * MMA_M * DIM * sizeof(nv_bfloat16);
-      addr ^= md * MMA_K * sizeof(nv_bfloat16);
-      ldmatrix_x4(Q_rmem[mq][md], addr);
+      const uint32_t offset = Q_smem.get_permuted_offset(
+          warp_id * WARP_Q + mq * MMA_M + lane_id % 16,
+          lane_id / 16 + md * MMA_K * sizeof(nv_bfloat16) / sizeof(b128_t));
+      Q_smem.ldmatrix_m8n8x4(offset, Q_rmem[mq][md]);
     }
 }
 
-__device__ inline void load_K_rmem_full(
-    uint32_t K_rmem[BLOCK_KV / MMA_N][DIM / MMA_K][2], uint32_t K_smem_thread) {
-  for (int mk = 0; mk < BLOCK_KV / MMA_N; mk++)
+__device__ inline void load_K_rmem(
+    uint32_t K_rmem[BLOCK_KV / MMA_N][DIM / MMA_K][2],
+    const SolSmem &K_smem, int lane_id, int n_kv_tiles) {
+  for (int mk = 0; mk < n_kv_tiles; mk++)
     for (int md = 0; md < DIM / MMA_K; md += 2) {
-      uint32_t addr = K_smem_thread;
-      addr += mk * MMA_N * DIM * sizeof(nv_bfloat16);
-      addr ^= md * MMA_K * sizeof(nv_bfloat16);
-      ldmatrix_x4(K_rmem[mk][md], addr);
+      const uint32_t offset = K_smem.get_permuted_offset(
+          mk * MMA_N + lane_id % 8,
+          lane_id / 8 + md * MMA_K * sizeof(nv_bfloat16) / sizeof(b128_t));
+      K_smem.ldmatrix_m8n8x4(offset, K_rmem[mk][md]);
     }
 }
 
-__device__ inline void load_V_rmem_full(
-    uint32_t V_rmem[BLOCK_KV / MMA_K][DIM / MMA_N][2], uint32_t V_smem_thread) {
-  for (int mk = 0; mk < BLOCK_KV / MMA_K; mk++)
+__device__ inline void load_V_rmem(
+    uint32_t V_rmem[BLOCK_KV / MMA_K][DIM / MMA_N][2],
+    const SolSmem &V_smem, int lane_id, int n_k_tiles) {
+  for (int mk = 0; mk < n_k_tiles; mk++)
     for (int md = 0; md < DIM / MMA_N; md += 2) {
-      uint32_t addr = V_smem_thread;
-      addr += mk * MMA_K * DIM * sizeof(nv_bfloat16);
-      addr ^= md * MMA_N * sizeof(nv_bfloat16);
-      ldmatrix_x4_trans(V_rmem[mk][md], addr);
+      const uint32_t offset = V_smem.get_permuted_offset(
+          mk * MMA_K + lane_id % 16,
+          lane_id / 16 + md * MMA_N * sizeof(nv_bfloat16) / sizeof(b128_t));
+      V_smem.ldmatrix_m8n8x4_trans(offset, V_rmem[mk][md]);
     }
 }
 
@@ -71,7 +75,8 @@ __device__ inline void gemm_qk(
       for (int r = 0; r < 4; r++)
         S[mq][mk][r] = 0.f;
       for (int md = 0; md < DIM / MMA_K; md++)
-        mma_bf16(Q_rmem[mq][md], K_rmem[mk][md], S[mq][mk]);
+        mma::MmaTraits<nv_bfloat16>::mma(S[mq][mk], Q_rmem[mq][md],
+                                         K_rmem[mk][md]);
 #pragma unroll
       for (int r = 0; r < 4; r++)
         S[mq][mk][r] *= scale;
@@ -85,7 +90,8 @@ __device__ inline void gemm_pv(
   for (int mq = 0; mq < WARP_Q / MMA_M; mq++)
     for (int md = 0; md < DIM / MMA_N; md++)
       for (int mk = 0; mk < n_k_tiles; mk++)
-        mma_bf16(P_rmem[mq][mk], V_rmem[mk][md], O_rmem[mq][md]);
+        mma::MmaTraits<nv_bfloat16>::mma(O_rmem[mq][md], P_rmem[mq][mk],
+                                         V_rmem[mk][md]);
 }
 
 // Inline copy of attention_v5's online softmax for one KV tile.
@@ -152,30 +158,6 @@ __device__ inline void softmax_exact_tile(
     this_rowsumexp[1] += __shfl_xor_sync(0xffffffffu, this_rowsumexp[1], 2);
     rowsumexp[mq][0] = rowsumexp[mq][0] * rescale[0] + this_rowsumexp[0];
     rowsumexp[mq][1] = rowsumexp[mq][1] * rescale[1] + this_rowsumexp[1];
-  }
-}
-
-__device__ inline void setup_smem_threads(
-    uint32_t Q_smem, uint32_t K_smem, uint32_t V_smem, int warp_id, int lane_id,
-    uint32_t &Q_smem_thread, uint32_t &K_smem_thread,
-    uint32_t &V_smem_thread) {
-  {
-    const int row_off = warp_id * WARP_Q + (lane_id % 16);
-    const int col_off = lane_id / 16 * 8;
-    Q_smem_thread = swizzle<DIM * sizeof(nv_bfloat16)>(
-        Q_smem + (row_off * DIM + col_off) * sizeof(nv_bfloat16));
-  }
-  {
-    const int row_off = lane_id % 8;
-    const int col_off = lane_id / 8 * 8;
-    K_smem_thread = swizzle<DIM * sizeof(nv_bfloat16)>(
-        K_smem + (row_off * DIM + col_off) * sizeof(nv_bfloat16));
-  }
-  {
-    const int row_off = lane_id % 16;
-    const int col_off = lane_id / 16 * 8;
-    V_smem_thread = swizzle<DIM * sizeof(nv_bfloat16)>(
-        V_smem + (row_off * DIM + col_off) * sizeof(nv_bfloat16));
   }
 }
 
@@ -275,8 +257,8 @@ __global__ void sol_attn_optimized_kernel(
     float scale) {
 
   const int tid = threadIdx.x;
-  const int warp_id = tid / WARP_SIZE;
-  const int lane_id = tid % WARP_SIZE;
+  const int warp_id = tid / WARP_THREADS;
+  const int lane_id = tid % WARP_THREADS;
   const int bid = blockIdx.x;
   const int bs_id = bid / num_blocks;
   const int q_block_id = bid % num_blocks;
@@ -301,10 +283,11 @@ __global__ void sol_attn_optimized_kernel(
   constexpr int BF16_TILE_BYTES =
       BLOCK_KV * DIM * static_cast<int>(sizeof(nv_bfloat16));
   extern __shared__ char smem_raw[];
-  const uint32_t Q_smem = __cvta_generic_to_shared(smem_raw);
-  const uint32_t K_smem = Q_smem;            // two exact-K buffers
-  const uint32_t V_smem =
-      K_smem + (PIPELINED ? 2 * BF16_TILE_BYTES : BF16_TILE_BYTES);
+  const SolSmem Q_smem(smem_raw);
+  const SolSmem K_smem(smem_raw);
+  const SolSmem K_smem_next(smem_raw + BF16_TILE_BYTES);
+  const SolSmem V_smem(
+      smem_raw + (PIPELINED ? 2 * BF16_TILE_BYTES : BF16_TILE_BYTES));
 
   // During routing only the first 32 rows of K_smem are occupied by kc.
   // Put routing reductions in the unused half of that tile.
@@ -333,15 +316,12 @@ __global__ void sol_attn_optimized_kernel(
     rowmax[mq][1] = -FLT_MAX;
   }
 
-  uint32_t Q_smem_thread, K_smem_thread, V_smem_thread;
-  setup_smem_threads(Q_smem, K_smem, V_smem, warp_id, lane_id, Q_smem_thread,
-                     K_smem_thread, V_smem_thread);
-
-  copy_bf16_tile<BLOCK_Q, DIM, TB_SIZE>(Q_smem, Q_ptr, DIM, tid);
+  Q_smem.load_rows_async<BLOCK_Q, TB_SIZE,
+                         cp_async::PrefetchMode::kNoPrefetch>(Q_ptr, DIM, tid);
   cp_async::commit_group();
   cp_async::wait_group<0>();
   __syncthreads();
-  load_Q_rmem(Q_rmem, Q_smem_thread);
+  load_Q_rmem(Q_rmem, Q_smem, warp_id, lane_id);
   __syncthreads();
   if (tid == 0)
     exact_count_smem[0] = 0;
@@ -353,22 +333,18 @@ __global__ void sol_attn_optimized_kernel(
   // Route all groups and accumulate all approximate contributions first.
   for (int g0 = 0; g0 < num_blocks; g0 += GROUP) {
     const int g = min(GROUP, num_blocks - g0);
-    copy_bf16_tile_masked<GROUP, DIM, TB_SIZE>(
-        K_smem, kc_base + g0 * DIM, DIM, g, tid);
-    copy_bf16_tile_masked<GROUP, DIM, TB_SIZE>(
-        V_smem, vc_base + g0 * DIM, DIM, g, tid);
+    K_smem.load_rows_async<GROUP, TB_SIZE,
+                           cp_async::PrefetchMode::kNoPrefetch>(
+        kc_base + g0 * DIM, DIM, g, tid);
+    V_smem.load_rows_async<GROUP, TB_SIZE,
+                           cp_async::PrefetchMode::kNoPrefetch>(
+        vc_base + g0 * DIM, DIM, g, tid);
     cp_async::commit_group();
     cp_async::wait_group<0>();
     __syncthreads();
 
     float S[WARP_Q / MMA_M][BLOCK_KV / MMA_N][4];
-    for (int mk = 0; mk < PROXY_KV_TILES; mk++)
-      for (int md = 0; md < DIM / MMA_K; md += 2) {
-        uint32_t addr = K_smem_thread;
-        addr += mk * MMA_N * DIM * sizeof(nv_bfloat16);
-        addr ^= md * MMA_K * sizeof(nv_bfloat16);
-        ldmatrix_x4(K_rmem[mk][md], addr);
-      }
+    load_K_rmem(K_rmem, K_smem, lane_id, PROXY_KV_TILES);
     gemm_qk(Q_rmem, K_rmem, S, scale, PROXY_KV_TILES);
 
     // Each warp owns 16 Q rows. Sum its two 8-row MMA halves, then reduce
@@ -439,13 +415,7 @@ __global__ void sol_attn_optimized_kernel(
         }
       }
       softmax_approx(S, rowmax, rowsumexp, O_rmem, P_rmem, PROXY_KV_TILES);
-      for (int mk = 0; mk < PROXY_K_TILES; mk++)
-        for (int md = 0; md < DIM / MMA_N; md += 2) {
-          uint32_t addr = V_smem_thread;
-          addr += mk * MMA_K * DIM * sizeof(nv_bfloat16);
-          addr ^= md * MMA_N * sizeof(nv_bfloat16);
-          ldmatrix_x4_trans(V_rmem[mk][md], addr);
-        }
+      load_V_rmem(V_rmem, V_smem, lane_id, PROXY_K_TILES);
       gemm_pv(P_rmem, V_rmem, O_rmem, PROXY_K_TILES);
     }
     __syncthreads();
@@ -456,18 +426,17 @@ __global__ void sol_attn_optimized_kernel(
     auto load_exact_K = [&](int e) {
       if (e < exact_count) {
         const int kv_block = static_cast<int>(exact_list[e]);
-        const uint32_t destination = K_smem + (e % 2) * BF16_TILE_BYTES;
-        copy_bf16_tile<BLOCK_KV, DIM, TB_SIZE,
-                       cp_async::PrefetchMode::kPrefetch>(
-            destination, K_base + kv_block * BLOCK_KV * DIM, DIM, tid);
+        const SolSmem &destination =
+            e % 2 == 0 ? K_smem : K_smem_next;
+        destination.load_rows_async<BLOCK_KV, TB_SIZE>(
+            K_base + kv_block * BLOCK_KV * DIM, DIM, tid);
       }
       cp_async::commit_group();
     };
     auto load_exact_V = [&](int e) {
       const int kv_block = static_cast<int>(exact_list[e]);
-      copy_bf16_tile<BLOCK_KV, DIM, TB_SIZE,
-                     cp_async::PrefetchMode::kPrefetch>(
-          V_smem, V_base + kv_block * BLOCK_KV * DIM, DIM, tid);
+      V_smem.load_rows_async<BLOCK_KV, TB_SIZE>(
+          V_base + kv_block * BLOCK_KV * DIM, DIM, tid);
       cp_async::commit_group();
     };
 
@@ -480,41 +449,35 @@ __global__ void sol_attn_optimized_kernel(
       cp_async::wait_group<1>();
       __syncthreads();
 
-      for (int mk = 0; mk < BLOCK_KV / MMA_N; mk++)
-        for (int md = 0; md < DIM / MMA_K; md += 2) {
-          uint32_t addr = K_smem_thread + (e % 2) * BF16_TILE_BYTES;
-          addr += mk * MMA_N * DIM * sizeof(nv_bfloat16);
-          addr ^= md * MMA_K * sizeof(nv_bfloat16);
-          ldmatrix_x4(K_rmem[mk][md], addr);
-        }
+      const SolSmem &current_K_smem =
+          e % 2 == 0 ? K_smem : K_smem_next;
+      load_K_rmem(K_rmem, current_K_smem, lane_id, BLOCK_KV / MMA_N);
       gemm_qk(Q_rmem, K_rmem, S_rmem, scale, BLOCK_KV / MMA_N);
       load_exact_K(e + 1);
       softmax_exact_tile(S_rmem, rowmax, rowsumexp, O_rmem, P_rmem);
 
       cp_async::wait_group<1>();
       __syncthreads();
-      load_V_rmem_full(V_rmem, V_smem_thread);
+      load_V_rmem(V_rmem, V_smem, lane_id, BLOCK_KV / MMA_K);
       gemm_pv(P_rmem, V_rmem, O_rmem, BLOCK_KV / MMA_K);
     }
   } else {
     // Occupancy-first SM89 path: 32 KiB smem permits three resident CTAs.
     for (int e = 0; e < exact_count; ++e) {
       const int kv_block = static_cast<int>(exact_list[e]);
-      copy_bf16_tile<BLOCK_KV, DIM, TB_SIZE,
-                       cp_async::PrefetchMode::kPrefetch>(
-          K_smem, K_base + kv_block * BLOCK_KV * DIM, DIM, tid);
-      copy_bf16_tile<BLOCK_KV, DIM, TB_SIZE,
-                       cp_async::PrefetchMode::kPrefetch>(
-          V_smem, V_base + kv_block * BLOCK_KV * DIM, DIM, tid);
+      K_smem.load_rows_async<BLOCK_KV, TB_SIZE>(
+          K_base + kv_block * BLOCK_KV * DIM, DIM, tid);
+      V_smem.load_rows_async<BLOCK_KV, TB_SIZE>(
+          V_base + kv_block * BLOCK_KV * DIM, DIM, tid);
       cp_async::commit_group();
       cp_async::wait_group<0>();
       __syncthreads();
 
       float S_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_N][4];
-      load_K_rmem_full(K_rmem, K_smem_thread);
+      load_K_rmem(K_rmem, K_smem, lane_id, BLOCK_KV / MMA_N);
       gemm_qk(Q_rmem, K_rmem, S_rmem, scale, BLOCK_KV / MMA_N);
       softmax_exact_tile(S_rmem, rowmax, rowsumexp, O_rmem, P_rmem);
-      load_V_rmem_full(V_rmem, V_smem_thread);
+      load_V_rmem(V_rmem, V_smem, lane_id, BLOCK_KV / MMA_K);
       gemm_pv(P_rmem, V_rmem, O_rmem, BLOCK_KV / MMA_K);
       __syncthreads();
     }
