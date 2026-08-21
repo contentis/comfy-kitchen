@@ -5,7 +5,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional
 
-from comfy_kitchen.registry import registry
+from comfy_kitchen import dispatch_v2
 
 
 def adaln(x: Tensor, scale: Tensor, shift: Tensor, eps: float = 1e-6) -> Tensor:
@@ -33,8 +33,7 @@ def _op_adaln(
     eps: float,
 ) -> torch.Tensor:
     kwargs = {"x": x, "scale": scale, "shift": shift, "eps": eps}
-    impl = registry.get_implementation("adaln", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("adaln", **kwargs)
 
 
 @_op_adaln.register_fake
@@ -50,11 +49,9 @@ def _op_rms_adaln(
     eps: float,
 ) -> torch.Tensor:
     kwargs = {"x": x, "scale": scale, "shift": shift, "eps": eps}
-    impl = registry.get_implementation("rms_adaln", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("rms_adaln", **kwargs)
 
 
 @_op_rms_adaln.register_fake
 def _op_rms_adaln_fake(x, scale, shift, eps):
     return torch.empty_like(x)
-

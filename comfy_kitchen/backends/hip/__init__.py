@@ -13,6 +13,7 @@ RDNA2 (gfx103x) has no matrix cores. It runs the elementwise kernels (RoPE,
 AdaLN and RMS-AdaLN, the quantizers, stochastic rounding, the AWQ GEMV) and
 declines the GEMMs, which fall through to triton/eager.
 """
+
 import functools
 import importlib.util
 import json
@@ -24,6 +25,7 @@ from collections.abc import Sequence
 
 import torch
 
+from comfy_kitchen import dispatch_v2
 from comfy_kitchen._rope_utils import check_rope_inplace, trim_rope_freqs
 from comfy_kitchen.backends import eager as _eager
 from comfy_kitchen.backends._activations import apply_input_act as _apply_input_act
@@ -105,7 +107,9 @@ try:
     if _module_path is None:
         _EXT_ERROR = "HIP extension not built (no _C module in backends/hip)"
     else:
-        _spec = importlib.util.spec_from_file_location("comfy_kitchen.backends.hip._C", _module_path)
+        _spec = importlib.util.spec_from_file_location(
+            "comfy_kitchen.backends.hip._C", _module_path
+        )
         _C = importlib.util.module_from_spec(_spec)
         sys.modules["comfy_kitchen.backends.hip._C"] = _C
         _spec.loader.exec_module(_C)
@@ -150,9 +154,7 @@ def _visible_gfx_arches() -> tuple[str | None, ...]:
 # consumed by setup.py and CMake. Never infer support from a gfx prefix: a new
 # compiler-recognized target needs its WMMA policy reviewed before it is safe.
 _ARCH_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "architectures.json")
-_ARCH_GROUPS = json.loads(
-    pathlib.Path(_ARCH_MANIFEST_PATH).read_text(encoding="utf-8")
-)
+_ARCH_GROUPS = json.loads(pathlib.Path(_ARCH_MANIFEST_PATH).read_text(encoding="utf-8"))
 _ARCH_ELEMENTWISE_ONLY = frozenset(_ARCH_GROUPS["elementwise_only"])
 _ARCH_WMMA_GFX11 = frozenset(_ARCH_GROUPS["wmma_gfx11"])
 _ARCH_WMMA_GFX12 = frozenset(_ARCH_GROUPS["wmma_gfx12"])
@@ -161,16 +163,18 @@ _ARCH_SUPPORTED = _ARCH_ELEMENTWISE_ONLY | _ARCH_WMMA
 
 # The GEMMs, and only the GEMMs, need matrix cores. Everything else is elementwise
 # or a scalar reduction and runs on any supported architecture. This set names the
-# registry-dispatched GEMMs so _build_constraints can drop them on RDNA2; the fp8
+# registry-dispatched GEMMs so their planners can be omitted on RDNA2; the fp8
 # GEMM is not among them because it is reached through scaled_mm_v2's _hip_fp8_gemm,
 # which gates on has_wmma() itself rather than through the registry.
-_WMMA_ONLY_OPS = frozenset({
-    "int8_linear",
-    "na3d",
-    "convrot_w4a4_linear",
-    "scaled_mm_svdquant_w4a4",
-    "w4a8_int8_linear",
-})
+_WMMA_ONLY_OPS = frozenset(
+    {
+        "int8_linear",
+        "na3d",
+        "convrot_w4a4_linear",
+        "scaled_mm_svdquant_w4a4",
+        "w4a8_int8_linear",
+    }
+)
 
 
 def _unsupported_arch_reason(arches: Sequence[str | None]) -> str | None:
@@ -212,11 +216,7 @@ def has_wmma() -> bool:
     on the per-GEMM dispatch path.
     """
     arches = _visible_gfx_arches()
-    return (
-        _EXT_AVAILABLE
-        and _unsupported_arch_reason(arches) is None
-        and _has_wmma(arches)
-    )
+    return _EXT_AVAILABLE and _unsupported_arch_reason(arches) is None and _has_wmma(arches)
 
 
 def _stream(t: torch.Tensor) -> int:
@@ -261,8 +261,10 @@ def _bias_operand(bias: torch.Tensor, n: int, device: torch.device) -> torch.Ten
     if bias.dim() != 1 or bias.numel() != n:
         raise ValueError(f"bias must be 1D of length {n}, got {tuple(bias.shape)}")
     if bias.dtype not in _EPILOGUE_DTYPES:
-        raise ValueError(f"bias dtype {bias.dtype} is not supported, expected one of "
-                         f"{[str(d) for d in _EPILOGUE_DTYPES]}")
+        raise ValueError(
+            f"bias dtype {bias.dtype} is not supported, expected one of "
+            f"{[str(d) for d in _EPILOGUE_DTYPES]}"
+        )
     return bias.to(device=device).contiguous()
 
 
@@ -280,6 +282,7 @@ def _dl(t: torch.Tensor):
 # FP8 elementwise
 # ---------------------------------------------------------------------------
 
+
 def quantize_per_tensor_fp8(
     x: torch.Tensor,
     scale: torch.Tensor,
@@ -290,8 +293,13 @@ def quantize_per_tensor_fp8(
 
     out = torch.empty(x.shape, dtype=torch.uint8, device=x.device)
     _C.quantize_per_tensor_fp8(
-        _dl(x), _dl(scale), _dl(out),
-        DTYPE_TO_CODE[x.dtype], DTYPE_TO_CODE[output_type], x.numel(), _stream(x),
+        _dl(x),
+        _dl(scale),
+        _dl(out),
+        DTYPE_TO_CODE[x.dtype],
+        DTYPE_TO_CODE[output_type],
+        x.numel(),
+        _stream(x),
     )
     return out.view(output_type)
 
@@ -306,8 +314,13 @@ def dequantize_per_tensor_fp8(
 
     out = torch.empty(x.shape, dtype=output_type, device=x.device)
     _C.dequantize_per_tensor_fp8(
-        _dl(x.view(torch.uint8)), _dl(scale), _dl(out),
-        DTYPE_TO_CODE[x.dtype], DTYPE_TO_CODE[output_type], x.numel(), _stream(x),
+        _dl(x.view(torch.uint8)),
+        _dl(scale),
+        _dl(out),
+        DTYPE_TO_CODE[x.dtype],
+        DTYPE_TO_CODE[output_type],
+        x.numel(),
+        _stream(x),
     )
     return out
 
@@ -333,7 +346,11 @@ def stochastic_rounding_fp8(
 
     x = x.contiguous()
     _C.stochastic_round_fp8(
-        _dl(rng), _dl(x), DTYPE_TO_CODE[output_type], x.numel(), _stream(x),
+        _dl(rng),
+        _dl(x),
+        DTYPE_TO_CODE[output_type],
+        x.numel(),
+        _stream(x),
     )
     return rng.view(output_type)
 
@@ -341,6 +358,7 @@ def stochastic_rounding_fp8(
 # ---------------------------------------------------------------------------
 # FP8 GEMM (v_wmma_f32_16x16x16_fp8_fp8)
 # ---------------------------------------------------------------------------
+
 
 def _weight_as_nk(b: torch.Tensor) -> torch.Tensor:
     """Return the weight as a contiguous (N, K) tensor.
@@ -391,9 +409,17 @@ def scaled_mm_fp8(
 
     out = torch.empty((m, n), dtype=out_dtype, device=a.device)
     _C.scaled_mm_fp8(
-        _dl(a.view(torch.uint8)), _dl(b_nk.view(torch.uint8)), _dl(out),
-        _dl(scale_a), _dl(scale_b), None if bias is None else _dl(bias),
-        m, n, k, DTYPE_TO_CODE[out_dtype], _stream(a),
+        _dl(a.view(torch.uint8)),
+        _dl(b_nk.view(torch.uint8)),
+        _dl(out),
+        _dl(scale_a),
+        _dl(scale_b),
+        None if bias is None else _dl(bias),
+        m,
+        n,
+        k,
+        DTYPE_TO_CODE[out_dtype],
+        _stream(a),
     )
     return out
 
@@ -401,6 +427,7 @@ def scaled_mm_fp8(
 # ---------------------------------------------------------------------------
 # INT8 quantization + GEMM (v_wmma_i32_16x16x16_iu8)
 # ---------------------------------------------------------------------------
+
 
 def quantize_int8_rowwise(
     x: torch.Tensor,
@@ -425,7 +452,9 @@ def quantize_int8_tensorwise(
     # A caller-supplied scale reduces to an elementwise quantize; only the
     # absmax-derived scale needs the fused reduction kernel.
     if stochastic_rounding or (scale is not None and not isinstance(scale, str)):
-        return _eager.quantize_int8_tensorwise(x, scale=scale, stochastic_rounding=stochastic_rounding)
+        return _eager.quantize_int8_tensorwise(
+            x, scale=scale, stochastic_rounding=stochastic_rounding
+        )
 
     xc = x.contiguous()
     q = torch.empty(xc.shape, dtype=torch.int8, device=x.device)
@@ -511,9 +540,7 @@ def dequantize_int8_convrot_weight_dtype(
 _convrot_max_k: dict[tuple[int, torch.dtype], int] = {}
 
 
-def _convrot_supported(
-    k: int, group_size: int, device: torch.device, dtype: torch.dtype
-) -> bool:
+def _convrot_supported(k: int, group_size: int, device: torch.device, dtype: torch.dtype) -> bool:
     """Whether the fused rotation can take a row of this width on ``device``.
 
     It stages the whole row in LDS, which bounds K per device, and it rotates K/G
@@ -551,8 +578,14 @@ def _rotate_quant_int8(
     # operand's device rather than trusting the caller thread's current device.
     with torch.cuda.device(x2d.device):
         _C.quantize_int8_convrot(
-            _dl(x2d), _dl(q), _dl(scales), m, k, group_size,
-            _input_act_code(input_act), _stream(x2d),
+            _dl(x2d),
+            _dl(q),
+            _dl(scales),
+            m,
+            k,
+            group_size,
+            _input_act_code(input_act),
+            _stream(x2d),
         )
     return q, scales
 
@@ -569,9 +602,7 @@ def quantize_and_rotate_rowwise(
     fused kernel synthesizes the same transform from radix-4 butterflies, so the
     argument is accepted and unused.
     """
-    if stochastic_rounding or not _convrot_supported(
-        x.shape[-1], group_size, x.device, x.dtype
-    ):
+    if stochastic_rounding or not _convrot_supported(x.shape[-1], group_size, x.device, x.dtype):
         return _eager.quantize_and_rotate_rowwise(
             x, h, group_size, stochastic_rounding=stochastic_rounding
         )
@@ -648,7 +679,13 @@ def int8_linear(
             )
         if not _convrot_supported(k, convrot_groupsize, x.device, x.dtype):
             return _eager.int8_linear(
-                x, weight, weight_scale, bias, out_dtype, convrot, convrot_groupsize,
+                x,
+                weight,
+                weight_scale,
+                bias,
+                out_dtype,
+                convrot,
+                convrot_groupsize,
                 input_act=input_act,
             )
         # The only route that absorbs the activation; the rest apply it eagerly.
@@ -665,10 +702,18 @@ def int8_linear(
 
     out = torch.empty((m, n), dtype=out_dtype, device=x.device)
     _C.int8_gemm(
-        _dl(q), _dl(weight), _dl(out),
-        _dl(x_scale), _dl(weight_scale), 0 if weight_scale.numel() == 1 else 1,
+        _dl(q),
+        _dl(weight),
+        _dl(out),
+        _dl(x_scale),
+        _dl(weight_scale),
+        0 if weight_scale.numel() == 1 else 1,
         None if bias is None else _dl(bias),
-        m, n, k, DTYPE_TO_CODE[out_dtype], _stream(x),
+        m,
+        n,
+        k,
+        DTYPE_TO_CODE[out_dtype],
+        _stream(x),
     )
     return out.reshape(*orig_shape[:-1], n)
 
@@ -676,6 +721,7 @@ def int8_linear(
 # ---------------------------------------------------------------------------
 # Grouped W4A8 over the INT8 GEMM
 # ---------------------------------------------------------------------------
+
 
 def _dequant_int4_grouped_to_int8(
     qdata: torch.Tensor,
@@ -1083,7 +1129,9 @@ def convrot_w4a4_linear(
     linear_dtype: str = "int4",
 ) -> torch.Tensor:
     if linear_dtype not in {"int4", "int8"}:
-        raise ValueError(f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}")
+        raise ValueError(
+            f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}"
+        )
     if quant_group_size != _INT4_GROUP_SIZE:
         raise ValueError(f"int4 MMA kernel requires quant_group_size {_INT4_GROUP_SIZE}")
     if x.shape[-1] != qweight.shape[-1] * 2:
@@ -1123,8 +1171,13 @@ def convrot_w4a4_linear(
         w_int8 = torch.empty((qw.shape[0], qw.shape[1] * 2), dtype=torch.int8, device=x.device)
         _C.unpack_int4(_dl(qw), _dl(w_int8), qw.numel(), _stream(x))
         return int8_linear(
-            x, w_int8, wscales, bias, x.dtype,
-            convrot=True, convrot_groupsize=convrot_groupsize,
+            x,
+            w_int8,
+            wscales,
+            bias,
+            x.dtype,
+            convrot=True,
+            convrot_groupsize=convrot_groupsize,
         )
 
     orig_shape = x.shape
@@ -1136,7 +1189,9 @@ def convrot_w4a4_linear(
     x_scale = torch.empty((m,), dtype=torch.float32, device=x.device)
     # Pin the current device so check_convrot_k reads this operand's LDS budget.
     with torch.cuda.device(x.device):
-        _C.convrot_quant_int4(_dl(x2d), _dl(qact), _dl(x_scale), m, k, convrot_groupsize, _stream(x))
+        _C.convrot_quant_int4(
+            _dl(x2d), _dl(qact), _dl(x_scale), m, k, convrot_groupsize, _stream(x)
+        )
 
     wscales = wscales.to(device=x.device, dtype=torch.float32).reshape(-1)
     if wscales.numel() != n:
@@ -1147,9 +1202,17 @@ def convrot_w4a4_linear(
 
     out = torch.empty((m, n), dtype=x.dtype, device=x.device)
     _C.convrot_w4a4_gemm(
-        _dl(qact), _dl(qw), _dl(out),
-        _dl(x_scale), _dl(wscales), None if bias is None else _dl(bias),
-        m, n, k, DTYPE_TO_CODE[x.dtype], _stream(x),
+        _dl(qact),
+        _dl(qw),
+        _dl(out),
+        _dl(x_scale),
+        _dl(wscales),
+        None if bias is None else _dl(bias),
+        m,
+        n,
+        k,
+        DTYPE_TO_CODE[x.dtype],
+        _stream(x),
     )
     return out.reshape(*orig_shape[:-1], n)
 
@@ -1157,6 +1220,7 @@ def convrot_w4a4_linear(
 # ---------------------------------------------------------------------------
 # AWQ W4A16 and SVDQuant W4A4
 # ---------------------------------------------------------------------------
+
 
 def gemv_awq_w4a16(
     x: torch.Tensor,
@@ -1193,9 +1257,17 @@ def gemv_awq_w4a16(
     out_dtype = wscales.dtype
     out = torch.empty((m, n), dtype=out_dtype, device=x.device)
     _C.gemv_awq_w4a16(
-        _dl(x2d), _dl(qw), _dl(wscales), _dl(wzeros),
-        None if bias is None else _dl(bias), _dl(out),
-        m, n, k, group_size, _stream(x),
+        _dl(x2d),
+        _dl(qw),
+        _dl(wscales),
+        _dl(wzeros),
+        None if bias is None else _dl(bias),
+        _dl(out),
+        m,
+        n,
+        k,
+        group_size,
+        _stream(x),
     )
     return out.reshape(*orig_shape[:-1], n)
 
@@ -1242,12 +1314,17 @@ def quantize_svdquant_w4a4(
     lora_act = torch.zeros((m_pad, r), dtype=torch.float32, device=x.device)
 
     _C.svdquant_quantize(
-        _dl(xc), _dl(smooth), _dl(q), _dl(ascales),
-        m, m_pad, k, act_unsigned, _stream(x),
+        _dl(xc),
+        _dl(smooth),
+        _dl(q),
+        _dl(ascales),
+        m,
+        m_pad,
+        k,
+        act_unsigned,
+        _stream(x),
     )
-    _C.svdquant_lora_down(
-        _dl(lora_src), _dl(lora_down), _dl(lora_act[:m]), m, k, r, _stream(x)
-    )
+    _C.svdquant_lora_down(_dl(lora_src), _dl(lora_down), _dl(lora_act[:m]), m, k, r, _stream(x))
     return q, ascales, lora_act
 
 
@@ -1292,11 +1369,20 @@ def scaled_mm_svdquant_w4a4(
 
     out = torch.empty((m, n), dtype=wscales.dtype, device=dev)
     _C.svdquant_gemm(
-        _dl(act), _dl(wgt), _dl(out),
-        _dl(ascales), _dl(wscales),
-        _dl(lora_act_in), _dl(lora_up),
+        _dl(act),
+        _dl(wgt),
+        _dl(out),
+        _dl(ascales),
+        _dl(wscales),
+        _dl(lora_act_in),
+        _dl(lora_up),
         None if bias is None else _dl(bias),
-        m, n, k, r, act_unsigned, _stream(act),
+        m,
+        n,
+        k,
+        r,
+        act_unsigned,
+        _stream(act),
     )
     return out
 
@@ -1323,7 +1409,7 @@ def na3d(
     causal = (False, False, False) if is_causal is None else tuple(is_causal)
     batch, t, h, w, num_heads, head_dim = q.shape
     if scale is None:
-        scale = head_dim ** -0.5
+        scale = head_dim**-0.5
 
     q = q.contiguous()
     k = k.contiguous()
@@ -1367,8 +1453,16 @@ def _adaln_impl(kernel, x, scale, shift, eps) -> torch.Tensor:
 
     out = torch.empty_like(x_flat)
     kernel(
-        _dl(x_flat), _dl(scale_flat), _dl(shift_flat), _dl(out),
-        n, d, scale_group, shift_group, eps, _stream(x),
+        _dl(x_flat),
+        _dl(scale_flat),
+        _dl(shift_flat),
+        _dl(out),
+        n,
+        d,
+        scale_group,
+        shift_group,
+        eps,
+        _stream(x),
     )
     return out.reshape(orig_shape)
 
@@ -1436,9 +1530,13 @@ def _rope(xq, xk, freqs_cis, split_half, inplace=False):
         freqs_cis = trim_rope_freqs(xq, freqs_cis)
 
     _C.apply_rope(
-        _dl(xq), None if xk is None else _dl(xk), _dl(freqs_cis),
-        _dl(xq_out), None if xk_out is None else _dl(xk_out),
-        split_half, _stream(xq),
+        _dl(xq),
+        None if xk is None else _dl(xk),
+        _dl(freqs_cis),
+        _dl(xq_out),
+        None if xk_out is None else _dl(xk_out),
+        split_half,
+        _stream(xq),
     )
     return xq_out, xk_out
 
@@ -1535,7 +1633,8 @@ def _rms_rope(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inplace=Fa
             if rot_dim:
                 # Only the private eager helper takes rot_dim for a single tensor.
                 out = _eager_rope._rms_rope1(
-                    q, freqs_cis, q_scale, epsilon, split_half=split_half, rot_dim=rot_dim)
+                    q, freqs_cis, q_scale, epsilon, split_half=split_half, rot_dim=rot_dim
+                )
             else:
                 impl = _eager.rms_rope_split_half1 if split_half else _eager.rms_rope1
                 out = impl(q, freqs_cis, q_scale, epsilon)
@@ -1560,16 +1659,24 @@ def _rms_rope(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inplace=Fa
         k_out = None if k is None else torch.empty(k.shape, dtype=k.dtype, device=k.device)
 
     _C.rms_rope(
-        _dl(q), None if k is None else _dl(k), _dl(freqs_cis),
-        _dl(q_weight), None if k_weight is None else _dl(k_weight),
-        _dl(q_out), None if k_out is None else _dl(k_out),
-        epsilon, split_half, _stream(q), rot_dim,
+        _dl(q),
+        None if k is None else _dl(k),
+        _dl(freqs_cis),
+        _dl(q_weight),
+        None if k_weight is None else _dl(k_weight),
+        _dl(q_out),
+        None if k_out is None else _dl(k_out),
+        epsilon,
+        split_half,
+        _stream(q),
+        rot_dim,
     )
     return q_out, k_out
 
 
-def _rms_rope_pair(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inplace=False,
-                   rot_dim=0):
+def _rms_rope_pair(
+    q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inplace=False, rot_dim=0
+):
     if k_scale is None:
         k_scale = q_scale
     # One dtype code covers both inputs and one more both weights, so a difference
@@ -1581,10 +1688,8 @@ def _rms_rope_pair(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inpla
         or (inplace and _effective_strides(q) != _effective_strides(k))
     ):
         return (
-            _rms_rope(q, None, freqs_cis, q_scale, None, epsilon, split_half, inplace,
-                      rot_dim)[0],
-            _rms_rope(k, None, freqs_cis, k_scale, None, epsilon, split_half, inplace,
-                      rot_dim)[0],
+            _rms_rope(q, None, freqs_cis, q_scale, None, epsilon, split_half, inplace, rot_dim)[0],
+            _rms_rope(k, None, freqs_cis, k_scale, None, epsilon, split_half, inplace, rot_dim)[0],
         )
     return _rms_rope(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inplace, rot_dim)
 
@@ -1676,513 +1781,141 @@ def rms_rope_split_half_(
     if k_scale is None:
         k_scale = q_scale
     check_rope_inplace(q, k, readonly=(freqs_cis, q_scale, k_scale))
-    return _rms_rope_pair(q, k, freqs_cis, q_scale, k_scale, epsilon, True, inplace=True,
-                          rot_dim=rot_dim)
+    return _rms_rope_pair(
+        q, k, freqs_cis, q_scale, k_scale, epsilon, True, inplace=True, rot_dim=rot_dim
+    )
 
 
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
-def _build_constraints(has_wmma: bool = True) -> dict:
-    from comfy_kitchen.constraints import (
-        DivisibleBy,
-        ExactDims,
-        FunctionConstraints,
-        ParamConstraint,
-        ValidationResult,
-        na3d_common_call_rule,
-    )
 
-    # PyTorch exposes ROCm tensors with device type "cuda".
-    dev = frozenset({"cuda", "hip"})
+def _hip_lowerings(has_wmma):
     floats = frozenset({torch.float32, torch.float16, torch.bfloat16})
-    half_floats = frozenset({torch.float16, torch.bfloat16})
-    fp8s = frozenset({torch.float8_e4m3fn, torch.float8_e5m2})
-    out_floats = frozenset({torch.float32, torch.float16, torch.bfloat16})
+    halves = frozenset({torch.float16, torch.bfloat16})
+    fp8 = frozenset({torch.float8_e4m3fn, torch.float8_e5m2})
+    d1 = dispatch_v2.ndim(1)
+    d2 = dispatch_v2.ndim(2)
+    d4 = dispatch_v2.ndim(4)
+    d6 = dispatch_v2.ndim(6)
+    k16 = dispatch_v2.aligned(-1, 16)
+    k32 = dispatch_v2.aligned(-1, 32)
+    d2k64 = dispatch_v2.aligned_ndim(2, -1, 64)
+    tensor = dispatch_v2.tensor_rule
+    value = dispatch_v2.value_rule
+    devices = frozenset({"cuda", "hip"})
 
-    def _na3d_call_rule(kwargs):
-        common = na3d_common_call_rule(kwargs)
-        if not common.success:
-            return common
-        q = kwargs.get("q")
-        if q is not None:
-            head_dim = q.shape[-1]
-            # The WMMA K-step is 16 wide and the output accumulators are held in
-            # registers, one 16-column tile each.
-            if head_dim % 16 != 0 or head_dim > 64:
-                return ValidationResult.fail("q", "head_dim must be a multiple of 16 and <= 64")
-            if q.shape[1] * q.shape[2] > 65535 or q.shape[0] * q.shape[4] > 65535:
-                return ValidationResult.fail("q", "grid dims exceed HIP limits")
-        return ValidationResult.ok()
+    def plan(runner, *, check=None, **params):
+        return dispatch_v2.lowering(runner, devices=devices, check=check, **params)
 
-    constraints = {
-        # fp32 has no 16-bit matrix path, so it goes to triton/eager.
-        "na3d": FunctionConstraints(
-            params={
-                "q": ParamConstraint(dtypes=half_floats, shape_rules=(ExactDims(6),)),
-                "k": ParamConstraint(dtypes=half_floats, shape_rules=(ExactDims(6),)),
-                "v": ParamConstraint(dtypes=half_floats, shape_rules=(ExactDims(6),)),
-            },
-            default_devices=dev,
-            call_rules=(_na3d_call_rule,),
+    f, f2, f4, f6 = (
+        tensor(floats),
+        tensor(floats, d2),
+        tensor(floats, d4),
+        tensor(floats, d6),
+    )
+    f32 = tensor({torch.float32})
+    i8, i8_2 = tensor({torch.int8}), tensor({torch.int8}, d2)
+    int_rule = value(int)
+    out = {
+        "adaln": plan(adaln, x=f, scale=f, shift=f),
+        "rms_adaln": plan(rms_adaln, x=f, scale=f, shift=f),
+        "quantize_per_tensor_fp8": plan(
+            quantize_per_tensor_fp8, x=f, scale=f32, output_type=(fp8, None)
         ),
-        "quantize_per_tensor_fp8": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats),
-                "scale": ParamConstraint(dtypes=frozenset({torch.float32})),
-                "output_type": ParamConstraint(dtypes=fp8s),
-            },
-            default_devices=dev,
+        "dequantize_per_tensor_fp8": plan(
+            dequantize_per_tensor_fp8, x=tensor(fp8), scale=f32, output_type=(floats, None)
         ),
-        "dequantize_per_tensor_fp8": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=fp8s),
-                "scale": ParamConstraint(dtypes=frozenset({torch.float32})),
-                "output_type": ParamConstraint(dtypes=out_floats),
-            },
-            default_devices=dev,
+        "stochastic_rounding_fp8": plan(
+            stochastic_rounding_fp8, x=f, rng=tensor({torch.uint8}), output_type=(fp8, None)
         ),
-        "stochastic_rounding_fp8": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats),
-                "rng": ParamConstraint(dtypes=frozenset({torch.uint8})),
-                "output_type": ParamConstraint(dtypes=fp8s),
-            },
-            default_devices=dev,
+        "quantize_int8_rowwise": plan(quantize_int8_rowwise, x=f),
+        "quantize_int8_tensorwise": plan(quantize_int8_tensorwise, x=f),
+        "quantize_and_rotate_rowwise": plan(quantize_and_rotate_rowwise, x=f),
+        "quantize_int8_convrot_weight": plan(quantize_int8_convrot_weight, weight=f),
+        "dequantize_int8_simple_dtype": plan(
+            dequantize_int8_simple_dtype, q=i8, scale=f, output_dtype_code=int_rule
         ),
-        "quantize_int8_rowwise": FunctionConstraints(
-            params={"x": ParamConstraint(dtypes=floats)},
-            default_devices=dev,
+        "dequantize_int8_convrot_weight_dtype": plan(
+            dequantize_int8_convrot_weight_dtype,
+            q=i8_2,
+            scale=f,
+            group_size=int_rule,
+            output_dtype_code=int_rule,
         ),
-        "quantize_int8_tensorwise": FunctionConstraints(
-            params={"x": ParamConstraint(dtypes=floats)},
-            default_devices=dev,
+        "quantize_convrot_w4a4_weight": plan(
+            quantize_convrot_w4a4_weight, weight=tensor(floats, k32)
         ),
-        "quantize_and_rotate_rowwise": FunctionConstraints(
-            params={"x": ParamConstraint(dtypes=floats)},
-            default_devices=dev,
+        "dequantize_convrot_w4a4_weight": plan(dequantize_convrot_w4a4_weight, qdata=i8),
+        "gemv_awq_w4a16": plan(gemv_awq_w4a16, x=f, qweight=i8_2),
+        "quantize_svdquant_w4a4": plan(
+            quantize_svdquant_w4a4, x=tensor(floats, d2k64), smooth=f, lora_down=f2
         ),
-        "quantize_int8_convrot_weight": FunctionConstraints(
-            params={"weight": ParamConstraint(dtypes=floats)},
-            default_devices=dev,
+        "quantize_w4a8_int8_weight": plan(quantize_w4a8_int8_weight, weight=f2),
+        "dequantize_w4a8_int8_weight": plan(
+            dequantize_w4a8_int8_weight,
+            qdata=i8_2,
+            s_rel=tensor({torch.float8_e4m3fn, torch.float32}, d2),
+            s_channel=tensor({torch.float32}, d1),
+            codebook=tensor({torch.float32}, d1),
+            correction=f2,
         ),
-        "dequantize_int8_simple_dtype": FunctionConstraints(
-            params={
-                "q": ParamConstraint(dtypes=frozenset({torch.int8})),
-                "scale": ParamConstraint(dtypes=floats),
-                "output_dtype_code": ParamConstraint(dtypes=frozenset({int})),
-            },
-            default_devices=dev,
-        ),
-        "dequantize_int8_convrot_weight_dtype": FunctionConstraints(
-            params={
-                "q": ParamConstraint(
-                    dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)
-                ),
-                "scale": ParamConstraint(dtypes=floats),
-                "group_size": ParamConstraint(dtypes=frozenset({int})),
-                "output_dtype_code": ParamConstraint(dtypes=frozenset({int})),
-            },
-            default_devices=dev,
-        ),
-        # K must be a multiple of 16 so a WMMA K-step never straddles a row end.
-        "int8_linear": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(DivisibleBy(-1, 16),)),
-                "weight": ParamConstraint(dtypes=frozenset({torch.int8})),
-                "out_dtype": ParamConstraint(dtypes=out_floats),
-            },
-            default_devices=dev,
-        ),
-        "quantize_w4a8_int8_weight": FunctionConstraints(
-            params={
-                "weight": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(2),)),
-                "group_size": ParamConstraint(dtypes=frozenset({int})),
-                "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
-                "scale_dtype": ParamConstraint(
-                    dtypes=frozenset({torch.float32, torch.float8_e4m3fn})
-                ),
-            },
-            default_devices=dev,
-        ),
-        "dequantize_w4a8_int8_weight": FunctionConstraints(
-            params={
-                "qdata": ParamConstraint(
-                    dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)
-                ),
-                "s_rel": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn, torch.float32}),
-                    shape_rules=(ExactDims(2),),
-                ),
-                "s_channel": ParamConstraint(
-                    dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)
-                ),
-                "codebook": ParamConstraint(
-                    dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)
-                ),
-                "correction": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(2),)),
-                "group_size": ParamConstraint(dtypes=frozenset({int})),
-                "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
-                "output_dtype": ParamConstraint(dtypes=out_floats),
-            },
-            default_devices=dev,
-        ),
-        # K must be a multiple of 16 for the same reason as int8_linear, and so
-        # that the INT4 decode's 16-column store stays inside its own row.
-        "w4a8_int8_linear": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(DivisibleBy(-1, 16),)),
-                "qdata": ParamConstraint(
-                    dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)
-                ),
-                "s_rel": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn, torch.float32}),
-                    shape_rules=(ExactDims(2),),
-                ),
-                "s_channel": ParamConstraint(
-                    dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)
-                ),
-                "codebook": ParamConstraint(
-                    dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)
-                ),
-                "correction": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(2),)),
-                "bias": ParamConstraint(dtypes=floats),
-                "group_size": ParamConstraint(dtypes=frozenset({int})),
-                "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
-                "out_dtype": ParamConstraint(dtypes=out_floats),
-            },
-            default_devices=dev,
-        ),
-        "quantize_convrot_w4a4_weight": FunctionConstraints(
-            params={"weight": ParamConstraint(dtypes=floats, shape_rules=(DivisibleBy(-1, 32),))},
-            default_devices=dev,
-        ),
-        "dequantize_convrot_w4a4_weight": FunctionConstraints(
-            params={"qdata": ParamConstraint(dtypes=frozenset({torch.int8}))},
-            default_devices=dev,
-        ),
-        "convrot_w4a4_linear": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(DivisibleBy(-1, 32),)),
-                "qweight": ParamConstraint(dtypes=frozenset({torch.int8})),
-            },
-            default_devices=dev,
-        ),
-        # 2D only: the tile-packed weight/scale variants have no HIP kernel and
-        # fall through to eager.
-        "gemv_awq_w4a16": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats),
-                "qweight": ParamConstraint(
-                    dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)
-                ),
-            },
-            default_devices=dev,
-        ),
-        "quantize_svdquant_w4a4": FunctionConstraints(
-            params={
-                "x": ParamConstraint(
-                    dtypes=floats, shape_rules=(ExactDims(2), DivisibleBy(-1, 64))
-                ),
-                "smooth": ParamConstraint(dtypes=floats),
-                "lora_down": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(2),)),
-            },
-            default_devices=dev,
-        ),
-        "scaled_mm_svdquant_w4a4": FunctionConstraints(
-            params={
-                "act": ParamConstraint(
-                    dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)
-                ),
-                "wgt": ParamConstraint(
-                    dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)
-                ),
-                "wscales": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(2),)),
-                "lora_up": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(2),)),
-            },
-            default_devices=dev,
-        ),
-        "adaln": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats),
-                "scale": ParamConstraint(dtypes=floats),
-                "shift": ParamConstraint(dtypes=floats),
-            },
-            default_devices=dev,
-        ),
-        "rms_adaln": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats),
-                "scale": ParamConstraint(dtypes=floats),
-                "shift": ParamConstraint(dtypes=floats),
-            },
-            default_devices=dev,
-        ),
-        # The rope kernel indexes x as 4D and freqs_cis as 6D.
-        "apply_rope": FunctionConstraints(
-            params={
-                "xq": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "xk": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-            },
-            default_devices=dev,
-        ),
-        "apply_rope1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-            },
-            default_devices=dev,
-        ),
-        "apply_rope_split_half": FunctionConstraints(
-            params={
-                "xq": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "xk": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-            },
-            default_devices=dev,
-        ),
-        "apply_rope_split_half1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-            },
-            default_devices=dev,
-        ),
-        # Normalized over the last axis, so BHND and BNHD both work. A weight that
-        # is not one entry per head_dim falls through to eager.
-        "rms_rope": FunctionConstraints(
-            params={
-                "q": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "k": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-                "q_scale": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(1),)),
-                "k_scale": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(1),)),
-            },
-            default_devices=dev,
-        ),
-        "rms_rope1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-                "scale": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(1),)),
-            },
-            default_devices=dev,
-        ),
-        "rms_rope_split_half": FunctionConstraints(
-            params={
-                "q": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "k": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-                "q_scale": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(1),)),
-                "k_scale": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(1),)),
-            },
-            default_devices=dev,
-        ),
-        "rms_rope_split_half1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(4),)),
-                "freqs_cis": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(6),)),
-                "scale": ParamConstraint(dtypes=floats, shape_rules=(ExactDims(1),)),
-            },
-            default_devices=dev,
-        ),
+        "scaled_mm_fp8": plan(scaled_mm_fp8, a=tensor(fp8), b=tensor(fp8)),
     }
+    if has_wmma:
+        out.update(
+            {
+                "int8_linear": plan(
+                    int8_linear, x=tensor(floats, k16), weight=i8, out_dtype=(floats, None)
+                ),
+                "convrot_w4a4_linear": plan(convrot_w4a4_linear, x=tensor(floats, k32), qweight=i8),
+                "scaled_mm_svdquant_w4a4": plan(
+                    scaled_mm_svdquant_w4a4, act=i8_2, wgt=i8_2, wscales=f2, lora_up=f2
+                ),
+                "w4a8_int8_linear": plan(
+                    w4a8_int8_linear,
+                    x=f,
+                    qdata=i8_2,
+                    s_rel=tensor({torch.float8_e4m3fn, torch.float32}, d2),
+                    s_channel=tensor({torch.float32}, d1),
+                    codebook=tensor({torch.float32}, d1),
+                    correction=f2,
+                ),
+            }
+        )
+    for name in (
+        "apply_rope1",
+        "apply_rope1_",
+        "apply_rope_split_half1",
+        "apply_rope_split_half1_",
+    ):
+        out[name] = plan(globals()[name], x=f4, freqs_cis=f6)
+    for name in ("apply_rope", "apply_rope_", "apply_rope_split_half", "apply_rope_split_half_"):
+        out[name] = plan(globals()[name], xq=f4, xk=f4, freqs_cis=f6)
 
-    # Same operands and the same kernel as the functional siblings.
-    for inplace_name, functional_name in {
-        "apply_rope_": "apply_rope",
-        "apply_rope1_": "apply_rope1",
-        "apply_rope_split_half_": "apply_rope_split_half",
-        "apply_rope_split_half1_": "apply_rope_split_half1",
-        "rms_rope_": "rms_rope",
-        "rms_rope1_": "rms_rope1",
-        "rms_rope_split_half_": "rms_rope_split_half",
-        "rms_rope_split_half1_": "rms_rope_split_half1",
-    }.items():
-        constraints[inplace_name] = constraints[functional_name]
+    def na_check(call):
+        q = call["q"]
+        if any(call[name].shape != q.shape or call[name].dtype != q.dtype for name in ("k", "v")):
+            return "q, k, and v must share shape and dtype"
+        if len(call["kernel_size"]) != 3 or any(size < 1 for size in call["kernel_size"]):
+            return "kernel_size must contain three positive values"
+        if call["is_causal"] is not None and len(call["is_causal"]) != 3:
+            return "is_causal must contain three values"
+        if q.shape[-1] % 16 or q.shape[-1] > 64:
+            return "head_dim must be a multiple of 16 and <= 64"
+        if q.shape[1] * q.shape[2] > 65535 or q.shape[0] * q.shape[4] > 65535:
+            return "grid dims exceed HIP limits"
 
-    if not has_wmma:
-        # RDNA2: the GEMM kernels are compiled but trap, so they must not be
-        # advertised. Dropping them here routes those ops to triton/eager while the
-        # elementwise kernels below still dispatch to HIP.
-        constraints = {k: v for k, v in constraints.items() if k not in _WMMA_ONLY_OPS}
-
-    return constraints
-
-
-# ---------------------------------------------------------------------------
-# INT8 attention
-#
-# The public entry points live in comfy_kitchen/sage_attention.py, which
-# validates and pads the head dimension; everything below owns the packed
-# layouts, which are not the same as the CUDA backend. See
-# sage_attention/quant_qk_int8.hip for why the scale granularity differs.
-# ---------------------------------------------------------------------------
-
-# Must match kCtaQ and the key tiles in sage_attention/int8_attn.hip.
-_SAGE_CTA_Q = 128
-_SAGE_CTA_K = 64
-_SAGE_LARGE_CTA_K = 128
-_SAGE_KEY_GROUP = 16
-_SAGE_HEAD_DIMS = (64, 128, 256)
-
-
-def _sage_cta_k(head_dim: int, kv_length: int, has_mask: bool) -> int:
-    """Keys per attention iteration.
-
-    Always 64. The CUDA backend widens this to 128 for long unmasked keys; the
-    wide tile is implemented here too and measures slower on RDNA, where V is
-    staged transposed and the tile doubles both LDS allocations at once. Kept as
-    a function because the choice belongs with the buffer padding it decides.
-    """
-    del head_dim, kv_length, has_mask
-    return _SAGE_CTA_K
-
-
-def int8_attention_is_available() -> bool:
-    """Whether the INT8 attention kernels can run here.
-
-    Stricter than is_available(): the kernel is built on the matrix cores, so
-    RDNA2 declines it the way it declines the GEMMs.
-    """
-    return has_wmma()
-
-
-def _sage_buffers(q: torch.Tensor, k: torch.Tensor, cta_k: int):
-    batch, q_heads, q_length, head_dim = q.shape
-    _, kv_heads, kv_length, _ = k.shape
-    if head_dim not in _SAGE_HEAD_DIMS:
-        raise ValueError(f"int8 attention head_dim must be one of {_SAGE_HEAD_DIMS}")
-
-    padded_q = -(-q_length // _SAGE_CTA_Q) * _SAGE_CTA_Q
-    padded_k = -(-kv_length // cta_k) * cta_k
-    device = q.device
-
-    buffers = {
-        "q_int8": torch.empty(q.shape, dtype=torch.int8, device=device),
-        "k_int8": torch.empty(k.shape, dtype=torch.int8, device=device),
-        # One scale per query row and one per 16 adjacent keys; the padding exists
-        # so the kernel can read a scale for every lane of its last tile.
-        "q_scale": torch.empty(batch, q_heads, padded_q, dtype=torch.float32, device=device),
-        "k_scale": torch.empty(
-            batch, kv_heads, padded_k // _SAGE_KEY_GROUP, dtype=torch.float32, device=device
-        ),
-        # V is stored transposed, [B * H * D, padded_K], with the tail zero filled.
-        "v_int8": torch.empty(
-            batch * kv_heads * head_dim, padded_k, dtype=torch.int8, device=device
-        ),
-        "v_scale": torch.empty(batch * kv_heads * head_dim, dtype=torch.float32, device=device),
-    }
-
-    # One key index per batch and KV head, written by the stabilization detector
-    # and read by the K quantizer. It is scratch, not part of the packed form, so
-    # it stays out of the buffers the split API hands back.
-    anchor_indices = torch.empty(batch, kv_heads, dtype=torch.int32, device=device)
-    return buffers, anchor_indices
-
-
-def sage_int8_sdpa(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    *,
-    attention_scale: float,
-    attn_mask: torch.Tensor | None,
-) -> torch.Tensor:
-    """Quantize and attend in one call. q, k and v are already padded to a
-    supported head dimension; the output keeps that width."""
-    batch, q_heads, q_length, head_dim = q.shape
-    output_dtype = torch.bfloat16 if q.dtype == torch.float32 else q.dtype
-    output = torch.empty(
-        batch, q_heads, q_length, head_dim, dtype=output_dtype, device=q.device
-    )
-
-    cta_k = _sage_cta_k(head_dim, k.shape[2], attn_mask is not None)
-    buffers, anchor_indices = _sage_buffers(q, k, cta_k)
-    _C.sage_sdpa(
-        _dl(q),
-        _dl(k),
-        _dl(v),
-        _dl(output),
-        _dl(buffers["q_int8"]),
-        _dl(buffers["q_scale"]),
-        _dl(buffers["k_int8"]),
-        _dl(buffers["k_scale"]),
-        _dl(buffers["v_int8"]),
-        _dl(buffers["v_scale"]),
-        _dl(anchor_indices),
-        float(attention_scale),
-        cta_k,
-        DTYPE_TO_CODE[q.dtype],
-        DTYPE_TO_CODE[output_dtype],
-        _stream(q),
-        None if attn_mask is None else _dl(attn_mask),
-    )
-    return output
-
-
-def sage_int8_quantize(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    *,
-    cta_k: int = _SAGE_CTA_K,
-) -> dict:
-    """Quantize q, k and v without allocating the attention output."""
-    buffers, anchor_indices = _sage_buffers(q, k, cta_k)
-    _C.sage_sdpa_quantize(
-        _dl(q),
-        _dl(k),
-        _dl(v),
-        _dl(buffers["q_int8"]),
-        _dl(buffers["q_scale"]),
-        _dl(buffers["k_int8"]),
-        _dl(buffers["k_scale"]),
-        _dl(buffers["v_int8"]),
-        _dl(buffers["v_scale"]),
-        _dl(anchor_indices),
-        cta_k,
-        DTYPE_TO_CODE[q.dtype],
-        _stream(q),
-    )
-    return buffers
-
-
-def sage_int8_attend(
-    q_int8: torch.Tensor,
-    k_int8: torch.Tensor,
-    v_int8: torch.Tensor,
-    q_scale: torch.Tensor,
-    k_scale: torch.Tensor,
-    v_scale: torch.Tensor,
-    *,
-    attention_scale: float,
-    attn_mask: torch.Tensor | None,
-    output_dtype: torch.dtype,
-    cta_k: int = _SAGE_CTA_K,
-) -> torch.Tensor:
-    """Attend over the packed layouts sage_int8_quantize produced."""
-    batch, q_heads, q_length, head_dim = q_int8.shape
-    output = torch.empty(
-        batch, q_heads, q_length, head_dim, dtype=output_dtype, device=q_int8.device
-    )
-    _C.sage_sdpa_prequantized(
-        _dl(q_int8),
-        _dl(k_int8),
-        _dl(v_int8),
-        _dl(output),
-        _dl(q_scale),
-        _dl(k_scale),
-        _dl(v_scale),
-        cta_k,
-        float(attention_scale),
-        DTYPE_TO_CODE[output_dtype],
-        _stream(q_int8),
-        None if attn_mask is None else _dl(attn_mask),
-    )
-    return output
+    if has_wmma:
+        out["na3d"] = plan(
+            na3d, check=na_check, q=tensor(halves, d6), k=tensor(halves, d6), v=tensor(halves, d6)
+        )
+    for name in ("rms_rope1", "rms_rope1_", "rms_rope_split_half1", "rms_rope_split_half1_"):
+        out[name] = plan(globals()[name], x=f, freqs_cis=f, scale=f)
+    for name in ("rms_rope", "rms_rope_", "rms_rope_split_half", "rms_rope_split_half_"):
+        out[name] = plan(globals()[name], q=f, k=f, freqs_cis=f, q_scale=f, k_scale=f)
+    return out
 
 
 def _register():
@@ -2212,7 +1945,7 @@ def _register():
     registry.register(
         name="hip",
         module=sys.modules[__name__],
-        capabilities=_build_constraints(has_wmma),
+        lowerings=_hip_lowerings(has_wmma),
     )
     logger.debug(
         "registered HIP backend for %s (%s)",

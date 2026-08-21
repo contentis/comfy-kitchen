@@ -1,5 +1,6 @@
 import torch
 
+from . import dispatch_v2
 from .backends import cuda as _cuda_backend  # noqa: F401
 
 # Import backends to trigger auto-registration
@@ -10,7 +11,6 @@ from .backends.eager.quantization import mm_int8 as _mm_int8
 from .exceptions import (
     BackendError,
     BackendNotFoundError,
-    BackendNotImplementedError,
     NoCapableBackendError,
 )
 from .flash_attention import flash_attention_decode
@@ -116,7 +116,6 @@ __all__ = [
     # Exceptions
     "BackendError",
     "BackendNotFoundError",
-    "BackendNotImplementedError",
     "NoCapableBackendError",
 ]
 
@@ -186,8 +185,12 @@ def na2d(
     if len(is_causal) != 2:
         raise ValueError(f"na2d is_causal must have 2 elements, got {len(is_causal)}")
     out = torch.ops.comfy_kitchen.na3d(
-        q.unsqueeze(1), k.unsqueeze(1), v.unsqueeze(1),
-        [1, *kernel_size], [False, *is_causal], scale,
+        q.unsqueeze(1),
+        k.unsqueeze(1),
+        v.unsqueeze(1),
+        [1, *kernel_size],
+        [False, *is_causal],
+        scale,
     )
     return out.squeeze(1)
 
@@ -289,8 +292,7 @@ def stochastic_rounding_fp8(
         Stochastically rounded FP8 tensor
     """
     kwargs = {"x": x, "rng": rng, "output_type": output_type}
-    impl = registry.get_implementation("stochastic_rounding_fp8", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("stochastic_rounding_fp8", **kwargs)
 
 
 def quantize_nvfp4(
@@ -339,7 +341,9 @@ def dequantize_nvfp4(
         Dequantized tensor in specified output format
     """
     dtype_code = DTYPE_TO_CODE[output_type]
-    return torch.ops.comfy_kitchen.dequantize_nvfp4(qx, per_tensor_scale, block_scales, dtype_code, hi_first)
+    return torch.ops.comfy_kitchen.dequantize_nvfp4(
+        qx, per_tensor_scale, block_scales, dtype_code, hi_first
+    )
 
 
 def scaled_mm_nvfp4(
@@ -375,8 +379,7 @@ def scaled_mm_nvfp4(
         out_dtype = torch.bfloat16
     dtype_code = DTYPE_TO_CODE[out_dtype]
     return torch.ops.comfy_kitchen.scaled_mm_nvfp4(
-        a, b, tensor_scale_a, tensor_scale_b,
-        block_scale_a, block_scale_b, bias, dtype_code, alpha
+        a, b, tensor_scale_a, tensor_scale_b, block_scale_a, block_scale_b, bias, dtype_code, alpha
     )
 
 
@@ -479,7 +482,12 @@ def quantize_svdquant_w4a4(
     as bf16/fp16; this avoids an otherwise redundant cast/allocation.
     """
     return torch.ops.comfy_kitchen.quantize_svdquant_w4a4(
-        x, smooth, lora_down, pad_size, act_unsigned, lora_x,
+        x,
+        smooth,
+        lora_down,
+        pad_size,
+        act_unsigned,
+        lora_x,
     )
 
 
@@ -543,9 +551,7 @@ def gemv_awq_w4a16(
     Returns:
         (..., N) output tensor.
     """
-    return torch.ops.comfy_kitchen.gemv_awq_w4a16(
-        x, qweight, wscales, wzeros, bias, group_size
-    )
+    return torch.ops.comfy_kitchen.gemv_awq_w4a16(x, qweight, wscales, wzeros, bias, group_size)
 
 
 def apply_rope(
@@ -603,8 +609,11 @@ def rms_rope(
 
 
 def rms_rope_(
-    q: torch.Tensor, k: torch.Tensor, freqs_cis: torch.Tensor,
-    q_scale: torch.Tensor, k_scale: torch.Tensor | None = None,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
     epsilon: float = 1e-6,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply RMSNorm and interleaved RoPE in place (inference only)."""
@@ -623,7 +632,9 @@ def rms_rope1(
 
 
 def rms_rope1_(
-    x: torch.Tensor, freqs_cis: torch.Tensor, scale: torch.Tensor,
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
     epsilon: float = 1e-6,
 ) -> torch.Tensor:
     """Apply RMSNorm and interleaved RoPE in place (inference only)."""
@@ -646,13 +657,19 @@ def rms_rope_split_half(
     restricts the rotation to a head-dim prefix (partial rotary; the norm
     always spans the full head_dim); 0 rotates everything.
     """
-    return torch.ops.comfy_kitchen.rms_rope_split_half(q, k, freqs_cis, q_scale, k_scale, epsilon, rot_dim)
+    return torch.ops.comfy_kitchen.rms_rope_split_half(
+        q, k, freqs_cis, q_scale, k_scale, epsilon, rot_dim
+    )
 
 
 def rms_rope_split_half_(
-    q: torch.Tensor, k: torch.Tensor, freqs_cis: torch.Tensor,
-    q_scale: torch.Tensor, k_scale: torch.Tensor | None = None,
-    epsilon: float = 1e-6, rot_dim: int = 0,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    q_scale: torch.Tensor,
+    k_scale: torch.Tensor | None = None,
+    epsilon: float = 1e-6,
+    rot_dim: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply RMSNorm and split-half RoPE in place (inference only).
 
@@ -679,7 +696,9 @@ def rms_rope_split_half1(
 
 
 def rms_rope_split_half1_(
-    x: torch.Tensor, freqs_cis: torch.Tensor, scale: torch.Tensor,
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor,
+    scale: torch.Tensor,
     epsilon: float = 1e-6,
 ) -> torch.Tensor:
     """Apply RMSNorm and split-half RoPE in place (inference only)."""
@@ -765,9 +784,7 @@ def apply_rope_split_half1(
     return torch.ops.comfy_kitchen.apply_rope_split_half1(x, freqs_cis)
 
 
-def apply_rope_split_half1_(
-    x: torch.Tensor, freqs_cis: torch.Tensor
-) -> torch.Tensor:
+def apply_rope_split_half1_(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     """Apply split-half RoPE in place (inference only)."""
     torch.ops.comfy_kitchen.apply_rope_split_half1_(x, freqs_cis)
     return x
@@ -780,8 +797,7 @@ def quantize_int8_tensorwise(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Quantize tensor to INT8 with single tensorwise scale."""
     kwargs = {"x": x, "scale": scale, "stochastic_rounding": stochastic_rounding}
-    impl = registry.get_implementation("quantize_int8_tensorwise", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("quantize_int8_tensorwise", **kwargs)
 
 
 def quantize_int8_rowwise(
@@ -790,8 +806,7 @@ def quantize_int8_rowwise(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Quantize tensor to INT8 with per-row scales."""
     kwargs = {"x": x, "stochastic_rounding": stochastic_rounding}
-    impl = registry.get_implementation("quantize_int8_rowwise", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("quantize_int8_rowwise", **kwargs)
 
 
 def dequantize_int8_simple(q: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
@@ -845,8 +860,7 @@ def int8_linear(
         "convrot_groupsize": convrot_groupsize,
         "input_act": input_act,
     }
-    impl = registry.get_implementation("int8_linear", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("int8_linear", **kwargs)
 
 
 # =============================================================================

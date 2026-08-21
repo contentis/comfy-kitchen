@@ -47,7 +47,7 @@
 import torch
 import torch.nn.functional as F  # noqa: N812
 
-from comfy_kitchen.registry import registry
+from comfy_kitchen import dispatch_v2
 
 _INT4_GROUP_SIZE = 64
 _TILE_PACKED_BLOCK_N = 128
@@ -57,8 +57,8 @@ _TILE_PACKED_INTERLEAVE = 4
 # clamps to [-_INT4_MAX, +_INT4_MAX]; -8 is representable by the nibble but is
 # not emitted because it would break the dequant symmetry used by nunchaku's
 # W4A4 kernel contract.
-_INT4_MAX = 7   # signed quantizer range: [-7, 7], scale = max/7
-_UINT4_MAX = 15 # unsigned quantizer range: [0, 15], scale = max/15 (post-GELU+shift fc2)
+_INT4_MAX = 7  # signed quantizer range: [-7, 7], scale = max/7
+_UINT4_MAX = 15  # unsigned quantizer range: [0, 15], scale = max/15 (post-GELU+shift fc2)
 _GELU_UNSIGNED_SHIFT = 0.171875  # matches nunchaku's SHIFT_GELU constant
 
 
@@ -120,10 +120,20 @@ def _tile_packed_weight_to_row_major(packed: torch.Tensor) -> torch.Tensor:
         raise ValueError(f"unexpected tile-packed N quads: {n_quads}")
     if bytes_per_quad != _TILE_PACKED_INTERLEAVE * (_INT4_GROUP_SIZE // 2):
         raise ValueError(f"unexpected tile-packed byte axis: {bytes_per_quad}")
-    return packed.view(
-        n_tiles, k_groups, n_quads, _TILE_PACKED_INTERLEAVE, _INT4_GROUP_SIZE // 2,
-    ).permute(0, 2, 3, 1, 4).contiguous().view(
-        n_tiles * _TILE_PACKED_BLOCK_N, k_groups * (_INT4_GROUP_SIZE // 2),
+    return (
+        packed.view(
+            n_tiles,
+            k_groups,
+            n_quads,
+            _TILE_PACKED_INTERLEAVE,
+            _INT4_GROUP_SIZE // 2,
+        )
+        .permute(0, 2, 3, 1, 4)
+        .contiguous()
+        .view(
+            n_tiles * _TILE_PACKED_BLOCK_N,
+            k_groups * (_INT4_GROUP_SIZE // 2),
+        )
     )
 
 
@@ -131,8 +141,13 @@ def _tile_packed_scales_to_natural(wscales: torch.Tensor) -> torch.Tensor:
     """Convert tile-packed wscales (N/128, K/G, 128) to natural (K/G, N)."""
     if wscales.dim() != 3:
         return wscales
-    return wscales.permute(1, 0, 2).contiguous().view(
-        wscales.shape[1], wscales.shape[0] * _TILE_PACKED_BLOCK_N,
+    return (
+        wscales.permute(1, 0, 2)
+        .contiguous()
+        .view(
+            wscales.shape[1],
+            wscales.shape[0] * _TILE_PACKED_BLOCK_N,
+        )
     )
 
 
@@ -140,8 +155,13 @@ def _tile_packed_lora_up_to_natural(lora_up: torch.Tensor) -> torch.Tensor:
     """Convert tile-packed proj_up (N/128, R, 128) to natural (N, R)."""
     if lora_up.dim() != 3:
         return lora_up
-    return lora_up.permute(0, 2, 1).contiguous().view(
-        lora_up.shape[0] * _TILE_PACKED_BLOCK_N, lora_up.shape[1],
+    return (
+        lora_up.permute(0, 2, 1)
+        .contiguous()
+        .view(
+            lora_up.shape[0] * _TILE_PACKED_BLOCK_N,
+            lora_up.shape[1],
+        )
     )
 
 
@@ -316,13 +336,17 @@ def _op_quantize_svdquant_w4a4(
         "act_unsigned": act_unsigned,
         "lora_x": lora_x,
     }
-    impl = registry.get_implementation("quantize_svdquant_w4a4", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("quantize_svdquant_w4a4", **kwargs)
 
 
 @_op_quantize_svdquant_w4a4.register_fake
 def _op_quantize_svdquant_w4a4_fake(
-    x, smooth, lora_down, pad_size=256, act_unsigned=False, lora_x=None,
+    x,
+    smooth,
+    lora_down,
+    pad_size=256,
+    act_unsigned=False,
+    lora_x=None,
 ):
     m, k = x.shape
     r = lora_down.shape[1]
@@ -345,17 +369,28 @@ def _op_scaled_mm_svdquant_w4a4(
     act_unsigned: bool = False,
 ) -> torch.Tensor:
     kwargs = {
-        "act": act, "wgt": wgt, "ascales": ascales, "wscales": wscales,
-        "lora_act_in": lora_act_in, "lora_up": lora_up,
-        "bias": bias, "act_unsigned": act_unsigned,
+        "act": act,
+        "wgt": wgt,
+        "ascales": ascales,
+        "wscales": wscales,
+        "lora_act_in": lora_act_in,
+        "lora_up": lora_up,
+        "bias": bias,
+        "act_unsigned": act_unsigned,
     }
-    impl = registry.get_implementation("scaled_mm_svdquant_w4a4", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("scaled_mm_svdquant_w4a4", **kwargs)
 
 
 @_op_scaled_mm_svdquant_w4a4.register_fake
 def _op_scaled_mm_svdquant_w4a4_fake(
-    act, wgt, ascales, wscales, lora_act_in, lora_up, bias=None, act_unsigned=False,
+    act,
+    wgt,
+    ascales,
+    wscales,
+    lora_act_in,
+    lora_up,
+    bias=None,
+    act_unsigned=False,
 ):
     m = act.shape[0]
     n = wgt.shape[0] * _TILE_PACKED_BLOCK_N if wgt.dim() == 4 else wgt.shape[0]

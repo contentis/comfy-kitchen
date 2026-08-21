@@ -19,7 +19,7 @@
 
 import torch
 
-from comfy_kitchen.registry import registry
+from comfy_kitchen import dispatch_v2
 
 _DEFAULT_GROUP = 64
 
@@ -95,11 +95,14 @@ def _op_gemv_awq_w4a16(
     group_size: int = _DEFAULT_GROUP,
 ) -> torch.Tensor:
     kwargs = {
-        "x": x, "qweight": qweight, "wscales": wscales, "wzeros": wzeros,
-        "bias": bias, "group_size": group_size,
+        "x": x,
+        "qweight": qweight,
+        "wscales": wscales,
+        "wzeros": wzeros,
+        "bias": bias,
+        "group_size": group_size,
     }
-    impl = registry.get_implementation("gemv_awq_w4a16", kwargs=kwargs)
-    return impl(**kwargs)
+    return dispatch_v2.dispatch("gemv_awq_w4a16", **kwargs)
 
 
 @_op_gemv_awq_w4a16.register_fake

@@ -19,13 +19,13 @@ import math
 import torch
 import torch.nn.functional as functional
 
-from comfy_kitchen.registry import registry
+from comfy_kitchen import dispatch_v2
 
 # Element budget for one tile's [Nq, Nk] attention mask (bounds the mask
 # allocation and, on CPU, the math-backend score materialization).
-NA_SCORE_BUDGET = 2 ** 25
+NA_SCORE_BUDGET = 2**25
 # Element budget for the stacked K/V copies of one batched SDPA call on CUDA.
-NA_KV_STACK_BUDGET = 2 ** 28
+NA_KV_STACK_BUDGET = 2**28
 
 
 def _window_bounds(length, kernel, causal):
@@ -75,9 +75,11 @@ def _group_mask(rel_bounds, dtype, device):
         en = torch.tensor(ends, device=device)
         kj = torch.arange(int(en.max()), device=device)
         bools.append((kj[None, :] >= st[:, None]) & (kj[None, :] < en[:, None]))
-    visible = (bools[0][:, None, None, :, None, None]
-               & bools[1][None, :, None, None, :, None]
-               & bools[2][None, None, :, None, None, :])
+    visible = (
+        bools[0][:, None, None, :, None, None]
+        & bools[1][None, :, None, None, :, None]
+        & bools[2][None, None, :, None, None, :]
+    )
     nq = visible.shape[0] * visible.shape[1] * visible.shape[2]
     nk = visible.shape[3] * visible.shape[4] * visible.shape[5]
     mask = torch.zeros((nq, nk), dtype=dtype, device=device)
@@ -99,13 +101,15 @@ def na3d(
     causal = [False, False, False] if is_causal is None else list(is_causal)
     kernels = [k_ if c else min(k_, d) for k_, c, d in zip(kernel_size, causal, dims, strict=True)]
     if scale is None:
-        scale = hd ** -0.5
+        scale = hd**-0.5
     device = q.device
     if scale != 1.0:
         q = q * scale
 
     bounds = [_window_bounds(d, k_, c) for d, k_, c in zip(dims, kernels, causal, strict=True)]
-    tile_t, tile_h, tile_w = _pick_tiles(dims, [min(k_, d) for k_, d in zip(kernels, dims, strict=True)])
+    tile_t, tile_h, tile_w = _pick_tiles(
+        dims, [min(k_, d) for k_, d in zip(kernels, dims, strict=True)]
+    )
 
     # Group tiles by relative window geometry so each group shares one mask
     # and stacks into batched SDPA calls.
@@ -113,19 +117,30 @@ def na3d(
     for t0 in range(0, t, tile_t):
         t1 = min(t0 + tile_t, t)
         rt0, rt1 = bounds[0][0][t0], bounds[0][1][t1 - 1]
-        rel_t = (tuple(s - rt0 for s in bounds[0][0][t0:t1]), tuple(e - rt0 for e in bounds[0][1][t0:t1]))
+        rel_t = (
+            tuple(s - rt0 for s in bounds[0][0][t0:t1]),
+            tuple(e - rt0 for e in bounds[0][1][t0:t1]),
+        )
         for h0 in range(0, h, tile_h):
             h1 = min(h0 + tile_h, h)
             rh0, rh1 = bounds[1][0][h0], bounds[1][1][h1 - 1]
-            rel_h = (tuple(s - rh0 for s in bounds[1][0][h0:h1]), tuple(e - rh0 for e in bounds[1][1][h0:h1]))
+            rel_h = (
+                tuple(s - rh0 for s in bounds[1][0][h0:h1]),
+                tuple(e - rh0 for e in bounds[1][1][h0:h1]),
+            )
             for w0 in range(0, w, tile_w):
                 w1 = min(w0 + tile_w, w)
                 rw0, rw1 = bounds[2][0][w0], bounds[2][1][w1 - 1]
-                rel_w = (tuple(s - rw0 for s in bounds[2][0][w0:w1]), tuple(e - rw0 for e in bounds[2][1][w0:w1]))
-                groups.setdefault((rel_t, rel_h, rel_w), []).append((
-                    (slice(t0, t1), slice(h0, h1), slice(w0, w1)),
-                    (slice(rt0, rt1), slice(rh0, rh1), slice(rw0, rw1)),
-                ))
+                rel_w = (
+                    tuple(s - rw0 for s in bounds[2][0][w0:w1]),
+                    tuple(e - rw0 for e in bounds[2][1][w0:w1]),
+                )
+                groups.setdefault((rel_t, rel_h, rel_w), []).append(
+                    (
+                        (slice(t0, t1), slice(h0, h1), slice(w0, w1)),
+                        (slice(rt0, rt1), slice(rh0, rh1), slice(rw0, rw1)),
+                    )
+                )
 
     out = torch.empty((batch, t, h, w, nh, hd), device=device, dtype=v.dtype)
     for rel, tiles in groups.items():
@@ -136,9 +151,13 @@ def na3d(
         else:
             g_max = 1  # CPU math backend materializes [G*B, NH, Nq, Nk]
         qs0, _ = tiles[0]
-        tq, th, tw = (qs0[0].stop - qs0[0].start, qs0[1].stop - qs0[1].start, qs0[2].stop - qs0[2].start)
+        tq, th, tw = (
+            qs0[0].stop - qs0[0].start,
+            qs0[1].stop - qs0[1].start,
+            qs0[2].stop - qs0[2].start,
+        )
         for c0 in range(0, len(tiles), g_max):
-            chunk = tiles[c0:c0 + g_max]
+            chunk = tiles[c0 : c0 + g_max]
             g = len(chunk)
             q_s = torch.stack([q[:, qs[0], qs[1], qs[2]] for qs, _ in chunk])
             k_s = torch.stack([k[:, rs[0], rs[1], rs[2]] for _, rs in chunk])
@@ -169,9 +188,26 @@ def _op_na3d(
     is_causal: list[bool],
     scale: float | None,
 ) -> torch.Tensor:
-    kwargs = {"q": q, "k": k, "v": v, "kernel_size": kernel_size, "is_causal": is_causal, "scale": scale}
-    impl = registry.get_implementation("na3d", kwargs=kwargs)
-    return impl(**kwargs)
+    for name, tensor in (("k", k), ("v", v)):
+        if tensor.shape != q.shape:
+            raise ValueError(f"{name} must have the same shape as q")
+        if tensor.dtype != q.dtype:
+            raise ValueError(f"{name} must have the same dtype as q")
+        if tensor.device != q.device:
+            raise ValueError(f"{name} must be on the same device as q")
+    if len(kernel_size) != 3 or (is_causal is not None and len(is_causal) != 3):
+        raise ValueError("kernel_size and is_causal must have 3 elements")
+    if any(size < 1 for size in kernel_size):
+        raise ValueError("kernel_size entries must be positive")
+    kwargs = {
+        "q": q,
+        "k": k,
+        "v": v,
+        "kernel_size": kernel_size,
+        "is_causal": is_causal,
+        "scale": scale,
+    }
+    return dispatch_v2.dispatch("na3d", **kwargs)
 
 
 @_op_na3d.register_fake

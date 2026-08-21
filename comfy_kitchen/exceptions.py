@@ -13,14 +13,6 @@ class BackendNotFoundError(BackendError):
         super().__init__(msg)
 
 
-class BackendNotImplementedError(BackendError):
-    def __init__(self, backend_name: str, func_name: str):
-        self.backend_name = backend_name
-        self.func_name = func_name
-        msg = f"Backend '{backend_name}' does not implement '{func_name}'"
-        super().__init__(msg)
-
-
 class NoCapableBackendError(BackendError):
     """Raised when no backend can handle the request due to constraint violations."""
 

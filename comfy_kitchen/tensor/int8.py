@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import torch
 
-from comfy_kitchen.registry import registry
+from comfy_kitchen import dispatch_v2
 
 from .base import (
     BaseLayoutParams,
@@ -121,30 +121,32 @@ class TensorWiseINT8Layout(QuantizedLayout):
                 raise ValueError("convrot is only supported when per_channel is True")
 
         if convrot:
-            impl = registry.get_implementation(
+            qdata, qscale = dispatch_v2.dispatch(
                 "quantize_int8_convrot_weight",
-                kwargs={"weight": tensor, "group_size": convrot_groupsize, "stochastic_rounding": stochastic_rounding},
+                tensor,
+                convrot_groupsize,
+                stochastic_rounding=stochastic_rounding,
             )
-            qdata, qscale = impl(tensor, convrot_groupsize, stochastic_rounding=stochastic_rounding)
         elif is_weight:
             if per_channel:
-                impl = registry.get_implementation(
+                qdata, qscale = dispatch_v2.dispatch(
                     "quantize_int8_rowwise",
-                    kwargs={"x": tensor, "stochastic_rounding": stochastic_rounding},
+                    tensor,
+                    stochastic_rounding=stochastic_rounding,
                 )
-                qdata, qscale = impl(tensor, stochastic_rounding=stochastic_rounding)
             else:
-                impl = registry.get_implementation(
+                qdata, qscale = dispatch_v2.dispatch(
                     "quantize_int8_tensorwise",
-                    kwargs={"x": tensor, "scale": scale, "stochastic_rounding": stochastic_rounding},
+                    tensor,
+                    scale=scale,
+                    stochastic_rounding=stochastic_rounding,
                 )
-                qdata, qscale = impl(tensor, scale=scale, stochastic_rounding=stochastic_rounding)
         else:
-            impl = registry.get_implementation(
+            qdata, qscale = dispatch_v2.dispatch(
                 "quantize_int8_rowwise",
-                kwargs={"x": tensor, "stochastic_rounding": stochastic_rounding},
+                tensor,
+                stochastic_rounding=stochastic_rounding,
             )
-            qdata, qscale = impl(tensor, stochastic_rounding=stochastic_rounding)
 
         params = cls.Params(
             scale=qscale,
@@ -173,11 +175,15 @@ class TensorWiseINT8Layout(QuantizedLayout):
                 qdata, params.scale, params.convrot_groupsize, output_dtype_code
             )
         else:
-            result = torch.ops.comfy_kitchen.dequantize_int8_simple_dtype(qdata, params.scale, output_dtype_code)
+            result = torch.ops.comfy_kitchen.dequantize_int8_simple_dtype(
+                qdata, params.scale, output_dtype_code
+            )
         return result.to(params.orig_dtype)
 
     @classmethod
-    def dequantize_embedding(cls, qdata: torch.Tensor, params: Params, indices: torch.Tensor) -> torch.Tensor:
+    def dequantize_embedding(
+        cls, qdata: torch.Tensor, params: Params, indices: torch.Tensor
+    ) -> torch.Tensor:
         """Gather rows from an INT8 embedding table and dequantize only those rows.
 
         Embedding counterpart of ``dequantize``, which would materialize the whole ``[vocab, dim]``

@@ -5,7 +5,6 @@ import pytest
 import torch
 
 import comfy_kitchen as ck
-from comfy_kitchen.exceptions import NoCapableBackendError
 from tests.conftest import assert_values_close, get_capable_backends
 
 # ---------------------------------------------------------------------------
@@ -24,7 +23,7 @@ def _window(i, kernel, length, causal):
 def _ref_na3d(q, k, v, kernel_size, is_causal, scale):
     b, t, h, w, nh, hd = q.shape
     if scale is None:
-        scale = hd ** -0.5
+        scale = hd**-0.5
     out = torch.empty_like(v)
     for ti in range(t):
         t0, t1 = _window(ti, kernel_size[0], t, is_causal[0])
@@ -49,20 +48,20 @@ CASES = [
     # (shape (B,T,H,W,NH,HD), kernel, is_causal)
     ((1, 5, 9, 12, 2, 64), (3, 7, 7), (False, False, False)),
     ((1, 12, 13, 15, 2, 64), (11, 11, 11), (False, False, False)),
-    ((2, 6, 8, 8, 4, 64), (5, 5, 5), (True, False, False)),   # causal T
-    ((1, 3, 6, 6, 2, 64), (5, 5, 5), (True, False, False)),   # kernel > dims, causal T
+    ((2, 6, 8, 8, 4, 64), (5, 5, 5), (True, False, False)),  # causal T
+    ((1, 3, 6, 6, 2, 64), (5, 5, 5), (True, False, False)),  # kernel > dims, causal T
     ((1, 2, 5, 5, 2, 64), (3, 7, 7), (False, False, False)),  # kernel > dims -> clamp
     ((1, 1, 16, 16, 2, 64), (1, 5, 5), (False, False, False)),  # single frame (na2d shape)
     ((1, 4, 7, 40, 2, 32), (3, 5, 5), (False, False, False)),  # hd 32, elongated W
     # W past one CUDA query block and not a multiple of it: ragged tail block
     ((1, 2, 3, 65, 2, 64), (3, 3, 5), (False, False, False)),
     ((1, 2, 3, 96, 1, 64), (1, 3, 33), (False, False, False)),  # kw > CUDA BK=32
-    ((1, 3, 4, 34, 2, 16), (3, 3, 5), (False, False, False)),   # hd 16
-    ((1, 3, 4, 34, 2, 48), (3, 3, 5), (False, False, False)),   # hd 48 (not a power of 2)
-    ((1, 4, 6, 20, 2, 64), (3, 5, 7), (False, False, True)),    # causal W
-    ((1, 4, 6, 20, 2, 64), (3, 5, 7), (False, True, False)),    # causal H
-    ((1, 4, 6, 20, 2, 64), (3, 5, 7), (True, True, True)),      # causal on every axis
-    ((2, 3, 4, 18, 3, 32), (3, 3, 5), (False, False, False)),   # batch and heads > 1
+    ((1, 3, 4, 34, 2, 16), (3, 3, 5), (False, False, False)),  # hd 16
+    ((1, 3, 4, 34, 2, 48), (3, 3, 5), (False, False, False)),  # hd 48 (not a power of 2)
+    ((1, 4, 6, 20, 2, 64), (3, 5, 7), (False, False, True)),  # causal W
+    ((1, 4, 6, 20, 2, 64), (3, 5, 7), (False, True, False)),  # causal H
+    ((1, 4, 6, 20, 2, 64), (3, 5, 7), (True, True, True)),  # causal on every axis
+    ((2, 3, 4, 18, 3, 32), (3, 3, 5), (False, False, False)),  # batch and heads > 1
 ]
 
 
@@ -102,15 +101,19 @@ def test_na2d_matches_na3d_single_frame():
     k = torch.randn(1, 16, 16, 2, 64, device=device)
     v = torch.randn(1, 16, 16, 2, 64, device=device)
     out2d = ck.na2d(q, k, v, [5, 5])
-    ref = _ref_na3d(q.unsqueeze(1), k.unsqueeze(1), v.unsqueeze(1),
-                    (1, 5, 5), (False, False, False), None).squeeze(1)
+    ref = _ref_na3d(
+        q.unsqueeze(1), k.unsqueeze(1), v.unsqueeze(1), (1, 5, 5), (False, False, False), None
+    ).squeeze(1)
     assert_values_close(out2d.float(), ref.float(), 2e-4, 2e-5, name="na2d")
 
 
-@pytest.mark.parametrize("shape,kernel", [
-    ((1, 8, 24, 24, 4, 64), (3, 7, 7)),
-    ((1, 2, 3, 70, 2, 64), (3, 3, 7)),   # W spanning several CUDA query blocks
-])
+@pytest.mark.parametrize(
+    "shape,kernel",
+    [
+        ((1, 8, 24, 24, 4, 64), (3, 7, 7)),
+        ((1, 2, 3, 70, 2, 64), (3, 3, 7)),  # W spanning several CUDA query blocks
+    ],
+)
 def test_na3d_backend_agreement(shape, kernel):
     """Every capable backend must agree, not just the first two."""
     if not torch.cuda.is_available():
@@ -130,8 +133,9 @@ def test_na3d_backend_agreement(shape, kernel):
     for name, out in outs.items():
         if name == ref_name:
             continue
-        assert_values_close(out.float(), outs[ref_name].float(), 2e-2, 2e-2,
-                            name=f"{ref_name}-vs-{name}")
+        assert_values_close(
+            out.float(), outs[ref_name].float(), 2e-2, 2e-2, name=f"{ref_name}-vs-{name}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -156,19 +160,22 @@ def test_na3d_rejects_mismatched_qkv(bad):
         k = k.float()
     else:
         v = v.float()
-    with pytest.raises(NoCapableBackendError, match=r"(?i)same (shape|dtype) as q"):
+    with pytest.raises(ValueError, match=r"(?i)same (shape|dtype) as q"):
         ck.na3d(q, k, v, [3, 3, 3], [False, False, False], None)
 
 
-@pytest.mark.parametrize("kernel,causal", [
-    ([3, 3], [False, False, False]),
-    ([3, 3, 3, 3], [False, False, False]),
-    ([3, 3, 3], [False, False]),
-])
+@pytest.mark.parametrize(
+    "kernel,causal",
+    [
+        ([3, 3], [False, False, False]),
+        ([3, 3, 3, 3], [False, False, False]),
+        ([3, 3, 3], [False, False]),
+    ],
+)
 def test_na3d_rejects_bad_axis_lists(kernel, causal):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     q, k, v = _qkv(device)
-    with pytest.raises(NoCapableBackendError, match=r"(?i)must have 3 elements"):
+    with pytest.raises(ValueError, match=r"(?i)must have 3 elements"):
         ck.na3d(q, k, v, kernel, causal, None)
 
 
@@ -185,7 +192,7 @@ def test_na2d_rejects_bad_axis_lists(kernel, causal):
 def test_na3d_rejects_non_positive_kernel(kernel):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     q, k, v = _qkv(device)
-    with pytest.raises(NoCapableBackendError, match=r"(?i)entries must be positive"):
+    with pytest.raises(ValueError, match=r"(?i)entries must be positive"):
         ck.na3d(q, k, v, kernel, [False, False, False], None)
 
 
@@ -197,7 +204,7 @@ def test_na3d_rejects_cross_device_qkv(bad):
         k = k.cpu()
     else:
         v = v.cpu()
-    with pytest.raises(NoCapableBackendError, match=r"(?i)same device as q"):
+    with pytest.raises(ValueError, match=r"(?i)same device as q"):
         ck.na3d(q, k, v, [3, 3, 3], [False, False, False], None)
 
 
@@ -210,7 +217,8 @@ def test_na3d_scalar_kernel_and_causal():
     torch.testing.assert_close(
         ck.na3d(q, k, v, 3, None, None),
         ck.na3d(q, k, v, [3, 3, 3], [False, False, False], None),
-        rtol=0, atol=0,
+        rtol=0,
+        atol=0,
     )
 
 

@@ -1,68 +1,55 @@
-import logging
 import threading
 from collections.abc import Callable, Mapping
 from contextlib import contextmanager
-from functools import cached_property
-from typing import Any
 
-import torch
+from .exceptions import BackendNotFoundError
 
-from .constraints import FunctionConstraints, ValidationResult, validate_function_call
-from .exceptions import (
-    BackendNotFoundError,
-    BackendNotImplementedError,
-    NoCapableBackendError,
-)
 
-logger = logging.getLogger("comfy_kitchen.dispatch")
+class UnsupportedCall(Exception):  # noqa: N818
+    """A backend lowering cannot execute this call exactly."""
 
 
 class BackendRegistry:
     def __init__(self):
         self._backends = {}  # {name: backend_module}
         self._capabilities = {}  # {name: set of function names}
-        self._constraints = {}  # {(backend_name, func_name): FunctionConstraints}
+        self._lowerings = {}  # {(backend_name, op_name): lowering}
         self._priority = ["cuda", "triton", "eager"]
         self._disabled = set()  # Manually disabled backends
         self._unavailable = {}  # {name: error_message} for failed backends
         self._lock = threading.Lock()
+        self._generation = 0
         self._thread_local = threading.local()
-
-    @cached_property
-    def _compute_capability(self) -> tuple[int, int] | None:
-        if torch.cuda.is_available():
-            try:
-                props = torch.cuda.get_device_properties(torch.cuda.current_device())
-                return (props.major, props.minor)
-            except Exception:
-                return None
-        return None
 
     def register(
         self,
         name: str,
         module,
-        capabilities: dict[str, FunctionConstraints],
+        lowerings: Mapping[str, Callable] | None = None,
     ):
         """Register a backend with its capabilities and constraints.
 
         Args:
             name: Backend name (e.g., "cuda", "eager", "triton")
             module: The backend module containing implementations
-            capabilities: Dict mapping function names to FunctionConstraints
+            lowerings: Implementation-driven lowerings for migrated operations
         """
         with self._lock:
             self._backends[name] = module
-            self._capabilities[name] = set(capabilities.keys())
-            for func_name, constraints in capabilities.items():
-                self._constraints[(name, func_name)] = constraints
+            if lowerings is None:
+                lowerings = {
+                    op: (lambda *_args, _runner=getattr(module, op), **_kwargs: _runner)
+                    for op in module.__all__
+                }
+            self._capabilities[name] = set(lowerings)
+            installed = dict(lowerings)
+            for key in tuple(self._lowerings):
+                if key[0] == name:
+                    del self._lowerings[key]
+            for op_name, lowering in installed.items():
+                self._lowerings[(name, op_name)] = lowering
             self._unavailable.pop(name, None)
-
-    def get_constraints(
-        self, backend_name: str, func_name: str
-    ) -> FunctionConstraints | None:
-        """Get constraints for a specific backend/function pair."""
-        return self._constraints.get((backend_name, func_name))
+            self._generation += 1
 
     def mark_unavailable(self, name: str, reason: str):
         """Mark a backend as unavailable with a reason.
@@ -73,6 +60,7 @@ class BackendRegistry:
         """
         with self._lock:
             self._unavailable[name] = reason
+            self._generation += 1
 
     def disable(self, backend_name: str):
         """Manually disable a backend.
@@ -82,6 +70,7 @@ class BackendRegistry:
         """
         with self._lock:
             self._disabled.add(backend_name)
+            self._generation += 1
 
     def enable(self, backend_name: str):
         """Re-enable a previously disabled backend.
@@ -91,6 +80,7 @@ class BackendRegistry:
         """
         with self._lock:
             self._disabled.discard(backend_name)
+            self._generation += 1
 
     def set_priority(self, priority_list: list[str]):
         """Set backend selection priority order.
@@ -100,6 +90,24 @@ class BackendRegistry:
         """
         with self._lock:
             self._priority = list(priority_list)
+            self._generation += 1
+
+    def dispatch_token(self) -> tuple[int, str | None]:
+        """Cheap cache token for implementation-driven dispatch."""
+        return self._generation, getattr(self._thread_local, "backend_override", None)
+
+    def iter_lowerings(self, op_name: str):
+        """Yield explicitly registered lowerings in effective backend order."""
+        override = getattr(self._thread_local, "backend_override", None)
+        names = ([override] if override else []) + self._priority
+        seen = set()
+        for name in names:
+            if name in seen:
+                continue
+            seen.add(name)
+            lowering = self._lowerings.get((name, op_name))
+            if self.is_available(name) and lowering is not None:
+                yield name, lowering
 
     def is_available(self, backend_name: str) -> bool:
         """Check if backend is available and not disabled.
@@ -132,142 +140,17 @@ class BackendRegistry:
         )
 
         for name in all_backend_names:
+            capabilities = self._capabilities.get(name, set()) | {
+                op_name for backend_name, op_name in self._lowerings if backend_name == name
+            }
             result[name] = {
                 "available": name in self._backends,
                 "disabled": name in self._disabled,
                 "unavailable_reason": self._unavailable.get(name),
-                "capabilities": sorted(self._capabilities.get(name, [])),
+                "capabilities": sorted(capabilities),
             }
 
         return result
-
-    def validate_backend_for_call(
-        self,
-        backend_name: str,
-        func_name: str,
-        kwargs: Mapping[str, Any],
-    ) -> ValidationResult:
-        """Validate if a backend can handle a function call with given args.
-
-        Args:
-            backend_name: Name of backend to validate
-            func_name: Function name
-            kwargs: Keyword arguments for the function call
-
-        Returns:
-            ValidationResult with success/failure details
-        """
-        # Check backend is available
-        if not self.is_available(backend_name):
-            return ValidationResult.fail(
-                "__backend__",
-                self._unavailable.get(backend_name, "not available"),
-            )
-
-        if func_name not in self._capabilities.get(backend_name, set()):
-            return ValidationResult.fail("__function__", "not implemented")
-
-        constraints = self._constraints.get((backend_name, func_name))
-        if constraints is None:
-            return ValidationResult.ok()
-
-        return validate_function_call(
-            constraints,
-            kwargs,
-            compute_capability=self._compute_capability,
-        )
-
-    def get_capable_backend(
-        self,
-        func_name: str,
-        kwargs: Mapping[str, Any] | None = None,
-    ) -> str:
-        """Find the best backend that can handle a function call.
-
-        Args:
-            func_name: Function name
-            kwargs: Keyword arguments for constraint validation (empty/None skips validation)
-
-        Returns:
-            Backend name that will handle the function
-
-        Raises:
-            NoCapableBackendError: If no backend can handle the call
-        """
-        failures: dict[str, str] = {}
-        validate = bool(kwargs)  # Skip validation if kwargs is empty/None
-
-        # Check for thread-local override first
-        override = getattr(self._thread_local, "backend_override", None)
-        if override:
-            if not self.is_available(override):
-                failures[override] = "not available"
-            elif func_name not in self._capabilities.get(override, set()):
-                failures[override] = "not implemented"
-            elif validate:
-                result = self.validate_backend_for_call(override, func_name, kwargs)
-                if result.success:
-                    logger.debug("Backend %s selected for %s (override)", override, func_name)
-                    return override
-                failures[override] = f"{result.failed_param}: {result.failure_reason}"
-            else:
-                logger.debug("Backend %s selected for %s (override)", override, func_name)
-                return override
-
-        # Try backends in priority order
-        for backend_name in self._priority:
-            if not self.is_available(backend_name):
-                continue
-            if func_name not in self._capabilities.get(backend_name, set()):
-                continue
-
-            if validate:
-                result = self.validate_backend_for_call(backend_name, func_name, kwargs)
-                if not result.success:
-                    failures[backend_name] = f"{result.failed_param}: {result.failure_reason}"
-                    continue
-
-            logger.debug("Backend %s selected for %s", backend_name, func_name)
-            return backend_name
-
-        raise NoCapableBackendError(func_name, failures)
-
-    def get_implementation(
-        self,
-        func_name: str,
-        backend: str | None = None,
-        kwargs: Mapping[str, Any] | None = None,
-    ) -> Callable:
-        """Get the best implementation for a function.
-
-        Args:
-            func_name: Name of the function to get
-            backend: Explicit backend to use, or None for auto-select
-            kwargs: Kwargs for constraint validation (empty/None skips validation)
-
-        Returns:
-            The function implementation
-
-        Raises:
-            BackendNotFoundError: If explicit backend is not available
-            BackendNotImplementedError: If explicit backend doesn't implement function
-            NoCapableBackendError: If no backend can handle the call
-        """
-        if backend:
-            if backend not in self._backends:
-                raise BackendNotFoundError(backend, self._unavailable.get(backend, "not registered"))
-            if backend in self._disabled:
-                raise BackendNotFoundError(backend, "disabled")
-            if func_name not in self._capabilities.get(backend, set()):
-                raise BackendNotImplementedError(backend, func_name)
-            if kwargs:
-                result = self.validate_backend_for_call(backend, func_name, kwargs)
-                if not result.success:
-                    raise NoCapableBackendError(func_name, {backend: f"{result.failed_param}: {result.failure_reason}"})
-            return getattr(self._backends[backend], func_name)
-
-        selected_backend = self.get_capable_backend(func_name, kwargs)
-        return getattr(self._backends[selected_backend], func_name)
 
     @contextmanager
     def use_backend(self, backend_name: str):

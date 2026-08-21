@@ -5,6 +5,7 @@ advertises on each. They are deliberately not gated on registry.is_available("hi
 on a CPU-only runner the kernel suite in test_hip_wmma.py skips in full, and these
 routing rules would otherwise go untested behind a green tick.
 """
+
 import ast
 import json
 import pathlib
@@ -84,7 +85,7 @@ def test_scaled_mm_does_not_probe_hip_on_non_rocm_runtime(monkeypatch):
     "arches",
     [
         [],
-        ["gfx90a"],   # CDNA: MFMA, not WMMA
+        ["gfx90a"],  # CDNA: MFMA, not WMMA
         ["gfx1010"],  # RDNA1: neither matrix cores nor the dot-product paths
         ["gfx1201", "gfx90a"],
     ],
@@ -134,7 +135,7 @@ def test_hip_declines_when_an_arch_cannot_be_read():
         (["gfx1200"], True),
         (["gfx1201", "gfx1100"], True),
         (["gfx1151"], True),
-        (["gfx1030"], False),             # RDNA2 has no matrix cores
+        (["gfx1030"], False),  # RDNA2 has no matrix cores
         (["gfx1200", "gfx1030"], False),  # kernels launch on the tensor's own device
         ([None], False),
     ],
@@ -146,8 +147,8 @@ def test_hip_wmma_capability(arches, expected):
 
 def test_hip_drops_gemms_without_matrix_cores():
     """RDNA2 keeps the elementwise kernels and hands the GEMMs back to triton/eager."""
-    with_wmma = hip_backend._build_constraints(has_wmma=True)
-    without = hip_backend._build_constraints(has_wmma=False)
+    with_wmma = hip_backend._hip_lowerings(True)
+    without = hip_backend._hip_lowerings(False)
 
     # Every WMMA-only op must be advertised with matrix cores; an intersection
     # would pass while any single one was missing from the constraints.
@@ -156,11 +157,27 @@ def test_hip_drops_gemms_without_matrix_cores():
     # na3d is a matrix-core kernel: without one it traps rather than answers.
     assert "na3d" in hip_backend._WMMA_ONLY_OPS
     # The elementwise kernels need no matrix cores and must survive.
-    for op in ("apply_rope", "apply_rope_", "rms_rope", "rms_rope_split_half1_", "adaln",
-               "rms_adaln", "quantize_per_tensor_fp8", "gemv_awq_w4a16",
-               "dequantize_int8_simple_dtype",
-               "dequantize_int8_convrot_weight_dtype"):
+    for op in (
+        "apply_rope",
+        "apply_rope_",
+        "adaln",
+        "rms_adaln",
+        "quantize_per_tensor_fp8",
+        "gemv_awq_w4a16",
+        "dequantize_int8_simple_dtype",
+        "dequantize_int8_convrot_weight_dtype",
+    ):
         assert op in without
+    assert {name for name in without if name.startswith("rms_rope")} == {
+        "rms_rope",
+        "rms_rope_",
+        "rms_rope1",
+        "rms_rope1_",
+        "rms_rope_split_half",
+        "rms_rope_split_half_",
+        "rms_rope_split_half1",
+        "rms_rope_split_half1_",
+    }
     # The fused W4A8 requantize is elementwise too: it packs weights and never
     # reaches a matrix core, so RDNA2 must keep it.
     assert "quantize_w4a8_int8_weight" in without
@@ -169,11 +186,25 @@ def test_hip_drops_gemms_without_matrix_cores():
 def test_hip_advertises_every_inplace_rope_entry():
     """A missing entry routes the in-place call to eager while the functional one
     stays on HIP: silently half the coverage rather than a failure."""
-    constraints = hip_backend._build_constraints(has_wmma=True)
-    for functional in ("apply_rope", "apply_rope1", "apply_rope_split_half",
-                       "apply_rope_split_half1", "rms_rope", "rms_rope1",
-                       "rms_rope_split_half", "rms_rope_split_half1"):
-        assert constraints[f"{functional}_"] is constraints[functional]
+    lowerings = hip_backend._hip_lowerings(True)
+    for functional in (
+        "apply_rope",
+        "apply_rope1",
+        "apply_rope_split_half",
+        "apply_rope_split_half1",
+    ):
+        assert functional in lowerings
+        assert f"{functional}_" in lowerings
+
+    lowerings = hip_backend._hip_lowerings(True)
+    for functional in (
+        "rms_rope",
+        "rms_rope1",
+        "rms_rope_split_half",
+        "rms_rope_split_half1",
+    ):
+        assert functional in lowerings
+        assert f"{functional}_" in lowerings
 
 
 def _setup_namespace() -> dict:
@@ -183,8 +214,7 @@ def _setup_namespace() -> dict:
     body = []
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "extensions"
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == "extensions" for target in node.targets
         ):
             break
         body.append(node)
@@ -329,9 +359,7 @@ def test_hip_kernels_are_independent_of_the_python_extension_target():
 
 def test_combined_wheel_cache_keys_include_hip_sources():
     """HIP-only changes must produce a cache key that Actions can save."""
-    workflow = (_ROOT / ".github" / "workflows" / "build-wheels.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (_ROOT / ".github" / "workflows" / "build-wheels.yml").read_text(encoding="utf-8")
     combined_cache_keys = [
         line.strip()
         for line in workflow.splitlines()
@@ -343,7 +371,5 @@ def test_combined_wheel_cache_keys_include_hip_sources():
     assert all("'comfy_kitchen/backends/hip/**'" in key for key in combined_cache_keys)
     windows_key = next(key for key in combined_cache_keys if "windows-x86_64" in key)
     assert "py${{ matrix.python-version }}" in windows_key
-    versioned_windows_prefix = (
-        "ccache-windows-x86_64-cuda13-py${{ matrix.python-version }}-"
-    )
+    versioned_windows_prefix = "ccache-windows-x86_64-cuda13-py${{ matrix.python-version }}-"
     assert workflow.count(versioned_windows_prefix) == 2  # primary key + restore prefix
