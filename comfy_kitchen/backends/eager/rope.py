@@ -3,7 +3,7 @@
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 from comfy_kitchen._rope_utils import check_rope_inplace, trim_rope_freqs
 
 
@@ -212,7 +212,7 @@ def _op_apply_rope(
     freqs_cis: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     kwargs = {"xq": xq, "xk": xk, "freqs_cis": freqs_cis}
-    return dispatch_v2.dispatch("apply_rope", **kwargs)
+    return dispatch.dispatch("apply_rope", **kwargs)
 
 
 @_op_apply_rope.register_fake
@@ -229,7 +229,7 @@ def _op_rms_rope(
     k_scale: torch.Tensor | None = None,
     epsilon: float = 1e-6,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    return dispatch_v2.rms_rope(q, k, freqs_cis, q_scale, k_scale, epsilon)
+    return dispatch.dispatch("rms_rope", q, k, freqs_cis, q_scale, k_scale, epsilon)
 
 
 @_op_rms_rope.register_fake
@@ -244,7 +244,7 @@ def _op_rms_rope1(
     scale: torch.Tensor,
     epsilon: float = 1e-6,
 ) -> torch.Tensor:
-    return dispatch_v2.rms_rope1(x, freqs_cis, scale, epsilon)
+    return dispatch.dispatch("rms_rope1", x, freqs_cis, scale, epsilon)
 
 
 @_op_rms_rope1.register_fake
@@ -262,7 +262,7 @@ def _op_rms_rope_split_half(
     epsilon: float = 1e-6,
     rot_dim: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    return dispatch_v2.rms_rope_split_half(q, k, freqs_cis, q_scale, k_scale, epsilon, rot_dim)
+    return dispatch.dispatch("rms_rope_split_half", q, k, freqs_cis, q_scale, k_scale, epsilon, rot_dim)
 
 
 @_op_rms_rope_split_half.register_fake
@@ -277,7 +277,7 @@ def _op_rms_rope_split_half1(
     scale: torch.Tensor,
     epsilon: float = 1e-6,
 ) -> torch.Tensor:
-    return dispatch_v2.rms_rope_split_half1(x, freqs_cis, scale, epsilon)
+    return dispatch.dispatch("rms_rope_split_half1", x, freqs_cis, scale, epsilon)
 
 
 @_op_rms_rope_split_half1.register_fake
@@ -288,7 +288,7 @@ def _op_rms_rope_split_half1_fake(x, freqs_cis, scale, epsilon=1e-6):
 @torch.library.custom_op("comfy_kitchen::apply_rope_", mutates_args={"xq", "xk"})
 def _op_apply_rope_(xq: torch.Tensor, xk: torch.Tensor, freqs_cis: torch.Tensor) -> None:
     kwargs = {"xq": xq, "xk": xk, "freqs_cis": freqs_cis}
-    dispatch_v2.dispatch("apply_rope_", **kwargs)
+    dispatch.dispatch("apply_rope_", **kwargs)
 
 
 @_op_apply_rope_.register_fake
@@ -299,7 +299,7 @@ def _op_apply_rope_fake_(xq, xk, freqs_cis):
 @torch.library.custom_op("comfy_kitchen::apply_rope1_", mutates_args={"x"})
 def _op_apply_rope1_(x: torch.Tensor, freqs_cis: torch.Tensor) -> None:
     kwargs = {"x": x, "freqs_cis": freqs_cis}
-    dispatch_v2.dispatch("apply_rope1_", **kwargs)
+    dispatch.dispatch("apply_rope1_", **kwargs)
 
 
 @_op_apply_rope1_.register_fake
@@ -310,7 +310,7 @@ def _op_apply_rope1_fake_(x, freqs_cis):
 @torch.library.custom_op("comfy_kitchen::apply_rope_split_half_", mutates_args={"xq", "xk"})
 def _op_apply_rope_split_half_(xq: torch.Tensor, xk: torch.Tensor, freqs_cis: torch.Tensor) -> None:
     kwargs = {"xq": xq, "xk": xk, "freqs_cis": freqs_cis}
-    dispatch_v2.dispatch("apply_rope_split_half_", **kwargs)
+    dispatch.dispatch("apply_rope_split_half_", **kwargs)
 
 
 @_op_apply_rope_split_half_.register_fake
@@ -321,7 +321,7 @@ def _op_apply_rope_split_half_fake_(xq, xk, freqs_cis):
 @torch.library.custom_op("comfy_kitchen::apply_rope_split_half1_", mutates_args={"x"})
 def _op_apply_rope_split_half1_(x: torch.Tensor, freqs_cis: torch.Tensor) -> None:
     kwargs = {"x": x, "freqs_cis": freqs_cis}
-    dispatch_v2.dispatch("apply_rope_split_half1_", **kwargs)
+    dispatch.dispatch("apply_rope_split_half1_", **kwargs)
 
 
 @_op_apply_rope_split_half1_.register_fake
@@ -338,7 +338,7 @@ def _op_rms_rope_(
     k_scale: torch.Tensor | None = None,
     epsilon: float = 1e-6,
 ) -> None:
-    dispatch_v2.rms_rope_(q, k, freqs_cis, q_scale, k_scale, epsilon)
+    dispatch.dispatch("rms_rope_", q, k, freqs_cis, q_scale, k_scale, epsilon)
 
 
 @_op_rms_rope_.register_fake
@@ -353,7 +353,7 @@ def _op_rms_rope1_(
     scale: torch.Tensor,
     epsilon: float = 1e-6,
 ) -> None:
-    dispatch_v2.rms_rope1_(x, freqs_cis, scale, epsilon)
+    dispatch.dispatch("rms_rope1_", x, freqs_cis, scale, epsilon)
 
 
 @_op_rms_rope1_.register_fake
@@ -371,7 +371,7 @@ def _op_rms_rope_split_half_(
     epsilon: float = 1e-6,
     rot_dim: int = 0,
 ) -> None:
-    dispatch_v2.rms_rope_split_half_(q, k, freqs_cis, q_scale, k_scale, epsilon, rot_dim)
+    dispatch.dispatch("rms_rope_split_half_", q, k, freqs_cis, q_scale, k_scale, epsilon, rot_dim)
 
 
 @_op_rms_rope_split_half_.register_fake
@@ -386,7 +386,7 @@ def _op_rms_rope_split_half1_(
     scale: torch.Tensor,
     epsilon: float = 1e-6,
 ) -> None:
-    dispatch_v2.rms_rope_split_half1_(x, freqs_cis, scale, epsilon)
+    dispatch.dispatch("rms_rope_split_half1_", x, freqs_cis, scale, epsilon)
 
 
 @_op_rms_rope_split_half1_.register_fake
@@ -400,7 +400,7 @@ def _op_apply_rope1(
     freqs_cis: torch.Tensor,
 ) -> torch.Tensor:
     kwargs = {"x": x, "freqs_cis": freqs_cis}
-    return dispatch_v2.dispatch("apply_rope1", **kwargs)
+    return dispatch.dispatch("apply_rope1", **kwargs)
 
 
 @_op_apply_rope1.register_fake
@@ -415,7 +415,7 @@ def _op_apply_rope_split_half(
     freqs_cis: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     kwargs = {"xq": xq, "xk": xk, "freqs_cis": freqs_cis}
-    return dispatch_v2.dispatch("apply_rope_split_half", **kwargs)
+    return dispatch.dispatch("apply_rope_split_half", **kwargs)
 
 
 @_op_apply_rope_split_half.register_fake
@@ -429,7 +429,7 @@ def _op_apply_rope_split_half1(
     freqs_cis: torch.Tensor,
 ) -> torch.Tensor:
     kwargs = {"x": x, "freqs_cis": freqs_cis}
-    return dispatch_v2.dispatch("apply_rope_split_half1", **kwargs)
+    return dispatch.dispatch("apply_rope_split_half1", **kwargs)
 
 
 @_op_apply_rope_split_half1.register_fake

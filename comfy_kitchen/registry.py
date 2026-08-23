@@ -1,19 +1,41 @@
+import inspect
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Iterable
 from contextlib import contextmanager
 
 from .exceptions import BackendNotFoundError
 
 
+def _parameter_contract(function):
+    return tuple(
+        (name, parameter.kind, parameter.default)
+        for name, parameter in inspect.signature(function).parameters.items()
+    )
+
+
+def _prepare_implementations(name, module, declared, eager):
+    installed = set(declared)
+    if eager is not None:
+        installed &= set(eager.__all__)
+    implementations = {operation: getattr(module, operation) for operation in installed}
+    if eager is not None:
+        for operation, implementation in implementations.items():
+            if _parameter_contract(implementation) != _parameter_contract(getattr(eager, operation)):
+                raise TypeError(f"{name}.{operation} does not match the eager signature")
+    return installed, implementations
+
+
 class UnsupportedCall(Exception):  # noqa: N818
-    """A backend lowering cannot execute this call exactly."""
+    """Reject a call before the implementation performs any observable work."""
 
 
 class BackendRegistry:
     def __init__(self):
         self._backends = {}  # {name: backend_module}
         self._capabilities = {}  # {name: set of function names}
-        self._lowerings = {}  # {(backend_name, op_name): lowering}
+        self._declared_operations = {}  # {name: requested function names}
+        self._implementations = {}  # {(backend_name, op_name): function}
+        self._device_types = {}  # {backend_name: supported tensor device types}
         self._priority = ["cuda", "triton", "eager"]
         self._disabled = set()  # Manually disabled backends
         self._unavailable = {}  # {name: error_message} for failed backends
@@ -25,30 +47,64 @@ class BackendRegistry:
         self,
         name: str,
         module,
-        lowerings: Mapping[str, Callable] | None = None,
+        operations: Iterable[str] | None = None,
+        device_types: Iterable[str] = (),
     ):
-        """Register a backend with its capabilities and constraints.
+        """Register backend implementations with their supported device types.
 
-        Args:
-            name: Backend name (e.g., "cuda", "eager", "triton")
-            module: The backend module containing implementations
-            lowerings: Implementation-driven lowerings for migrated operations
+        Eager defines the shared operation surface and function signatures. Its
+        registration reconciles backends that were imported before it.
         """
+        declared = set(module.__all__ if operations is None else operations)
         with self._lock:
-            self._backends[name] = module
-            if lowerings is None:
-                lowerings = {
-                    op: (lambda *_args, _runner=getattr(module, op), **_kwargs: _runner)
-                    for op in module.__all__
-                }
-            self._capabilities[name] = set(lowerings)
-            installed = dict(lowerings)
-            for key in tuple(self._lowerings):
-                if key[0] == name:
-                    del self._lowerings[key]
-            for op_name, lowering in installed.items():
-                self._lowerings[(name, op_name)] = lowering
-            self._unavailable.pop(name, None)
+            eager = module if name == "eager" else self._backends.get("eager")
+            installed, implementations = _prepare_implementations(
+                name, module, declared, None if name == "eager" else eager
+            )
+            updates = {
+                name: (module, declared, installed, implementations, frozenset(device_types))
+            }
+
+            if name == "eager":
+                for backend_name, backend_module in self._backends.items():
+                    if backend_name == "eager":
+                        continue
+                    backend_declared = self._declared_operations[backend_name]
+                    backend_installed, backend_implementations = _prepare_implementations(
+                        backend_name, backend_module, backend_declared, module
+                    )
+                    updates[backend_name] = (
+                        backend_module,
+                        backend_declared,
+                        backend_installed,
+                        backend_implementations,
+                        self._device_types[backend_name],
+                    )
+
+            backends = dict(self._backends)
+            declared_operations = dict(self._declared_operations)
+            capabilities = dict(self._capabilities)
+            registered = dict(self._implementations)
+            registered_device_types = dict(self._device_types)
+            unavailable = dict(self._unavailable)
+            for backend_name, update in updates.items():
+                backend_module, backend_declared, backend_installed, backend_impls, devices = update
+                backends[backend_name] = backend_module
+                declared_operations[backend_name] = backend_declared
+                capabilities[backend_name] = backend_installed
+                registered_device_types[backend_name] = devices
+                registered = {key: value for key, value in registered.items() if key[0] != backend_name}
+                registered.update(
+                    {(backend_name, operation): implementation for operation, implementation in backend_impls.items()}
+                )
+                unavailable.pop(backend_name, None)
+
+            self._backends = backends
+            self._declared_operations = declared_operations
+            self._capabilities = capabilities
+            self._implementations = registered
+            self._device_types = registered_device_types
+            self._unavailable = unavailable
             self._generation += 1
 
     def mark_unavailable(self, name: str, reason: str):
@@ -96,8 +152,8 @@ class BackendRegistry:
         """Cheap cache token for implementation-driven dispatch."""
         return self._generation, getattr(self._thread_local, "backend_override", None)
 
-    def iter_lowerings(self, op_name: str):
-        """Yield explicitly registered lowerings in effective backend order."""
+    def iter_implementations(self, op_name: str):
+        """Yield implementations in effective backend order."""
         override = getattr(self._thread_local, "backend_override", None)
         names = ([override] if override else []) + self._priority
         seen = set()
@@ -105,9 +161,9 @@ class BackendRegistry:
             if name in seen:
                 continue
             seen.add(name)
-            lowering = self._lowerings.get((name, op_name))
-            if self.is_available(name) and lowering is not None:
-                yield name, lowering
+            implementation = self._implementations.get((name, op_name))
+            if self.is_available(name) and implementation is not None:
+                yield name, implementation, self._device_types[name]
 
     def is_available(self, backend_name: str) -> bool:
         """Check if backend is available and not disabled.
@@ -140,9 +196,7 @@ class BackendRegistry:
         )
 
         for name in all_backend_names:
-            capabilities = self._capabilities.get(name, set()) | {
-                op_name for backend_name, op_name in self._lowerings if backend_name == name
-            }
+            capabilities = self._capabilities.get(name, set())
             result[name] = {
                 "available": name in self._backends,
                 "disabled": name in self._disabled,

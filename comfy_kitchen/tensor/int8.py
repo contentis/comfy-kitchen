@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 
 from .base import (
     BaseLayoutParams,
@@ -121,7 +121,7 @@ class TensorWiseINT8Layout(QuantizedLayout):
                 raise ValueError("convrot is only supported when per_channel is True")
 
         if convrot:
-            qdata, qscale = dispatch_v2.dispatch(
+            qdata, qscale = dispatch.dispatch(
                 "quantize_int8_convrot_weight",
                 tensor,
                 convrot_groupsize,
@@ -129,20 +129,20 @@ class TensorWiseINT8Layout(QuantizedLayout):
             )
         elif is_weight:
             if per_channel:
-                qdata, qscale = dispatch_v2.dispatch(
+                qdata, qscale = dispatch.dispatch(
                     "quantize_int8_rowwise",
                     tensor,
                     stochastic_rounding=stochastic_rounding,
                 )
             else:
-                qdata, qscale = dispatch_v2.dispatch(
+                qdata, qscale = dispatch.dispatch(
                     "quantize_int8_tensorwise",
                     tensor,
                     scale=scale,
                     stochastic_rounding=stochastic_rounding,
                 )
         else:
-            qdata, qscale = dispatch_v2.dispatch(
+            qdata, qscale = dispatch.dispatch(
                 "quantize_int8_rowwise",
                 tensor,
                 stochastic_rounding=stochastic_rounding,

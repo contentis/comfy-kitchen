@@ -6,6 +6,7 @@ import torch
 import triton
 import triton.language as tl
 from comfy_kitchen.backends._modulation import adaln_prep_modulation
+from comfy_kitchen.registry import UnsupportedCall
 
 
 @triton.jit
@@ -63,6 +64,9 @@ def _adaln_fwd_kernel(
 
 def _adaln(x: torch.Tensor, scale: torch.Tensor, shift: torch.Tensor, eps: float,
            subtract_mean: bool) -> torch.Tensor:
+    floats = (torch.float32, torch.float16, torch.bfloat16)
+    if any(tensor.dtype not in floats for tensor in (x, scale, shift)):
+        raise UnsupportedCall("Triton AdaLN requires floating-point tensors")
     orig_shape = x.shape
     d = x.shape[-1]
     n = x.numel() // d

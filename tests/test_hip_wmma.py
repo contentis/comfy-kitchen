@@ -850,13 +850,14 @@ def test_w4a8_linear_asymmetric_matches_eager(hip):
 
 
 @needs_wmma
-def test_w4a8_linear_dispatches_to_hip():
+def test_w4a8_linear_dispatches_to_hip(caplog):
     torch.manual_seed(0)
     w = torch.randn(256, 512, device=DEV, dtype=torch.bfloat16) * 0.02
     qdata, params = AsymW4A8Int8Layout.quantize(w)
     x = torch.randn(32, 512, device=DEV, dtype=torch.bfloat16)
 
-    backend, _ = ck.dispatch_v2.operation("w4a8_int8_linear").select(
+    caplog.set_level(10, logger="comfy_kitchen.dispatch")
+    ck.w4a8_int8_linear(
         x=x,
         qdata=qdata,
         s_rel=params.scale,
@@ -868,7 +869,7 @@ def test_w4a8_linear_dispatches_to_hip():
         convrot_groupsize=params.convrot_groupsize,
         out_dtype=torch.bfloat16,
     )
-    assert backend == "hip"
+    assert "dispatch w4a8_int8_linear -> hip" in caplog.text
 
     out = torch.nn.functional.linear(x, QuantizedTensor(qdata, "AsymW4A8Int8Layout", params))
     rel = (out.float() - (x @ w.t()).float()).norm() / (x @ w.t()).float().norm()
@@ -1845,7 +1846,7 @@ def test_bias_shape_is_validated(hip):
 @needs_wmma
 def test_exported_gemms_reject_unaligned_k(hip):
     """The tile loader and the small-M GEMV read a row 16 bytes at a time, so an
-    unaligned K reads past the end of it. The registry constraints enforce this for
+    unaligned K reads past the end of it. The implementation guards enforce this for
     dispatched calls; the exported helpers are reachable directly."""
     scale = torch.tensor(1.0, device=DEV)
 
@@ -2278,11 +2279,11 @@ def test_na3d_reads_a_non_contiguous_input(hip):
 def test_na3d_dispatches_to_hip(hip):
     """fp32 has no 16-bit matrix path and must not reach the kernel; the half types
     must, or the op silently needs triton at runtime."""
-    planner = hip._hip_lowerings(True)["na3d"]
+    implementation = hip.na3d
 
     def accepted(kwargs):
         try:
-            planner(**kwargs)
+            implementation(**kwargs)
         except UnsupportedCall:
             return False
         return True
@@ -2312,7 +2313,7 @@ def test_na3d_dispatches_to_hip(hip):
             x = base.expand(shape)
             kwargs = {"q": x, "k": x, "v": x, "kernel_size": [1, 1, 1], "is_causal": None}
             try:
-                planner(**kwargs)
+                implementation(**kwargs)
             except UnsupportedCall as error:
                 return str(error)
             return None

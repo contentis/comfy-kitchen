@@ -1,6 +1,6 @@
 import torch
 
-from . import dispatch_v2
+from . import dispatch
 from .backends import cuda as _cuda_backend  # noqa: F401
 
 # Import backends to trigger auto-registration
@@ -292,7 +292,7 @@ def stochastic_rounding_fp8(
         Stochastically rounded FP8 tensor
     """
     kwargs = {"x": x, "rng": rng, "output_type": output_type}
-    return dispatch_v2.dispatch("stochastic_rounding_fp8", **kwargs)
+    return dispatch.dispatch("stochastic_rounding_fp8", **kwargs)
 
 
 def quantize_nvfp4(
@@ -797,7 +797,7 @@ def quantize_int8_tensorwise(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Quantize tensor to INT8 with single tensorwise scale."""
     kwargs = {"x": x, "scale": scale, "stochastic_rounding": stochastic_rounding}
-    return dispatch_v2.dispatch("quantize_int8_tensorwise", **kwargs)
+    return dispatch.dispatch("quantize_int8_tensorwise", **kwargs)
 
 
 def quantize_int8_rowwise(
@@ -806,7 +806,7 @@ def quantize_int8_rowwise(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Quantize tensor to INT8 with per-row scales."""
     kwargs = {"x": x, "stochastic_rounding": stochastic_rounding}
-    return dispatch_v2.dispatch("quantize_int8_rowwise", **kwargs)
+    return dispatch.dispatch("quantize_int8_rowwise", **kwargs)
 
 
 def dequantize_int8_simple(q: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
@@ -860,7 +860,7 @@ def int8_linear(
         "convrot_groupsize": convrot_groupsize,
         "input_act": input_act,
     }
-    return dispatch_v2.dispatch("int8_linear", **kwargs)
+    return dispatch.dispatch("int8_linear", **kwargs)
 
 
 # =============================================================================

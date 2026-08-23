@@ -19,7 +19,7 @@ import math
 import torch
 import torch.nn.functional as functional
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 
 # Element budget for one tile's [Nq, Nk] attention mask (bounds the mask
 # allocation and, on CPU, the math-backend score materialization).
@@ -207,7 +207,7 @@ def _op_na3d(
         "is_causal": is_causal,
         "scale": scale,
     }
-    return dispatch_v2.dispatch("na3d", **kwargs)
+    return dispatch.dispatch("na3d", **kwargs)
 
 
 @_op_na3d.register_fake

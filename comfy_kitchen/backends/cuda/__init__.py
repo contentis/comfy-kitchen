@@ -20,7 +20,7 @@ import sys
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 from comfy_kitchen._rope_utils import (
     check_rope_inplace,
     detect_rms_rope_bnhd,
@@ -196,6 +196,29 @@ from comfy_kitchen.tensor.int8_utils import (  # noqa: E402
     _rotate_weight,
 )
 
+
+def _dtype_code(dtype):
+    try:
+        return DTYPE_TO_CODE[dtype]
+    except KeyError:
+        raise dispatch.UnsupportedCall(f"unsupported dtype {dtype}") from None
+
+
+_FLOAT_DTYPES = (torch.float32, torch.float16, torch.bfloat16)
+_FP8_DTYPES = (torch.float8_e4m3fn, torch.float8_e5m2)
+
+
+def _require_dtype(operation, argument, dtype, allowed):
+    if dtype not in allowed:
+        raise dispatch.UnsupportedCall(f"{operation} does not support {argument} dtype {dtype}")
+
+
+def _fp8_scale_operand(scale, device):
+    if scale.numel() != 1:
+        raise dispatch.UnsupportedCall("FP8 per-tensor scale must contain one element")
+    return scale.to(device=device, dtype=torch.float32).reshape(1).contiguous()
+
+
 _CUBLASLT_AVAILABLE = _EXT_AVAILABLE and getattr(_C, "HAS_CUBLASLT", False)
 _cublas_workspaces: dict[int, torch.Tensor] = {}
 _empty_cuda_tensors: dict[tuple[str, int | None, torch.dtype], torch.Tensor] = {}
@@ -232,6 +255,15 @@ def _cuda_device_capability(device_index: int) -> tuple[int, int]:
         capability = torch.cuda.get_device_capability(device_index)
         _device_capability_cache[device_index] = capability
     return capability
+
+
+def _require_cuda_capability(tensor: torch.Tensor, minimum: tuple[int, int], operation: str):
+    device_index = tensor.device.index
+    if device_index is None:
+        device_index = torch.cuda.current_device()
+    if _cuda_device_capability(device_index) < minimum:
+        required = f"{minimum[0]}.{minimum[1]}"
+        raise dispatch.UnsupportedCall(f"{operation} requires compute capability {required}")
 
 
 def _cuda_device_multiprocessor_count(device_index: int) -> int:
@@ -511,8 +543,11 @@ def _wrap_for_dlpack(tensor: torch.Tensor):
 def quantize_per_tensor_fp8(
     x: torch.Tensor, scale: torch.Tensor, output_type: torch.dtype = torch.float8_e4m3fn
 ) -> torch.Tensor:
-    input_dtype_code = DTYPE_TO_CODE[x.dtype]
-    output_dtype_code = DTYPE_TO_CODE[output_type]
+    _require_dtype("quantize_per_tensor_fp8", "input", x.dtype, _FLOAT_DTYPES)
+    _require_dtype("quantize_per_tensor_fp8", "output", output_type, _FP8_DTYPES)
+    scale = _fp8_scale_operand(scale, x.device)
+    input_dtype_code = _dtype_code(x.dtype)
+    output_dtype_code = _dtype_code(output_type)
 
     if not x.is_contiguous():
         x = x.contiguous()
@@ -537,10 +572,12 @@ def quantize_per_tensor_fp8(
 def dequantize_per_tensor_fp8(
     x: torch.Tensor, scale: torch.Tensor, output_type: torch.dtype = torch.bfloat16
 ) -> torch.Tensor:
-    assert scale.numel() == 1, "Scale must be a scalar tensor"
+    _require_dtype("dequantize_per_tensor_fp8", "input", x.dtype, _FP8_DTYPES)
+    _require_dtype("dequantize_per_tensor_fp8", "output", output_type, _FLOAT_DTYPES)
+    scale = _fp8_scale_operand(scale, x.device)
 
-    input_dtype_code = DTYPE_TO_CODE[x.dtype]
-    output_dtype_code = DTYPE_TO_CODE[output_type]
+    input_dtype_code = _dtype_code(x.dtype)
+    output_dtype_code = _dtype_code(output_type)
 
     result = torch.empty(x.shape, dtype=output_type, device=x.device)
     numel = x.numel()
@@ -564,7 +601,12 @@ def stochastic_rounding_fp8(
     rng: torch.Tensor,
     output_type: torch.dtype = torch.float8_e4m3fn,
 ) -> torch.Tensor:
-    output_dtype_code = DTYPE_TO_CODE[output_type]
+    _require_dtype("stochastic_rounding_fp8", "input", x.dtype, _FLOAT_DTYPES)
+    _require_dtype("stochastic_rounding_fp8", "rng", rng.dtype, (torch.uint8,))
+    _require_dtype("stochastic_rounding_fp8", "output", output_type, _FP8_DTYPES)
+    if rng.shape != x.shape:
+        raise dispatch.UnsupportedCall("stochastic_rounding_fp8 requires rng to match input shape")
+    output_dtype_code = _dtype_code(output_type)
 
     if not x.is_contiguous():
         x = x.contiguous()
@@ -660,7 +702,7 @@ def dequantize_nvfp4(
         per_tensor_scale = per_tensor_scale.reshape(1)
 
     block_scales_uint8 = block_scales.view(torch.uint8)
-    output_dtype_code = DTYPE_TO_CODE[output_type]
+    output_dtype_code = _dtype_code(output_type)
     stream_ptr = torch.cuda.current_stream(qx.device).cuda_stream
 
     _C.dequantize_nvfp4(
@@ -842,7 +884,7 @@ def _int4_weight_int8_act_gemv_dequant(
         _wrap_for_dlpack(weight_scale_arg),
         _wrap_for_dlpack(bias_arg),
         _wrap_for_dlpack(output),
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         stream_ptr,
     )
     return output
@@ -908,7 +950,7 @@ def _int4_weight_int8_act_gemm_dequant_chunked(
         _wrap_for_dlpack(get_cublas_workspace()),
         chunk_cols,
         not _cuda_device_is_turing(x_int8.get_device()),
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         stream_ptr,
     )
     return output
@@ -955,7 +997,7 @@ def _int4_linear_via_int8_values(
             _wrap_for_dlpack(weight_scale_arg),
             _wrap_for_dlpack(bias_arg),
             _wrap_for_dlpack(output),
-            DTYPE_TO_CODE[out_dtype],
+            _dtype_code(out_dtype),
             stream_ptr,
         )
         return output
@@ -1001,7 +1043,7 @@ def _int4_linear_via_int8_values(
             _wrap_for_dlpack(ws_cutlass),
             _wrap_for_dlpack(bias_f32),
             _wrap_for_dlpack(output),
-            DTYPE_TO_CODE[out_dtype],
+            _dtype_code(out_dtype),
             torch.cuda.current_stream(x_int8.device).cuda_stream,
         )
     if used_cutlass:
@@ -1033,7 +1075,7 @@ def _int4_linear_via_int8_values(
         weight_scale_arg,
         bias_arg,
         output,
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         stream_ptr,
     )
     return output
@@ -1064,7 +1106,7 @@ def _int8_linear_turing_quantized(
         _wrap_for_dlpack(weight_scale_arg),
         _wrap_for_dlpack(bias_arg),
         _wrap_for_dlpack(output),
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         torch.cuda.current_stream(x_qdata.device).cuda_stream,
     )
     if not used_int8:
@@ -1129,7 +1171,7 @@ def _int4_linear_turing(
         _wrap_for_dlpack(weight_scale),
         _wrap_for_dlpack(bias_arg),
         _wrap_for_dlpack(output),
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         stream_ptr,
     )
     if not used_int4:
@@ -1201,7 +1243,7 @@ def int4_linear(
             _wrap_for_dlpack(weight_scale_arg),
             _wrap_for_dlpack(bias_f32),
             _wrap_for_dlpack(output),
-            DTYPE_TO_CODE[out_dtype],
+            _dtype_code(out_dtype),
             stream_ptr,
         )
     if used_cutlass:
@@ -1213,7 +1255,7 @@ def int4_linear(
         _wrap_for_dlpack(weight_scale_arg),
         _wrap_for_dlpack(bias_arg),
         _wrap_for_dlpack(output),
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         stream_ptr,
     )
     return output
@@ -1233,6 +1275,7 @@ def quantize_convrot_w4a4_weight(
     stochastic_rounding: int | None = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Offline ConvRot weight rotation followed by row-wise signed INT4 quantization."""
+    _require_cuda_capability(weight, (7, 5), "quantize_convrot_w4a4_weight")
     if quant_group_size != _INT4_GROUP_SIZE:
         raise ValueError(f"int4 MMA kernel requires quant_group_size {_INT4_GROUP_SIZE}")
     if weight.dim() != 2:
@@ -1271,6 +1314,7 @@ def dequantize_convrot_w4a4_weight(
     output_dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     """Dequantize packed ConvRot W4A4 weights and rotate back to original basis."""
+    _require_cuda_capability(qdata, (7, 5), "dequantize_convrot_w4a4_weight")
     if quant_group_size != _INT4_GROUP_SIZE:
         raise ValueError(f"int4 MMA kernel requires quant_group_size {_INT4_GROUP_SIZE}")
     if qdata.dim() != 2:
@@ -1307,6 +1351,7 @@ def convrot_w4a4_linear(
     linear_dtype: str = "int4",
 ) -> torch.Tensor:
     """Compute ``x @ W.T + bias`` using ConvRot W4A4 signed INT4 MMA."""
+    _require_cuda_capability(x, (7, 5), "convrot_w4a4_linear")
     if linear_dtype not in {"int4", "int8"}:
         raise ValueError(
             f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}"
@@ -1501,6 +1546,7 @@ def quantize_w4a8_int8_weight(
     torch.Tensor | None,
 ]:
     """Prepare W4A8 weights using native CUDA ConvRot and eager packing math."""
+    _require_cuda_capability(weight, (8, 0), "quantize_w4a8_int8_weight")
     validate_w4a8_weight_shape(weight, group_size, convrot_groupsize)
     # Fused CUDA requant for the default codebook layout (group_size 16, fp8 scales);
     # asym / uniform / fp32-scale / other group sizes use the chunked eager path.
@@ -1615,7 +1661,7 @@ def quantize_int8_tensorwise(
 
 def dequantize_int8_simple(q: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
     """Dequantize INT8 tensor with scale."""
-    return dequantize_int8_simple_dtype(q, scale, DTYPE_TO_CODE[torch.float32])
+    return dequantize_int8_simple_dtype(q, scale, _dtype_code(torch.float32))
 
 
 def dequantize_int8_simple_dtype(
@@ -1718,7 +1764,7 @@ def dequantize_int8_convrot_weight(
     q: torch.Tensor, scale: torch.Tensor, group_size: int
 ) -> torch.Tensor:
     """Dequantize ConvRot INT8 weights and rotate them back to the original basis."""
-    return dequantize_int8_convrot_weight_dtype(q, scale, group_size, DTYPE_TO_CODE[torch.float32])
+    return dequantize_int8_convrot_weight_dtype(q, scale, group_size, _dtype_code(torch.float32))
 
 
 def dequantize_int8_convrot_weight_dtype(
@@ -1771,7 +1817,7 @@ def int8_gemv_dequant(
         _wrap_for_dlpack(weight_scale),
         _wrap_for_dlpack(bias_arg),
         _wrap_for_dlpack(out),
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         stream_ptr,
     )
     return out
@@ -1829,6 +1875,7 @@ def scaled_mm_nvfp4(
     out_dtype: torch.dtype = None,
     alpha: torch.Tensor = None,
 ) -> torch.Tensor:
+    _require_cuda_capability(a, (10, 0), "scaled_mm_nvfp4")
     # CUDA backend: cuBLAS FP4 GEMM (TN layout, K%32==0, N%8==0 required)
     # Scale layout: (RoundUp(M/N, 128), RoundUp(K//16, 4)) in swizzled format
     # See: https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-quantization
@@ -1916,7 +1963,7 @@ def scaled_mm_nvfp4(
     block_scale_b_uint8 = block_scale_b.view(torch.uint8)
     block_scale_a_uint8 = block_scale_a.view(torch.uint8)
 
-    out_dtype_code = DTYPE_TO_CODE[out_dtype]
+    out_dtype_code = _dtype_code(out_dtype)
 
     stream_ptr = torch.cuda.current_stream(a.device).cuda_stream
 
@@ -1950,11 +1997,12 @@ def int8_linear(
     weight: torch.Tensor,
     weight_scale: torch.Tensor,
     bias: torch.Tensor = None,
-    out_dtype: torch.dtype = None,
+    out_dtype: torch.dtype = torch.bfloat16,
     convrot: bool = False,
     convrot_groupsize: int = 256,
     input_act: str | None = None,
 ) -> torch.Tensor:
+    _require_cuda_capability(x, (7, 5), "int8_linear")
     orig_shape = x.shape
     x_2d = x if x.dim() == 2 and x.is_contiguous() else x.reshape(-1, x.shape[-1]).contiguous()
     if not weight.is_contiguous():
@@ -1982,7 +2030,7 @@ def int8_linear(
     assert k == k_w, "Input and weight inner dimensions must match"
 
     out_dtype = out_dtype or x.dtype
-    output_dtype_code = DTYPE_TO_CODE[out_dtype]
+    output_dtype_code = _dtype_code(out_dtype)
     is_2d_output = len(orig_shape) == 2
     convrot_m1_supported = (
         m == 1
@@ -2174,6 +2222,7 @@ def dequantize_w4a8_int8_weight(
     output_dtype: torch.dtype = torch.bfloat16,
 ) -> torch.Tensor:
     """Dequantize W4A8 weights with native CUDA decode and ConvRot operations."""
+    _require_cuda_capability(qdata, (8, 0), "dequantize_w4a8_int8_weight")
     validate_w4a8_operands(
         qdata,
         s_rel,
@@ -2233,6 +2282,7 @@ def w4a8_int8_linear(
     out_dtype: torch.dtype = torch.bfloat16,
 ) -> torch.Tensor:
     """CUDA W4A8 linear using chunked INT4 decode and the tuned INT8 GEMM."""
+    _require_cuda_capability(x, (8, 0), "w4a8_int8_linear")
     validate_w4a8_operands(
         qdata,
         s_rel,
@@ -2249,7 +2299,7 @@ def w4a8_int8_linear(
     groups = k // group_size
     x_2d = x.reshape(-1, k).contiguous()
     m = x_2d.shape[0]
-    output_dtype_code = DTYPE_TO_CODE[out_dtype]
+    output_dtype_code = _dtype_code(out_dtype)
     stream_ptr = torch.cuda.current_stream(x.device).cuda_stream
 
     def wrap_codebook():
@@ -2382,6 +2432,23 @@ def na3d(
 ) -> torch.Tensor:
     """Fused 3D neighborhood attention (NATTEN ``na3d`` semantics) over
     ``(B, T, H, W, NH, HD)`` tensors. See ops/na3d.cu."""
+    if any(tensor.device != q.device for tensor in (q, k, v)) or q.device.type != "cuda":
+        raise dispatch.UnsupportedCall("q, k, and v must share one CUDA device")
+    if q.dtype not in (torch.float16, torch.bfloat16):
+        raise dispatch.UnsupportedCall("NA3D requires FP16 or BF16")
+    if q.ndim != 6 or any(tensor.shape != q.shape or tensor.dtype != q.dtype for tensor in (k, v)):
+        raise dispatch.UnsupportedCall("q, k, and v must be matching rank-6 tensors")
+    if len(kernel_size) != 3 or any(size < 1 for size in kernel_size):
+        raise dispatch.UnsupportedCall("kernel_size must contain three positive values")
+    if is_causal is not None and len(is_causal) != 3:
+        raise dispatch.UnsupportedCall("is_causal must contain three values")
+    if q.shape[-1] % 16 or q.shape[-1] > 64:
+        raise dispatch.UnsupportedCall("head_dim must be a multiple of 16 and <= 64")
+    if q.shape[1] * q.shape[2] > 65535 or q.shape[0] * q.shape[4] > 65535:
+        raise dispatch.UnsupportedCall("grid dimensions exceed CUDA limits")
+    properties = torch.cuda.get_device_properties(q.device)
+    if (properties.major, properties.minor) < (8, 0):
+        raise dispatch.UnsupportedCall("NA3D requires compute capability 8.0")
     causal = [False, False, False] if is_causal is None else list(is_causal)
     batch, t, h, w, nh, hd = q.shape
     if scale is None:
@@ -2409,7 +2476,7 @@ def na3d(
         int(causal[1]),
         int(causal[2]),
         float(scale),
-        DTYPE_TO_CODE[q.dtype],
+        _dtype_code(q.dtype),
         stream_ptr,
     )
     return out
@@ -2428,7 +2495,7 @@ def _adaln_impl(kernel, x: torch.Tensor, scale: torch.Tensor, shift: torch.Tenso
     shift_flat, shift_group = adaln_prep_modulation(shift, x, n, d)
 
     out_flat = torch.empty_like(x_flat)
-    dtype_code = DTYPE_TO_CODE[x.dtype]
+    dtype_code = _dtype_code(x.dtype)
     stream_ptr = torch.cuda.current_stream(x.device).cuda_stream
 
     kernel(
@@ -2460,9 +2527,25 @@ def rms_adaln(
     return _adaln_impl(_C.rms_adaln, x, scale, shift, eps)
 
 
+def _require_cuda_rope_tensors(*inputs, freqs_cis):
+    tensors = tuple(tensor for tensor in inputs if tensor is not None)
+    if tensors[0].device.type != "cuda" or any(
+        tensor.device != tensors[0].device for tensor in (*tensors[1:], freqs_cis)
+    ):
+        raise dispatch.UnsupportedCall("RoPE operands must share one CUDA device")
+    if any(
+        tensor.ndim != 4 or tensor.dtype not in (torch.float16, torch.bfloat16)
+        for tensor in tensors
+    ):
+        raise dispatch.UnsupportedCall("CUDA RoPE requires rank-4 FP16 or BF16 inputs")
+    if freqs_cis.ndim != 6 or freqs_cis.dtype not in (torch.float32, torch.float16, torch.bfloat16):
+        raise dispatch.UnsupportedCall("CUDA RoPE requires rank-6 floating-point frequencies")
+
+
 def _apply_rope1_cuda(
     x: torch.Tensor, freqs_cis: torch.Tensor, *, split_half: bool, inplace: bool
 ) -> torch.Tensor:
+    _require_cuda_rope_tensors(x, freqs_cis=freqs_cis)
     if not split_half:
         freqs_cis = trim_rope_freqs(x, freqs_cis)
     x_out = x if inplace else torch.empty_like(x)
@@ -2483,7 +2566,8 @@ def _apply_rope1_cuda(
 def _apply_rope_cuda(
     xq: torch.Tensor, xk: torch.Tensor, freqs_cis: torch.Tensor, *, split_half: bool, inplace: bool
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    if xq.shape != xk.shape:
+    _require_cuda_rope_tensors(xq, xk, freqs_cis=freqs_cis)
+    if xq.shape != xk.shape or xq.dtype != xk.dtype:
         return (
             _apply_rope1_cuda(xq, freqs_cis, split_half=split_half, inplace=inplace),
             _apply_rope1_cuda(xk, freqs_cis, split_half=split_half, inplace=inplace),
@@ -2579,7 +2663,9 @@ def _rms_rope1_cuda(
     split_half: bool,
     inplace: bool,
 ) -> torch.Tensor:
-    assert _native_rms_rope_layout(x, freqs_cis, extension_op="rms_rope1") is not None
+    reason = _cuda_rms_rope1_check({"x": x, "freqs_cis": freqs_cis, "scale": scale})
+    if reason:
+        raise dispatch.UnsupportedCall(reason)
     return _rms_rope1_cuda_unchecked(
         x,
         freqs_cis,
@@ -2635,6 +2721,18 @@ def _rms_rope_cuda(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if k_scale is None:
         k_scale = q_scale
+    reason = _cuda_rms_rope_pair_check(
+        {
+            "q": q,
+            "k": k,
+            "freqs_cis": freqs_cis,
+            "q_scale": q_scale,
+            "k_scale": k_scale,
+            "rot_dim": rot_dim,
+        }
+    )
+    if reason:
+        raise dispatch.UnsupportedCall(reason)
 
     if q.shape != k.shape:
         if rot_dim:
@@ -2679,6 +2777,13 @@ def _rms_rope_cuda(
 
 def _cuda_rms_rope1_check(call):
     x, freqs_cis, scale = call["x"], call["freqs_cis"], call["scale"]
+    tensors = (x, freqs_cis, scale)
+    if x.device.type != "cuda" or any(t.device != x.device for t in tensors):
+        return "operands must share one CUDA device"
+    if x.dtype not in (torch.float16, torch.bfloat16):
+        return "input dtype is unsupported"
+    if any(t.dtype not in (torch.float32, torch.float16, torch.bfloat16) for t in tensors[1:]):
+        return "parameter dtype is unsupported"
     if scale.ndim != 1 or scale.numel() != x.shape[-1]:
         return "scale does not match head dimension"
     if _native_rms_rope_layout(x, freqs_cis, extension_op="rms_rope1") is None:
@@ -2689,6 +2794,13 @@ def _cuda_rms_rope_pair_check(call):
     q, k = call["q"], call["k"]
     freqs_cis, q_scale = call["freqs_cis"], call["q_scale"]
     k_scale = q_scale if call["k_scale"] is None else call["k_scale"]
+    tensors = (q, k, freqs_cis, q_scale, k_scale)
+    if q.device.type != "cuda" or any(t.device != q.device for t in tensors):
+        return "operands must share one CUDA device"
+    if q.dtype not in (torch.float16, torch.bfloat16):
+        return "input dtype is unsupported"
+    if any(t.dtype not in (torch.float32, torch.float16, torch.bfloat16) for t in tensors[2:]):
+        return "parameter dtype is unsupported"
     rot_dim = call.get("rot_dim", 0)
     if k.dtype != q.dtype:
         return "q and k dtypes differ"
@@ -2940,6 +3052,7 @@ def quantize_svdquant_w4a4(
     model-topology concern kept out of the kernel API. Pass lora_x=raw_x when
     x was pre-shifted (LoRA operates on pre-quantization, pre-shift activations).
     """
+    _require_cuda_capability(x, (8, 0), "quantize_svdquant_w4a4")
     assert x.dim() == 2 and x.is_contiguous(), "x must be 2D contiguous"
     m, k = x.shape
     r = lora_down.shape[1]
@@ -3040,6 +3153,7 @@ def scaled_mm_svdquant_w4a4(
     Set COMFY_KITCHEN_SVDQUANT_FAST_ACCUM=1 to use the experimental packed
     half2/bfloat162 accumulator instead of the default fp32 accumulator.
     """
+    _require_cuda_capability(act, (8, 0), "scaled_mm_svdquant_w4a4")
     m = act.shape[0]
     n = _svdquant_out_features_from_weight(wgt)
     out = torch.empty(m, n, dtype=lora_up.dtype, device=act.device)
@@ -3156,6 +3270,7 @@ def gemv_awq_w4a16(
       bias     (N,)     bf16/fp16  optional (= wscales.dtype)
       out      (..., N) bf16/fp16  same dtype as wscales
     """
+    _require_cuda_capability(x, (8, 0), "gemv_awq_w4a16")
     orig_shape = x.shape
     x2d = x.reshape(-1, orig_shape[-1])
     m, k = x2d.shape
@@ -3192,280 +3307,11 @@ def gemv_awq_w4a16(
     return out2d.reshape(*orig_shape[:-1], n)
 
 
-def _cuda_lowerings():
-    floats = frozenset({torch.float32, torch.float16, torch.bfloat16})
-    halves = frozenset({torch.float16, torch.bfloat16})
-    fp8 = frozenset({torch.float8_e4m3fn, torch.float8_e5m2})
-    d1 = dispatch_v2.ndim(1)
-    d2 = dispatch_v2.ndim(2)
-    d4 = dispatch_v2.ndim(4)
-    d6 = dispatch_v2.ndim(6)
-    min2 = dispatch_v2.min_ndim(2)
-    d2k64 = dispatch_v2.aligned_ndim(2, 1, 64)
-    d2k32 = dispatch_v2.aligned_ndim(2, 1, 32)
-    d2k16 = dispatch_v2.aligned_ndim(2, 1, 16)
-    d2m16 = dispatch_v2.aligned_ndim(2, 0, 16)
-    tensor = dispatch_v2.tensor_rule
-    value = dispatch_v2.value_rule
-    cuda = frozenset({"cuda"})
-
-    def plan(runner, *, min_cc=None, check=None, **params):
-        return dispatch_v2.lowering(runner, devices=cuda, min_cc=min_cc, check=check, **params)
-
-    f, f1, f2, f6 = (
-        tensor(floats),
-        tensor(floats, d1),
-        tensor(floats, d2),
-        tensor(floats, d6),
-    )
-    h, h2 = tensor(halves), tensor(halves, d2)
-    f32, f32_1 = tensor({torch.float32}), tensor({torch.float32}, d1)
-    i8, i8_2 = tensor({torch.int8}), tensor({torch.int8}, d2)
-    int_rule, bool_rule, str_rule = value(int), value(bool), value(str)
-    out = {
-        "adaln": plan(adaln, x=f, scale=f, shift=f),
-        "rms_adaln": plan(rms_adaln, x=f, scale=f, shift=f),
-        "quantize_per_tensor_fp8": plan(
-            quantize_per_tensor_fp8, x=f, scale=f32, output_type=(fp8, None)
-        ),
-        "dequantize_per_tensor_fp8": plan(
-            dequantize_per_tensor_fp8, x=tensor(fp8), scale=f32, output_type=(floats, None)
-        ),
-        "stochastic_rounding_fp8": plan(
-            stochastic_rounding_fp8, x=f, rng=tensor({torch.uint8}), output_type=(fp8, None)
-        ),
-        "quantize_nvfp4": plan(quantize_nvfp4, x=f2, per_tensor_scale=f32),
-        "dequantize_nvfp4": plan(
-            dequantize_nvfp4,
-            qx=tensor({torch.uint8}, d2m16),
-            per_tensor_scale=f32,
-            block_scales=tensor({torch.float8_e4m3fn}),
-            output_type=(floats, None),
-        ),
-        "quantize_mxfp8": plan(quantize_mxfp8, x=f2),
-        "quantize_int8_tensorwise": plan(
-            quantize_int8_tensorwise,
-            x=f,
-            scale=(frozenset({*floats, float, str, type(None)}), None),
-            stochastic_rounding=int_rule,
-        ),
-        "quantize_int8_rowwise": plan(quantize_int8_rowwise, x=f, stochastic_rounding=int_rule),
-        "quantize_and_rotate_rowwise": plan(
-            quantize_and_rotate_rowwise, x=f, h=f, group_size=int_rule, stochastic_rounding=int_rule
-        ),
-        "quantize_int8_convrot_weight": plan(
-            quantize_int8_convrot_weight,
-            weight=f2,
-            group_size=int_rule,
-            stochastic_rounding=int_rule,
-        ),
-        "rotate_int8_convrot_weight": plan(
-            rotate_int8_convrot_weight, weight=f2, group_size=int_rule
-        ),
-        "dequantize_int8_convrot_weight": plan(
-            dequantize_int8_convrot_weight, q=i8_2, scale=f, group_size=int_rule
-        ),
-        "dequantize_int8_convrot_weight_dtype": plan(
-            dequantize_int8_convrot_weight_dtype,
-            q=i8_2,
-            scale=f,
-            group_size=int_rule,
-            output_dtype_code=int_rule,
-        ),
-        "dequantize_int8_simple": plan(dequantize_int8_simple, q=i8, scale=f),
-        "dequantize_int8_simple_dtype": plan(
-            dequantize_int8_simple_dtype, q=i8, scale=f, output_dtype_code=int_rule
-        ),
-        "quantize_int4_rowwise": plan(quantize_int4_rowwise, x=f, stochastic_rounding=int_rule),
-        "quantize_int4_rowwise_convrot64": plan(
-            quantize_int4_rowwise_convrot64, x=f, group_size=int_rule, stochastic_rounding=int_rule
-        ),
-        "quantize_int4_rowwise_convrot64_to_int8": plan(
-            quantize_int4_rowwise_convrot64_to_int8,
-            x=f,
-            group_size=int_rule,
-            stochastic_rounding=int_rule,
-        ),
-        "quantize_int8_rowwise_convrot64": plan(
-            quantize_int8_rowwise_convrot64,
-            weight_2d=f2,
-            group_size=int_rule,
-            stochastic_rounding=int_rule,
-            input_act=value(str, type(None)),
-        ),
-        "int4_linear": plan(
-            int4_linear,
-            min_cc=(7, 5),
-            x_qdata=i8_2,
-            weight=i8_2,
-            x_scale=f,
-            weight_scale=f,
-            bias=f,
-            out_dtype=(floats, None),
-        ),
-        "prepare_int4_weight_for_int8_linear": plan(
-            prepare_int4_weight_for_int8_linear, weight=tensor({torch.int8}, d2k32)
-        ),
-        "quantize_convrot_w4a4_weight": plan(
-            quantize_convrot_w4a4_weight,
-            min_cc=(7, 5),
-            weight=tensor(floats, d2k64),
-            convrot_groupsize=int_rule,
-            quant_group_size=int_rule,
-            stochastic_rounding=int_rule,
-        ),
-        "dequantize_convrot_w4a4_weight": plan(
-            dequantize_convrot_w4a4_weight,
-            min_cc=(7, 5),
-            qdata=tensor({torch.int8}, d2k32),
-            scales=f1,
-            convrot_groupsize=int_rule,
-            quant_group_size=int_rule,
-            output_dtype=(floats, None),
-        ),
-        "convrot_w4a4_linear": plan(
-            convrot_w4a4_linear,
-            min_cc=(7, 5),
-            x=tensor(floats, min2),
-            qweight=tensor({torch.int8}, d2k32),
-            wscales=f1,
-            bias=f,
-            convrot_groupsize=int_rule,
-            quant_group_size=int_rule,
-            linear_dtype=str_rule,
-        ),
-        "gemv_awq_w4a16": plan(
-            gemv_awq_w4a16, min_cc=(8, 0), x=h, qweight=i8_2, wscales=h2, wzeros=h2
-        ),
-        "quantize_svdquant_w4a4": plan(
-            quantize_svdquant_w4a4, min_cc=(8, 0), x=tensor(halves, d2k64), smooth=h, lora_down=h2
-        ),
-        "scaled_mm_svdquant_w4a4": plan(
-            scaled_mm_svdquant_w4a4,
-            min_cc=(8, 0),
-            act=i8_2,
-            wgt=i8,
-            ascales=h,
-            wscales=h,
-            lora_act_in=f,
-            lora_up=h,
-        ),
-        "quantize_w4a8_int8_weight": plan(
-            quantize_w4a8_int8_weight,
-            min_cc=(8, 0),
-            weight=f2,
-            group_size=int_rule,
-            convrot_groupsize=int_rule,
-            symmetric=bool_rule,
-            scale_dtype=(frozenset({torch.float8_e4m3fn, torch.float32}), None),
-            codebook=bool_rule,
-        ),
-        "dequantize_w4a8_int8_weight": plan(
-            dequantize_w4a8_int8_weight,
-            min_cc=(8, 0),
-            qdata=i8_2,
-            s_rel=tensor({torch.float8_e4m3fn, torch.float32}, d2),
-            s_channel=f32_1,
-            codebook=f32_1,
-            correction=f2,
-            group_size=int_rule,
-            convrot_groupsize=int_rule,
-            output_dtype=(floats, None),
-        ),
-        "w4a8_int8_linear": plan(
-            w4a8_int8_linear,
-            min_cc=(8, 0),
-            x=f,
-            qdata=i8_2,
-            s_rel=tensor({torch.float8_e4m3fn, torch.float32}, d2),
-            s_channel=f32_1,
-            codebook=f32_1,
-            correction=f2,
-            bias=f,
-            group_size=int_rule,
-            convrot_groupsize=int_rule,
-            out_dtype=(floats, None),
-        ),
-    }
-    if _CUBLASLT_AVAILABLE:
-        out["int8_linear"] = plan(
-            int8_linear,
-            min_cc=(7, 5),
-            x=tensor(floats, min2),
-            weight=i8_2,
-            weight_scale=f32,
-            bias=f,
-            out_dtype=(floats, None),
-            convrot=bool_rule,
-            convrot_groupsize=int_rule,
-        )
-        out["scaled_mm_nvfp4"] = plan(
-            scaled_mm_nvfp4,
-            min_cc=(10, 0),
-            a=tensor({torch.uint8}, d2k16),
-            b=tensor({torch.uint8}, d2k16),
-            tensor_scale_a=f32,
-            tensor_scale_b=f32,
-            block_scale_a=tensor({torch.float8_e4m3fn}),
-            block_scale_b=tensor({torch.float8_e4m3fn}),
-            out_dtype=(halves, None),
-        )
-    for name in (
-        "apply_rope1",
-        "apply_rope1_",
-        "apply_rope_split_half1",
-        "apply_rope_split_half1_",
-    ):
-        out[name] = plan(globals()[name], x=tensor(halves, d4), freqs_cis=f6)
-    for name in ("apply_rope", "apply_rope_", "apply_rope_split_half", "apply_rope_split_half_"):
-        out[name] = plan(
-            globals()[name], xq=tensor(halves, d4), xk=tensor(halves, d4), freqs_cis=f6
-        )
-
-    def na_check(call):
-        q = call["q"]
-        if any(call[name].shape != q.shape or call[name].dtype != q.dtype for name in ("k", "v")):
-            return "q, k, and v must share shape and dtype"
-        if len(call["kernel_size"]) != 3 or any(size < 1 for size in call["kernel_size"]):
-            return "kernel_size must contain three positive values"
-        if call["is_causal"] is not None and len(call["is_causal"]) != 3:
-            return "is_causal must contain three values"
-        if q.shape[-1] % 16 or q.shape[-1] > 64:
-            return "head_dim must be a multiple of 16 and <= 64"
-        if q.shape[1] * q.shape[2] > 65535 or q.shape[0] * q.shape[4] > 65535:
-            return "grid dimensions exceed CUDA limits"
-
-    out["na3d"] = plan(
-        na3d,
-        min_cc=(8, 0),
-        check=na_check,
-        q=tensor(halves, d6),
-        k=tensor(halves, d6),
-        v=tensor(halves, d6),
-    )
-    rms_parameter = tensor(floats)
-    for name in ("rms_rope1", "rms_rope1_", "rms_rope_split_half1", "rms_rope_split_half1_"):
-        out[name] = plan(
-            globals()[name],
-            check=_cuda_rms_rope1_check,
-            x=tensor(halves),
-            freqs_cis=rms_parameter,
-            scale=rms_parameter,
-        )
-    for name in ("rms_rope", "rms_rope_", "rms_rope_split_half", "rms_rope_split_half_"):
-        out[name] = plan(
-            globals()[name],
-            check=_cuda_rms_rope_pair_check,
-            q=tensor(halves),
-            k=tensor(halves),
-            freqs_cis=rms_parameter,
-            q_scale=rms_parameter,
-            k_scale=rms_parameter,
-        )
-    missing = set(__all__) - out.keys()
-    if missing:
-        raise RuntimeError(f"CUDA operations lack planners: {sorted(missing)}")
-    return out
+def _registered_operations():
+    operations = set(__all__)
+    if not _CUBLASLT_AVAILABLE:
+        operations -= {"int8_linear", "scaled_mm_nvfp4"}
+    return operations
 
 
 def _register():
@@ -3481,7 +3327,8 @@ def _register():
     registry.register(
         name="cuda",
         module=__import__(__name__, fromlist=__all__),
-        lowerings=_cuda_lowerings(),
+        operations=_registered_operations(),
+        device_types=frozenset({"cuda"}),
     )
 
 

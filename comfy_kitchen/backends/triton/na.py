@@ -13,6 +13,7 @@ import torch
 
 import triton
 import triton.language as tl
+from comfy_kitchen.registry import UnsupportedCall
 
 _NEG_INF = tl.constexpr(-3.0e38)
 
@@ -122,6 +123,21 @@ def na3d(
     scale: float | None = None,
 ) -> torch.Tensor:
     """3D neighborhood attention over ``(B, t_size, h_size, w_size, num_heads, HD)`` tensors."""
+    if any(tensor.device != q.device for tensor in (q, k, v)) or q.device.type != "cuda":
+        raise UnsupportedCall("q, k, and v must share one CUDA device")
+    if q.ndim != 6 or any(tensor.shape != q.shape or tensor.dtype != q.dtype for tensor in (k, v)):
+        raise UnsupportedCall("q, k, and v must be matching rank-6 tensors")
+    if q.dtype not in (torch.float32, torch.float16, torch.bfloat16):
+        raise UnsupportedCall("tensor dtype is unsupported")
+    if len(kernel_size) != 3 or any(size < 1 for size in kernel_size):
+        raise UnsupportedCall("kernel_size must contain three positive values")
+    if is_causal is not None and len(is_causal) != 3:
+        raise UnsupportedCall("is_causal must contain three values")
+    if q.shape[-1] > 128:
+        raise UnsupportedCall("head_dim > 128 is unsupported")
+    properties = torch.cuda.get_device_properties(q.device)
+    if (properties.major, properties.minor) < (8, 0):
+        raise UnsupportedCall("NA3D requires compute capability 8.0")
     batch, t, h, w, nh, hd = q.shape
     causal = [False, False, False] if is_causal is None else list(is_causal)
     kt, kh, kw = (k_ if c else min(k_, d) for k_, c, d in zip(kernel_size, causal, (t, h, w), strict=True))

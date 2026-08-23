@@ -18,7 +18,7 @@ from comfy_kitchen.backends.eager.w4a8_int8 import (
 )
 from triton.language.extra import libdevice
 
-from .quantization import int8_linear
+from .quantization import _require_cuda_capability, int8_linear
 
 
 @triton.jit
@@ -109,6 +109,7 @@ def w4a8_int8_linear(
     out_dtype: torch.dtype = torch.bfloat16,
 ) -> torch.Tensor:
     """``x @ W.T + bias`` for AsymW4A8Int8 via the fused Triton dequant + INT8 GEMM."""
+    _require_cuda_capability(x, (8, 0), "w4a8_int8_linear")
     validate_w4a8_operands(
         qdata,
         s_rel,

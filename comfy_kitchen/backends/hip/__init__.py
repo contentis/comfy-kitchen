@@ -25,7 +25,7 @@ from collections.abc import Sequence
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 from comfy_kitchen._rope_utils import check_rope_inplace, trim_rope_freqs
 from comfy_kitchen.backends import eager as _eager
 from comfy_kitchen.backends._activations import apply_input_act as _apply_input_act
@@ -43,6 +43,23 @@ from comfy_kitchen.backends.eager.w4a8_int8 import (
 )
 
 logger = logging.getLogger("comfy_kitchen.hip")
+
+
+def _dtype_code(dtype):
+    try:
+        return DTYPE_TO_CODE[dtype]
+    except KeyError:
+        raise dispatch.UnsupportedCall(f"unsupported dtype {dtype}") from None
+
+
+_FLOAT_DTYPES = (torch.float32, torch.float16, torch.bfloat16)
+_FP8_DTYPES = (torch.float8_e4m3fn, torch.float8_e5m2)
+
+
+def _require_dtype(operation, argument, dtype, allowed):
+    if dtype not in allowed:
+        raise dispatch.UnsupportedCall(f"{operation} does not support {argument} dtype {dtype}")
+
 
 __all__ = [
     "adaln",
@@ -163,7 +180,7 @@ _ARCH_SUPPORTED = _ARCH_ELEMENTWISE_ONLY | _ARCH_WMMA
 
 # The GEMMs, and only the GEMMs, need matrix cores. Everything else is elementwise
 # or a scalar reduction and runs on any supported architecture. This set names the
-# registry-dispatched GEMMs so their planners can be omitted on RDNA2; the fp8
+# registry-dispatched GEMMs omitted on RDNA2; the fp8
 # GEMM is not among them because it is reached through scaled_mm_v2's _hip_fp8_gemm,
 # which gates on has_wmma() itself rather than through the registry.
 _WMMA_ONLY_OPS = frozenset(
@@ -288,6 +305,8 @@ def quantize_per_tensor_fp8(
     scale: torch.Tensor,
     output_type: torch.dtype = torch.float8_e4m3fn,
 ) -> torch.Tensor:
+    _require_dtype("quantize_per_tensor_fp8", "input", x.dtype, _FLOAT_DTYPES)
+    _require_dtype("quantize_per_tensor_fp8", "output", output_type, _FP8_DTYPES)
     x = x.contiguous()
     scale = _scale_operand(scale, x.device)
 
@@ -296,8 +315,8 @@ def quantize_per_tensor_fp8(
         _dl(x),
         _dl(scale),
         _dl(out),
-        DTYPE_TO_CODE[x.dtype],
-        DTYPE_TO_CODE[output_type],
+        _dtype_code(x.dtype),
+        _dtype_code(output_type),
         x.numel(),
         _stream(x),
     )
@@ -309,6 +328,8 @@ def dequantize_per_tensor_fp8(
     scale: torch.Tensor,
     output_type: torch.dtype = torch.bfloat16,
 ) -> torch.Tensor:
+    _require_dtype("dequantize_per_tensor_fp8", "input", x.dtype, _FP8_DTYPES)
+    _require_dtype("dequantize_per_tensor_fp8", "output", output_type, _FLOAT_DTYPES)
     x = x.contiguous()
     scale = _scale_operand(scale, x.device)
 
@@ -317,8 +338,8 @@ def dequantize_per_tensor_fp8(
         _dl(x.view(torch.uint8)),
         _dl(scale),
         _dl(out),
-        DTYPE_TO_CODE[x.dtype],
-        DTYPE_TO_CODE[output_type],
+        _dtype_code(x.dtype),
+        _dtype_code(output_type),
         x.numel(),
         _stream(x),
     )
@@ -330,6 +351,11 @@ def stochastic_rounding_fp8(
     rng: torch.Tensor,
     output_type: torch.dtype = torch.float8_e4m3fn,
 ) -> torch.Tensor:
+    _require_dtype("stochastic_rounding_fp8", "input", x.dtype, _FLOAT_DTYPES)
+    _require_dtype("stochastic_rounding_fp8", "rng", rng.dtype, (torch.uint8,))
+    _require_dtype("stochastic_rounding_fp8", "output", output_type, _FP8_DTYPES)
+    if rng.shape != x.shape:
+        raise dispatch.UnsupportedCall("stochastic_rounding_fp8 requires rng to match input shape")
     """Quantize x to fp8 with stochastic rounding, consuming rng as the random source.
 
     The kernel writes the fp8 result into rng's storage, so the caller's rng
@@ -348,7 +374,7 @@ def stochastic_rounding_fp8(
     _C.stochastic_round_fp8(
         _dl(rng),
         _dl(x),
-        DTYPE_TO_CODE[output_type],
+        _dtype_code(output_type),
         x.numel(),
         _stream(x),
     )
@@ -418,7 +444,7 @@ def scaled_mm_fp8(
         m,
         n,
         k,
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         _stream(a),
     )
     return out
@@ -561,7 +587,7 @@ def _convrot_supported(k: int, group_size: int, device: torch.device, dtype: tor
     max_k = _convrot_max_k.get(key)
     if max_k is None:
         with torch.cuda.device(index):
-            max_k = _C.convrot_max_k(DTYPE_TO_CODE[dtype])
+            max_k = _C.convrot_max_k(_dtype_code(dtype))
         _convrot_max_k[key] = max_k
     return max_k > 0 and k <= max_k
 
@@ -712,7 +738,7 @@ def int8_linear(
         m,
         n,
         k,
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         _stream(x),
     )
     return out.reshape(*orig_shape[:-1], n)
@@ -734,7 +760,7 @@ def _dequant_int4_grouped_to_int8(
     k = k_half * 2
     device = qdata.device
     qdata_arg = _operand(qdata, device, "qdata")
-    scale_code = DTYPE_TO_CODE[s_rel.dtype]
+    scale_code = _dtype_code(s_rel.dtype)
     # fp8 crosses the binding as raw bytes, as it does everywhere else here.
     s_rel_arg = _operand(s_rel, device, "s_rel")
     if s_rel.dtype == torch.float8_e4m3fn:
@@ -836,7 +862,7 @@ def _w4a8_int8_linear_chunked(
     # Rotated and quantized once: the chunk loop only walks the weight.
     xq, xs = _rotate_quant_int8(x2d, convrot_groupsize)
 
-    scale_code = DTYPE_TO_CODE[s_rel.dtype]
+    scale_code = _dtype_code(s_rel.dtype)
     s_rel_arg = _operand(s_rel, device, "s_rel")
     if s_rel.dtype == torch.float8_e4m3fn:
         s_rel_arg = s_rel_arg.view(torch.uint8)
@@ -870,7 +896,7 @@ def _w4a8_int8_linear_chunked(
         k,
         group_size,
         chunk_cols,
-        DTYPE_TO_CODE[out_dtype],
+        _dtype_code(out_dtype),
         _stream(x),
     )
     return out.reshape(*orig_shape[:-1], n)
@@ -1211,7 +1237,7 @@ def convrot_w4a4_linear(
         m,
         n,
         k,
-        DTYPE_TO_CODE[x.dtype],
+        _dtype_code(x.dtype),
         _stream(x),
     )
     return out.reshape(*orig_shape[:-1], n)
@@ -1406,6 +1432,21 @@ def na3d(
 ) -> torch.Tensor:
     """Fused 3D neighborhood attention (NATTEN ``na3d`` semantics) over
     ``(B, T, H, W, NH, HD)`` tensors, on WMMA. See ops/na3d.hip."""
+    tensors = (q, k, v)
+    if any(tensor.device != q.device for tensor in tensors) or q.device.type not in ("cuda", "hip"):
+        raise dispatch.UnsupportedCall("q, k, and v must share one HIP device")
+    if q.dtype not in (torch.float16, torch.bfloat16):
+        raise dispatch.UnsupportedCall("NA3D requires FP16 or BF16")
+    if q.ndim != 6 or any(tensor.shape != q.shape or tensor.dtype != q.dtype for tensor in (k, v)):
+        raise dispatch.UnsupportedCall("q, k, and v must be matching rank-6 tensors")
+    if len(kernel_size) != 3 or any(size < 1 for size in kernel_size):
+        raise dispatch.UnsupportedCall("kernel_size must contain three positive values")
+    if is_causal is not None and len(is_causal) != 3:
+        raise dispatch.UnsupportedCall("is_causal must contain three values")
+    if q.shape[-1] % 16 or q.shape[-1] > 64:
+        raise dispatch.UnsupportedCall("head_dim must be a multiple of 16 and <= 64")
+    if q.shape[1] * q.shape[2] > 65535 or q.shape[0] * q.shape[4] > 65535:
+        raise dispatch.UnsupportedCall("grid dims exceed HIP limits")
     causal = (False, False, False) if is_causal is None else tuple(is_causal)
     batch, t, h, w, num_heads, head_dim = q.shape
     if scale is None:
@@ -1433,7 +1474,7 @@ def na3d(
         int(causal[1]),
         int(causal[2]),
         float(scale),
-        DTYPE_TO_CODE[q.dtype],
+        _dtype_code(q.dtype),
         _stream(q),
     )
     return out
@@ -1504,7 +1545,21 @@ def _rope_rows(q: torch.Tensor, k: torch.Tensor | None):
     return q.contiguous(), None if k is None else k.contiguous()
 
 
+def _require_rope_tensors(*inputs, freqs_cis):
+    tensors = tuple(tensor for tensor in inputs if tensor is not None)
+    if tensors[0].device.type not in ("cuda", "hip") or any(
+        tensor.device != tensors[0].device for tensor in (*tensors[1:], freqs_cis)
+    ):
+        raise dispatch.UnsupportedCall("RoPE operands must share one HIP device")
+    floats = (torch.float32, torch.float16, torch.bfloat16)
+    if any(tensor.ndim != 4 or tensor.dtype not in floats for tensor in tensors):
+        raise dispatch.UnsupportedCall("HIP RoPE requires rank-4 floating-point inputs")
+    if freqs_cis.ndim != 6 or freqs_cis.dtype not in floats:
+        raise dispatch.UnsupportedCall("HIP RoPE requires rank-6 floating-point frequencies")
+
+
 def _rope(xq, xk, freqs_cis, split_half, inplace=False):
+    _require_rope_tensors(xq, xk, freqs_cis=freqs_cis)
     # One dtype code and one stream are passed for the whole launch, so every
     # buffer has to agree on device, and xq/xk on dtype.
     if freqs_cis.device != xq.device:
@@ -1542,6 +1597,7 @@ def _rope(xq, xk, freqs_cis, split_half, inplace=False):
 
 
 def _rope_pair(xq, xk, freqs_cis, split_half, inplace=False):
+    _require_rope_tensors(xq, xk, freqs_cis=freqs_cis)
     # The kernel indexes one set of strides and reads both tensors with one dtype
     # code, so a difference in either is done one at a time. Out of place a stride
     # mismatch is resolved by densifying both instead.
@@ -1611,18 +1667,23 @@ def _rms_rope_weight(scale: torch.Tensor, head_dim: int) -> torch.Tensor | None:
     return scale.contiguous()
 
 
+def _require_rms_tensors(*tensors):
+    tensors = tuple(tensor for tensor in tensors if tensor is not None)
+    device = tensors[0].device
+    if device.type not in ("cuda", "hip") or any(tensor.device != device for tensor in tensors[1:]):
+        raise dispatch.UnsupportedCall("operands must share one HIP device")
+    if any(
+        tensor.dtype not in (torch.float32, torch.float16, torch.bfloat16) for tensor in tensors
+    ):
+        raise dispatch.UnsupportedCall("tensor dtype is unsupported")
+
+
 def _rms_rope(q, k, freqs_cis, q_scale, k_scale, epsilon, split_half, inplace=False, rot_dim=0):
     if k is not None and k_scale is None:
         k_scale = q_scale
-    # One dtype code and one stream are passed for the whole launch, so every
-    # buffer has to agree on device, and q/k on dtype.
-    if freqs_cis.device != q.device or q_scale.device != q.device:
-        raise ValueError("freqs_cis and the scales must be on the same device as the input")
-    if k is not None:
-        if k.device != q.device or k_scale.device != q.device:
-            raise ValueError("q and k must be on the same device")
-        if k.dtype != q.dtype:
-            raise ValueError("q and k must have the same dtype")
+    _require_rms_tensors(q, k, freqs_cis, q_scale, k_scale)
+    if k is not None and k.dtype != q.dtype:
+        raise ValueError("q and k must have the same dtype")
 
     q_weight = _rms_rope_weight(q_scale, q.shape[-1])
     k_weight = None if k is None else _rms_rope_weight(k_scale, q.shape[-1])
@@ -1679,6 +1740,7 @@ def _rms_rope_pair(
 ):
     if k_scale is None:
         k_scale = q_scale
+    _require_rms_tensors(q, k, freqs_cis, q_scale, k_scale)
     # One dtype code covers both inputs and one more both weights, so a difference
     # in either is done one at a time.
     if (
@@ -1791,131 +1853,9 @@ def rms_rope_split_half_(
 # ---------------------------------------------------------------------------
 
 
-def _hip_lowerings(has_wmma):
-    floats = frozenset({torch.float32, torch.float16, torch.bfloat16})
-    halves = frozenset({torch.float16, torch.bfloat16})
-    fp8 = frozenset({torch.float8_e4m3fn, torch.float8_e5m2})
-    d1 = dispatch_v2.ndim(1)
-    d2 = dispatch_v2.ndim(2)
-    d4 = dispatch_v2.ndim(4)
-    d6 = dispatch_v2.ndim(6)
-    k16 = dispatch_v2.aligned(-1, 16)
-    k32 = dispatch_v2.aligned(-1, 32)
-    d2k64 = dispatch_v2.aligned_ndim(2, -1, 64)
-    tensor = dispatch_v2.tensor_rule
-    value = dispatch_v2.value_rule
-    devices = frozenset({"cuda", "hip"})
-
-    def plan(runner, *, check=None, **params):
-        return dispatch_v2.lowering(runner, devices=devices, check=check, **params)
-
-    f, f2, f4, f6 = (
-        tensor(floats),
-        tensor(floats, d2),
-        tensor(floats, d4),
-        tensor(floats, d6),
-    )
-    f32 = tensor({torch.float32})
-    i8, i8_2 = tensor({torch.int8}), tensor({torch.int8}, d2)
-    int_rule = value(int)
-    out = {
-        "adaln": plan(adaln, x=f, scale=f, shift=f),
-        "rms_adaln": plan(rms_adaln, x=f, scale=f, shift=f),
-        "quantize_per_tensor_fp8": plan(
-            quantize_per_tensor_fp8, x=f, scale=f32, output_type=(fp8, None)
-        ),
-        "dequantize_per_tensor_fp8": plan(
-            dequantize_per_tensor_fp8, x=tensor(fp8), scale=f32, output_type=(floats, None)
-        ),
-        "stochastic_rounding_fp8": plan(
-            stochastic_rounding_fp8, x=f, rng=tensor({torch.uint8}), output_type=(fp8, None)
-        ),
-        "quantize_int8_rowwise": plan(quantize_int8_rowwise, x=f),
-        "quantize_int8_tensorwise": plan(quantize_int8_tensorwise, x=f),
-        "quantize_and_rotate_rowwise": plan(quantize_and_rotate_rowwise, x=f),
-        "quantize_int8_convrot_weight": plan(quantize_int8_convrot_weight, weight=f),
-        "dequantize_int8_simple_dtype": plan(
-            dequantize_int8_simple_dtype, q=i8, scale=f, output_dtype_code=int_rule
-        ),
-        "dequantize_int8_convrot_weight_dtype": plan(
-            dequantize_int8_convrot_weight_dtype,
-            q=i8_2,
-            scale=f,
-            group_size=int_rule,
-            output_dtype_code=int_rule,
-        ),
-        "quantize_convrot_w4a4_weight": plan(
-            quantize_convrot_w4a4_weight, weight=tensor(floats, k32)
-        ),
-        "dequantize_convrot_w4a4_weight": plan(dequantize_convrot_w4a4_weight, qdata=i8),
-        "gemv_awq_w4a16": plan(gemv_awq_w4a16, x=f, qweight=i8_2),
-        "quantize_svdquant_w4a4": plan(
-            quantize_svdquant_w4a4, x=tensor(floats, d2k64), smooth=f, lora_down=f2
-        ),
-        "quantize_w4a8_int8_weight": plan(quantize_w4a8_int8_weight, weight=f2),
-        "dequantize_w4a8_int8_weight": plan(
-            dequantize_w4a8_int8_weight,
-            qdata=i8_2,
-            s_rel=tensor({torch.float8_e4m3fn, torch.float32}, d2),
-            s_channel=tensor({torch.float32}, d1),
-            codebook=tensor({torch.float32}, d1),
-            correction=f2,
-        ),
-        "scaled_mm_fp8": plan(scaled_mm_fp8, a=tensor(fp8), b=tensor(fp8)),
-    }
-    if has_wmma:
-        out.update(
-            {
-                "int8_linear": plan(
-                    int8_linear, x=tensor(floats, k16), weight=i8, out_dtype=(floats, None)
-                ),
-                "convrot_w4a4_linear": plan(convrot_w4a4_linear, x=tensor(floats, k32), qweight=i8),
-                "scaled_mm_svdquant_w4a4": plan(
-                    scaled_mm_svdquant_w4a4, act=i8_2, wgt=i8_2, wscales=f2, lora_up=f2
-                ),
-                "w4a8_int8_linear": plan(
-                    w4a8_int8_linear,
-                    x=f,
-                    qdata=i8_2,
-                    s_rel=tensor({torch.float8_e4m3fn, torch.float32}, d2),
-                    s_channel=tensor({torch.float32}, d1),
-                    codebook=tensor({torch.float32}, d1),
-                    correction=f2,
-                ),
-            }
-        )
-    for name in (
-        "apply_rope1",
-        "apply_rope1_",
-        "apply_rope_split_half1",
-        "apply_rope_split_half1_",
-    ):
-        out[name] = plan(globals()[name], x=f4, freqs_cis=f6)
-    for name in ("apply_rope", "apply_rope_", "apply_rope_split_half", "apply_rope_split_half_"):
-        out[name] = plan(globals()[name], xq=f4, xk=f4, freqs_cis=f6)
-
-    def na_check(call):
-        q = call["q"]
-        if any(call[name].shape != q.shape or call[name].dtype != q.dtype for name in ("k", "v")):
-            return "q, k, and v must share shape and dtype"
-        if len(call["kernel_size"]) != 3 or any(size < 1 for size in call["kernel_size"]):
-            return "kernel_size must contain three positive values"
-        if call["is_causal"] is not None and len(call["is_causal"]) != 3:
-            return "is_causal must contain three values"
-        if q.shape[-1] % 16 or q.shape[-1] > 64:
-            return "head_dim must be a multiple of 16 and <= 64"
-        if q.shape[1] * q.shape[2] > 65535 or q.shape[0] * q.shape[4] > 65535:
-            return "grid dims exceed HIP limits"
-
-    if has_wmma:
-        out["na3d"] = plan(
-            na3d, check=na_check, q=tensor(halves, d6), k=tensor(halves, d6), v=tensor(halves, d6)
-        )
-    for name in ("rms_rope1", "rms_rope1_", "rms_rope_split_half1", "rms_rope_split_half1_"):
-        out[name] = plan(globals()[name], x=f, freqs_cis=f, scale=f)
-    for name in ("rms_rope", "rms_rope_", "rms_rope_split_half", "rms_rope_split_half_"):
-        out[name] = plan(globals()[name], q=f, k=f, freqs_cis=f, q_scale=f, k_scale=f)
-    return out
+def _registered_operations(has_wmma):
+    ops = set(__all__) & set(_eager.__all__)
+    return ops if has_wmma else ops - _WMMA_ONLY_OPS
 
 
 def _register():
@@ -1945,7 +1885,8 @@ def _register():
     registry.register(
         name="hip",
         module=sys.modules[__name__],
-        lowerings=_hip_lowerings(has_wmma),
+        operations=_registered_operations(has_wmma),
+        device_types=frozenset({"cuda", "hip"}),
     )
     logger.debug(
         "registered HIP backend for %s (%s)",

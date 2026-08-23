@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 from comfy_kitchen.backends.eager.svdquant import _INT4_GROUP_SIZE
 
 from .base import (
@@ -34,7 +34,7 @@ def quantize_convrot_w4a4_weight(
     stochastic_rounding: int | None = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Rotate a weight matrix with ConvRot and pack it as signed W4."""
-    return dispatch_v2.dispatch(
+    return dispatch.dispatch(
         "quantize_convrot_w4a4_weight",
         weight,
         convrot_groupsize=convrot_groupsize,
@@ -51,7 +51,7 @@ def dequantize_convrot_w4a4_weight(
     output_dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     """Dequantize packed ConvRot W4A4 weights and rotate back to original basis."""
-    return dispatch_v2.dispatch(
+    return dispatch.dispatch(
         "dequantize_convrot_w4a4_weight",
         qdata,
         scales,
@@ -75,7 +75,7 @@ def convrot_w4a4_linear(
         raise ValueError(
             f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}"
         )
-    return dispatch_v2.dispatch(
+    return dispatch.dispatch(
         "convrot_w4a4_linear",
         x,
         qweight,

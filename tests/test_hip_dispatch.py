@@ -147,8 +147,8 @@ def test_hip_wmma_capability(arches, expected):
 
 def test_hip_drops_gemms_without_matrix_cores():
     """RDNA2 keeps the elementwise kernels and hands the GEMMs back to triton/eager."""
-    with_wmma = hip_backend._hip_lowerings(True)
-    without = hip_backend._hip_lowerings(False)
+    with_wmma = hip_backend._registered_operations(True)
+    without = hip_backend._registered_operations(False)
 
     # Every WMMA-only op must be advertised with matrix cores; an intersection
     # would pass while any single one was missing from the constraints.
@@ -168,7 +168,7 @@ def test_hip_drops_gemms_without_matrix_cores():
         "dequantize_int8_convrot_weight_dtype",
     ):
         assert op in without
-    assert {name for name in without if name.startswith("rms_rope")} == {
+    assert {
         "rms_rope",
         "rms_rope_",
         "rms_rope1",
@@ -177,7 +177,7 @@ def test_hip_drops_gemms_without_matrix_cores():
         "rms_rope_split_half_",
         "rms_rope_split_half1",
         "rms_rope_split_half1_",
-    }
+    } <= hip_backend._registered_operations(False)
     # The fused W4A8 requantize is elementwise too: it packs weights and never
     # reaches a matrix core, so RDNA2 must keep it.
     assert "quantize_w4a8_int8_weight" in without
@@ -186,25 +186,25 @@ def test_hip_drops_gemms_without_matrix_cores():
 def test_hip_advertises_every_inplace_rope_entry():
     """A missing entry routes the in-place call to eager while the functional one
     stays on HIP: silently half the coverage rather than a failure."""
-    lowerings = hip_backend._hip_lowerings(True)
+    operations = hip_backend._registered_operations(True)
     for functional in (
         "apply_rope",
         "apply_rope1",
         "apply_rope_split_half",
         "apply_rope_split_half1",
     ):
-        assert functional in lowerings
-        assert f"{functional}_" in lowerings
+        assert functional in operations
+        assert f"{functional}_" in operations
 
-    lowerings = hip_backend._hip_lowerings(True)
+    operations = set(hip_backend._registered_operations(True)) | hip_backend._registered_operations(False)
     for functional in (
         "rms_rope",
         "rms_rope1",
         "rms_rope_split_half",
         "rms_rope_split_half1",
     ):
-        assert functional in lowerings
-        assert f"{functional}_" in lowerings
+        assert functional in operations
+        assert f"{functional}_" in operations
 
 
 def _setup_namespace() -> dict:

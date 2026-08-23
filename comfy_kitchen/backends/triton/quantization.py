@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import cache
+
 import torch
 
 import triton
@@ -23,8 +25,26 @@ from comfy_kitchen.float_utils import (
     F8_E5M2_MAX,
     ceil_div,
 )
+from comfy_kitchen.registry import UnsupportedCall
 from comfy_kitchen.tensor.int8_utils import _build_hadamard, _rotate_activation
 from triton.language.extra import libdevice
+
+
+@cache
+def _cuda_capability(device):
+    return torch.cuda.get_device_capability(device)
+
+
+def _require_cuda_capability(tensor, minimum, operation):
+    if tensor.device.type == "cuda" and _cuda_capability(tensor.device) < minimum:
+        required = f"{minimum[0]}.{minimum[1]}"
+        raise UnsupportedCall(f"{operation} requires compute capability {required}")
+
+
+def _require_sm100(tensor):
+    if tensor.device.type != "cuda":
+        raise UnsupportedCall("operation requires CUDA")
+    _require_cuda_capability(tensor, (10, 0), "operation")
 
 
 @triton.jit
@@ -337,6 +357,7 @@ def quantize_nvfp4(
     pad_16x: bool = False,
     hi_first: bool = True,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    _require_sm100(x)
     # Note: epsilon is accepted for API compatibility but not currently used
     orig_shape = x.shape
 
@@ -544,6 +565,7 @@ def dequantize_nvfp4(
     output_type: torch.dtype = torch.bfloat16,
     hi_first: bool = True,
 ) -> torch.Tensor:
+    _require_sm100(qx)
     # Triton backend: fused kernel with inline SM100 cvt.rn.f16x2.e2m1x2 instruction
     block_size = 16
     tile_size = 128
@@ -698,6 +720,7 @@ def quantize_mxfp8(
     Returns:
         Tuple of (quantized_fp8_tensor, block_scales_e8m0)
     """
+    _require_sm100(x)
     block_size = 32
 
     # Handle padding
@@ -1042,6 +1065,7 @@ def int8_linear(
     Returns:
         Result tensor [..., N].
     """
+    _require_cuda_capability(x, (8, 0), "int8_linear")
     x = _apply_input_act(x, input_act)
     orig_shape = x.shape
     x_2d = x.reshape(-1, x.shape[-1])

@@ -47,7 +47,7 @@
 import torch
 import torch.nn.functional as F  # noqa: N812
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 
 _INT4_GROUP_SIZE = 64
 _TILE_PACKED_BLOCK_N = 128
@@ -336,7 +336,7 @@ def _op_quantize_svdquant_w4a4(
         "act_unsigned": act_unsigned,
         "lora_x": lora_x,
     }
-    return dispatch_v2.dispatch("quantize_svdquant_w4a4", **kwargs)
+    return dispatch.dispatch("quantize_svdquant_w4a4", **kwargs)
 
 
 @_op_quantize_svdquant_w4a4.register_fake
@@ -378,7 +378,7 @@ def _op_scaled_mm_svdquant_w4a4(
         "bias": bias,
         "act_unsigned": act_unsigned,
     }
-    return dispatch_v2.dispatch("scaled_mm_svdquant_w4a4", **kwargs)
+    return dispatch.dispatch("scaled_mm_svdquant_w4a4", **kwargs)
 
 
 @_op_scaled_mm_svdquant_w4a4.register_fake

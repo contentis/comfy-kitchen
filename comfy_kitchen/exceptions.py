@@ -14,7 +14,7 @@ class BackendNotFoundError(BackendError):
 
 
 class NoCapableBackendError(BackendError):
-    """Raised when no backend can handle the request due to constraint violations."""
+    """Raised when no backend can handle the request after every implementation rejects a call."""
 
     def __init__(
         self,

@@ -19,7 +19,7 @@
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 
 _DEFAULT_GROUP = 64
 
@@ -102,7 +102,7 @@ def _op_gemv_awq_w4a16(
         "bias": bias,
         "group_size": group_size,
     }
-    return dispatch_v2.dispatch("gemv_awq_w4a16", **kwargs)
+    return dispatch.dispatch("gemv_awq_w4a16", **kwargs)
 
 
 @_op_gemv_awq_w4a16.register_fake

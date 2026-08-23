@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 
 from .base import (
     BaseLayoutParams,
@@ -61,7 +61,7 @@ def quantize_w4a8_int8_weight(
         "codebook_tensor": codebook_tensor,
         "stochastic_rounding": stochastic_rounding,
     }
-    return dispatch_v2.dispatch("quantize_w4a8_int8_weight", **kwargs)
+    return dispatch.dispatch("quantize_w4a8_int8_weight", **kwargs)
 
 
 def dequantize_w4a8_int8_weight(
@@ -85,7 +85,7 @@ def dequantize_w4a8_int8_weight(
         "convrot_groupsize": convrot_groupsize,
         "output_dtype": output_dtype,
     }
-    return dispatch_v2.dispatch("dequantize_w4a8_int8_weight", **kwargs)
+    return dispatch.dispatch("dequantize_w4a8_int8_weight", **kwargs)
 
 
 def w4a8_int8_linear(
@@ -113,7 +113,7 @@ def w4a8_int8_linear(
         "convrot_groupsize": convrot_groupsize,
         "out_dtype": out_dtype,
     }
-    return dispatch_v2.dispatch("w4a8_int8_linear", **kwargs)
+    return dispatch.dispatch("w4a8_int8_linear", **kwargs)
 
 
 class AsymW4A8Int8Layout(QuantizedLayout):

@@ -8,7 +8,7 @@
 
 import torch
 
-from comfy_kitchen import dispatch_v2
+from comfy_kitchen import dispatch
 from comfy_kitchen.backends._activations import apply_input_act as _apply_input_act
 from comfy_kitchen.float_utils import (
     E8M0_BIAS,
@@ -431,7 +431,7 @@ def _op_quantize_fp8(
     """
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     kwargs = {"x": x, "scale": scale, "output_type": output_dtype}
-    return dispatch_v2.dispatch("quantize_per_tensor_fp8", **kwargs)
+    return dispatch.dispatch("quantize_per_tensor_fp8", **kwargs)
 
 
 @_op_quantize_fp8.register_fake
@@ -458,7 +458,7 @@ def _op_dequantize_fp8(
     """
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     kwargs = {"x": x, "scale": scale, "output_type": output_dtype}
-    return dispatch_v2.dispatch("dequantize_per_tensor_fp8", **kwargs)
+    return dispatch.dispatch("dequantize_per_tensor_fp8", **kwargs)
 
 
 @_op_dequantize_fp8.register_fake
@@ -495,7 +495,7 @@ def _op_quantize_nvfp4(
         "pad_16x": pad_16x,
         "hi_first": hi_first,
     }
-    return dispatch_v2.dispatch("quantize_nvfp4", **kwargs)
+    return dispatch.dispatch("quantize_nvfp4", **kwargs)
 
 
 @_op_quantize_nvfp4.register_fake
@@ -546,7 +546,7 @@ def _op_dequantize_nvfp4(
         "output_type": output_dtype,
         "hi_first": hi_first,
     }
-    return dispatch_v2.dispatch("dequantize_nvfp4", **kwargs)
+    return dispatch.dispatch("dequantize_nvfp4", **kwargs)
 
 
 @_op_dequantize_nvfp4.register_fake
@@ -599,7 +599,7 @@ def _op_scaled_mm_nvfp4(
         "out_dtype": out_dtype,
         "alpha": alpha,
     }
-    return dispatch_v2.dispatch("scaled_mm_nvfp4", **kwargs)
+    return dispatch.dispatch("scaled_mm_nvfp4", **kwargs)
 
 
 @_op_scaled_mm_nvfp4.register_fake
@@ -642,7 +642,7 @@ def _op_quantize_mxfp8(
         Tuple of (quantized_fp8_tensor, block_scales_e8m0)
     """
     kwargs = {"x": x, "pad_32x": pad_32x}
-    return dispatch_v2.dispatch("quantize_mxfp8", **kwargs)
+    return dispatch.dispatch("quantize_mxfp8", **kwargs)
 
 
 @_op_quantize_mxfp8.register_fake
@@ -686,7 +686,7 @@ def _op_dequantize_mxfp8(
     """
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     kwargs = {"qx": qx, "block_scales": block_scales, "output_type": output_dtype}
-    return dispatch_v2.dispatch("dequantize_mxfp8", **kwargs)
+    return dispatch.dispatch("dequantize_mxfp8", **kwargs)
 
 
 @_op_dequantize_mxfp8.register_fake
@@ -728,7 +728,7 @@ def _op_scaled_mm_mxfp8(
         "bias": bias,
         "out_dtype": out_dtype,
     }
-    return dispatch_v2.dispatch("scaled_mm_mxfp8", **kwargs)
+    return dispatch.dispatch("scaled_mm_mxfp8", **kwargs)
 
 
 @_op_scaled_mm_mxfp8.register_fake
@@ -1097,7 +1097,7 @@ def _op_quantize_int8_tensorwise(
     x: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     kwargs = {"x": x}
-    return dispatch_v2.dispatch("quantize_int8_tensorwise", **kwargs)
+    return dispatch.dispatch("quantize_int8_tensorwise", **kwargs)
 
 
 @_op_quantize_int8_tensorwise.register_fake
@@ -1112,7 +1112,7 @@ def _op_quantize_int8_rowwise(
     x: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     kwargs = {"x": x}
-    return dispatch_v2.dispatch("quantize_int8_rowwise", **kwargs)
+    return dispatch.dispatch("quantize_int8_rowwise", **kwargs)
 
 
 @_op_quantize_int8_rowwise.register_fake
@@ -1128,7 +1128,7 @@ def _op_quantize_int8_convrot_weight(
     group_size: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     kwargs = {"weight": weight, "group_size": group_size}
-    return dispatch_v2.dispatch("quantize_int8_convrot_weight", **kwargs)
+    return dispatch.dispatch("quantize_int8_convrot_weight", **kwargs)
 
 
 @_op_quantize_int8_convrot_weight.register_fake
@@ -1145,7 +1145,7 @@ def _op_dequantize_int8_convrot_weight(
     group_size: int,
 ) -> torch.Tensor:
     kwargs = {"q": q, "scale": scale, "group_size": group_size}
-    return dispatch_v2.dispatch("dequantize_int8_convrot_weight", **kwargs)
+    return dispatch.dispatch("dequantize_int8_convrot_weight", **kwargs)
 
 
 @_op_dequantize_int8_convrot_weight.register_fake
@@ -1166,7 +1166,7 @@ def _op_dequantize_int8_convrot_weight_dtype(
         "group_size": group_size,
         "output_dtype_code": output_dtype_code,
     }
-    return dispatch_v2.dispatch("dequantize_int8_convrot_weight_dtype", **kwargs)
+    return dispatch.dispatch("dequantize_int8_convrot_weight_dtype", **kwargs)
 
 
 @_op_dequantize_int8_convrot_weight_dtype.register_fake
@@ -1189,7 +1189,7 @@ def _op_dequantize_int8_embedding(
         "group_size": group_size,
         "output_dtype_code": output_dtype_code,
     }
-    return dispatch_v2.dispatch("dequantize_int8_embedding", **kwargs)
+    return dispatch.dispatch("dequantize_int8_embedding", **kwargs)
 
 
 @_op_dequantize_int8_embedding.register_fake
@@ -1207,7 +1207,7 @@ def _op_dequantize_int8_simple(
     scale: torch.Tensor,
 ) -> torch.Tensor:
     kwargs = {"q": q, "scale": scale}
-    return dispatch_v2.dispatch("dequantize_int8_simple", **kwargs)
+    return dispatch.dispatch("dequantize_int8_simple", **kwargs)
 
 
 @_op_dequantize_int8_simple.register_fake
@@ -1222,7 +1222,7 @@ def _op_dequantize_int8_simple_dtype(
     output_dtype_code: int,
 ) -> torch.Tensor:
     kwargs = {"q": q, "scale": scale, "output_dtype_code": output_dtype_code}
-    return dispatch_v2.dispatch("dequantize_int8_simple_dtype", **kwargs)
+    return dispatch.dispatch("dequantize_int8_simple_dtype", **kwargs)
 
 
 @_op_dequantize_int8_simple_dtype.register_fake
@@ -1252,7 +1252,7 @@ def _op_int8_linear(
         "convrot_groupsize": convrot_groupsize,
         "input_act": input_act,
     }
-    return dispatch_v2.dispatch("int8_linear", **kwargs)
+    return dispatch.dispatch("int8_linear", **kwargs)
 
 
 @_op_int8_linear.register_fake
