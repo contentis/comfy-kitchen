@@ -32,13 +32,6 @@ __all__ = [
 # Try to import triton and register if available
 import torch
 
-from comfy_kitchen.constraints import (
-    ExactDims,
-    FunctionConstraints,
-    ParamConstraint,
-    ValidationResult,
-    na3d_common_call_rule,
-)
 from comfy_kitchen.registry import registry
 
 _TRITON_AVAILABLE = True
@@ -96,6 +89,7 @@ except ImportError as e:
 
 
 if _TRITON_AVAILABLE:
+
     def quantize_int8_rowwise(
         x: torch.Tensor,
         stochastic_rounding: int | None = 0,
@@ -117,229 +111,6 @@ if _TRITON_AVAILABLE:
         return _triton_quantize_and_rotate_rowwise(x, h, group_size)
 
 
-def _build_constraints() -> dict:
-    def _na3d_call_rule(kwargs):
-        common = na3d_common_call_rule(kwargs)
-        if not common.success:
-            return common
-        q = kwargs.get("q")
-        if q is not None and q.shape[-1] > 128:
-            return ValidationResult.fail("q", "head_dim > 128 not supported by triton na3d")
-        return ValidationResult.ok()
-
-    cuda_devices = frozenset({"cuda"})
-    triton_devices = frozenset({"cuda", "xpu"})
-    standard_floats = frozenset({torch.float32, torch.float16, torch.bfloat16})
-
-    out = {
-        "adaln": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "scale": ParamConstraint(dtypes=standard_floats),
-                "shift": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "rms_adaln": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "scale": ParamConstraint(dtypes=standard_floats),
-                "shift": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "quantize_per_tensor_fp8": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "scale": ParamConstraint(dtypes=frozenset({torch.float32})),
-                "output_type": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn, torch.float8_e5m2}),
-                ),
-            },
-            default_devices=triton_devices,
-        ),
-        "dequantize_per_tensor_fp8": FunctionConstraints(
-            params={
-                "x": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn, torch.float8_e5m2}),
-                ),
-                "scale": ParamConstraint(dtypes=frozenset({torch.float32})),
-                "output_type": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "quantize_nvfp4": FunctionConstraints(
-            params={
-                "x": ParamConstraint(
-                    dtypes=standard_floats,
-                    shape_rules=(ExactDims(2),),
-                ),
-                "per_tensor_scale": ParamConstraint(dtypes=frozenset({torch.float32})),
-            },
-            default_devices=cuda_devices,
-        ),
-        "quantize_mxfp8": FunctionConstraints(
-            params={
-                "x": ParamConstraint(
-                    dtypes=standard_floats,
-                    shape_rules=(ExactDims(2),),
-                ),
-            },
-            default_devices=cuda_devices,
-        ),
-        # Uses inline PTX: cvt.rn.f16x2.e2m1x2 (SM100/Blackwell instruction)
-        "dequantize_nvfp4": FunctionConstraints(
-            params={
-                "qx": ParamConstraint(
-                    dtypes=frozenset({torch.uint8}),
-                    shape_rules=(ExactDims(2),),
-                ),
-                "per_tensor_scale": ParamConstraint(dtypes=frozenset({torch.float32})),
-                "block_scales": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn}),
-                ),
-                "output_type": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=cuda_devices,
-            min_compute_capability=(10, 0),  # SM100 required for cvt.rn.f16x2.e2m1x2
-        ),
-        "apply_rope1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "apply_rope": FunctionConstraints(
-            params={
-                "xq": ParamConstraint(dtypes=standard_floats),
-                "xk": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "rms_rope1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-                "scale": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "rms_rope": FunctionConstraints(
-            params={
-                "q": ParamConstraint(dtypes=standard_floats),
-                "k": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-                "q_scale": ParamConstraint(dtypes=standard_floats),
-                "k_scale": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "int8_linear": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "weight": ParamConstraint(dtypes=frozenset({torch.int8})),
-                "weight_scale": ParamConstraint(dtypes=standard_floats),
-                "out_dtype": ParamConstraint(dtypes=standard_floats),
-                "convrot": ParamConstraint(dtypes=frozenset({bool})),
-                "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
-                "input_act": ParamConstraint(dtypes=frozenset({str, type(None)})),
-            },
-            default_devices=triton_devices,
-            min_compute_capability=(8, 0),  # Required for Triton INT8 dot
-        ),
-        "w4a8_int8_linear": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "qdata": ParamConstraint(dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)),
-                "s_rel": ParamConstraint(dtypes=frozenset({torch.float8_e4m3fn, torch.float32}), shape_rules=(ExactDims(2),)),
-                "s_channel": ParamConstraint(dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)),
-                "codebook": ParamConstraint(dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)),
-                "correction": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(2),)),
-                "bias": ParamConstraint(dtypes=standard_floats),
-                "group_size": ParamConstraint(dtypes=frozenset({int})),
-                "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
-                "out_dtype": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-            min_compute_capability=(8, 0),  # Required for Triton INT8 dot
-        ),
-        "quantize_int8_rowwise": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "stochastic_rounding": ParamConstraint(dtypes=frozenset({int})),
-            },
-            default_devices=triton_devices,
-        ),
-        "quantize_and_rotate_rowwise": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "H": ParamConstraint(dtypes=standard_floats),
-                "group_size": ParamConstraint(dtypes=frozenset({int})),
-                "stochastic_rounding": ParamConstraint(dtypes=frozenset({int})),
-            },
-            default_devices=triton_devices,
-        ),
-        "apply_rope_split_half1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "apply_rope_split_half": FunctionConstraints(
-            params={
-                "xq": ParamConstraint(dtypes=standard_floats),
-                "xk": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "rms_rope_split_half1": FunctionConstraints(
-            params={
-                "x": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-                "scale": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-        "rms_rope_split_half": FunctionConstraints(
-            params={
-                "q": ParamConstraint(dtypes=standard_floats),
-                "k": ParamConstraint(dtypes=standard_floats),
-                "freqs_cis": ParamConstraint(dtypes=standard_floats),
-                "q_scale": ParamConstraint(dtypes=standard_floats),
-                "k_scale": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=triton_devices,
-        ),
-    }
-    for inplace_name, functional_name in {
-        "apply_rope_": "apply_rope",
-        "apply_rope1_": "apply_rope1",
-        "apply_rope_split_half_": "apply_rope_split_half",
-        "apply_rope_split_half1_": "apply_rope_split_half1",
-        "rms_rope_": "rms_rope",
-        "rms_rope1_": "rms_rope1",
-        "rms_rope_split_half_": "rms_rope_split_half",
-        "rms_rope_split_half1_": "rms_rope_split_half1",
-    }.items():
-        out[inplace_name] = out[functional_name]
-    out["na3d"] = FunctionConstraints(
-        params={
-            "q": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(6),)),
-            "k": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(6),)),
-            "v": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(6),)),
-        },
-        default_devices=cuda_devices,
-        # tl.dot needs Ampere matrix capability for the non-IEEE float paths
-        min_compute_capability=(8, 0),
-        call_rules=(_na3d_call_rule,),
-    )
-    return out
-
-
 def _register():
     if not _TRITON_AVAILABLE:
         registry.mark_unavailable("triton", _TRITON_ERROR or "Triton not available")
@@ -355,7 +126,7 @@ def _register():
     registry.register(
         name="triton",
         module=__import__(__name__, fromlist=__all__),
-        capabilities=_build_constraints(),
+        device_types=frozenset({"cuda", "xpu"}),
     )
 
 

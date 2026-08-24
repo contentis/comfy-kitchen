@@ -62,7 +62,7 @@ def small_tensor(cuda_available):
 
 
 # =============================================================================
-# Constraint-Aware Test Utilities
+# Dispatch Test Utilities
 # =============================================================================
 
 
@@ -86,11 +86,8 @@ def get_capable_backends(func_name: str, device: str | None = None) -> list[str]
         if func_name not in backends[backend_name].get("capabilities", []):
             continue
 
-        # Check device constraint if specified
-        if device is not None:
-            constraints = ck.registry.get_constraints(backend_name, func_name)
-            if constraints is not None and device not in constraints.default_devices:
-                continue
+        if device == "cpu" and backend_name != "eager":
+            continue
 
         capable.append(backend_name)
 
@@ -108,18 +105,16 @@ def get_supported_devices(func_name: str) -> set[str]:
         if func_name not in backends[backend_name].get("capabilities", []):
             continue
 
-        constraints = ck.registry.get_constraints(backend_name, func_name)
-        if constraints is not None:
-            devices.update(constraints.default_devices)
+        devices.add("cpu" if backend_name == "eager" else "cuda")
 
     return devices
 
 
-class ConstraintAwareTestInputs:
-    """Generate valid test inputs based on constraints.
+class TestInputs:
+    """Generate test inputs from the public schema.
 
     Usage:
-        inputs = ConstraintAwareTestInputs("quantize_per_tensor_fp8", "eager")
+        inputs = TestInputs("quantize_per_tensor_fp8", "eager")
         x = inputs.tensor("x", shape=(100, 100))
         scale = inputs.scalar("scale")
     """
@@ -127,36 +122,11 @@ class ConstraintAwareTestInputs:
     def __init__(self, func_name: str, backend_name: str, device: str | None = None):
         self.func_name = func_name
         self.backend_name = backend_name
-        self.constraints = ck.registry.get_constraints(backend_name, func_name)
-
-        # Determine device
-        if device is not None:
-            self.device = device
-        elif self.constraints is not None:
-            # Pick first available device from constraints
-            if "cuda" in self.constraints.default_devices and torch.cuda.is_available():
-                self.device = "cuda"
-            elif "cpu" in self.constraints.default_devices:
-                self.device = "cpu"
-            else:
-                self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
     def get_valid_dtype(self, param_name: str, prefer: torch.dtype = None) -> torch.dtype:
         """Get a valid dtype for a parameter."""
-        if self.constraints is None:
-            return prefer or torch.float32
-
-        param_constraint = self.constraints.params.get(param_name)
-        if param_constraint is None or param_constraint.dtypes is None:
-            return prefer or torch.float32
-
-        if prefer is not None and prefer in param_constraint.dtypes:
-            return prefer
-
-        # Return first valid dtype
-        return next(iter(param_constraint.dtypes))
+        return prefer or torch.float32
 
     def tensor(
         self,
@@ -170,7 +140,7 @@ class ConstraintAwareTestInputs:
         Args:
             param_name: Parameter name
             shape: Tensor shape
-            dtype: Preferred dtype (will use constraint-valid dtype if not specified)
+            dtype: Preferred dtype (will use requested dtype if not specified)
             fill: How to fill tensor ("randn", "rand", "ones", "zeros")
 
         Returns:
@@ -217,8 +187,10 @@ def assert_values_close(values, ref_values, rtol, atol, name="values", max_misma
 
         # If max_mismatch_ratio is set and we're below it, pass with a warning
         if max_mismatch_ratio > 0 and mismatch_ratio <= max_mismatch_ratio:
-            print(f"Warning: {num_failures} / {total_elements} ({mismatch_ratio*100:.4f}%) {name} "
-                  f"differ (rtol={rtol}, atol={atol}), but within allowed ratio ({max_mismatch_ratio*100}%)")
+            print(
+                f"Warning: {num_failures} / {total_elements} ({mismatch_ratio * 100:.4f}%) {name} "
+                f"differ (rtol={rtol}, atol={atol}), but within allowed ratio ({max_mismatch_ratio * 100}%)"
+            )
             return
 
         print(f"Failed: \n{num_failures} {name} are not close.")
@@ -232,6 +204,4 @@ def assert_values_close(values, ref_values, rtol, atol, name="values", max_misma
                 f"  [{i}] Index {idx_tuple}: got {val:.6f}, expected {ref_val:.6f}, diff={diff:.6f}"
             )
 
-        raise ValueError(
-            f"{num_failures} {name} are not close (rtol={rtol}, atol={atol})"
-        )
+        raise ValueError(f"{num_failures} {name} are not close (rtol={rtol}, atol={atol})")

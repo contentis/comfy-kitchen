@@ -7,6 +7,7 @@ int4 tensor-core GEMM: offline regular-Hadamard weight rotation, online
 regular-Hadamard activation rotation, symmetric int4 quantization, and int4
 MMA with per-group scales.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -14,8 +15,8 @@ from dataclasses import dataclass
 
 import torch
 
+from comfy_kitchen import dispatch
 from comfy_kitchen.backends.eager.svdquant import _INT4_GROUP_SIZE
-from comfy_kitchen.registry import registry
 
 from .base import (
     BaseLayoutParams,
@@ -33,16 +34,8 @@ def quantize_convrot_w4a4_weight(
     stochastic_rounding: int | None = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Rotate a weight matrix with ConvRot and pack it as signed W4."""
-    impl = registry.get_implementation(
+    return dispatch.dispatch(
         "quantize_convrot_w4a4_weight",
-        kwargs={
-            "weight": weight,
-            "convrot_groupsize": convrot_groupsize,
-            "quant_group_size": quant_group_size,
-            "stochastic_rounding": stochastic_rounding,
-        },
-    )
-    return impl(
         weight,
         convrot_groupsize=convrot_groupsize,
         quant_group_size=quant_group_size,
@@ -58,17 +51,8 @@ def dequantize_convrot_w4a4_weight(
     output_dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     """Dequantize packed ConvRot W4A4 weights and rotate back to original basis."""
-    impl = registry.get_implementation(
+    return dispatch.dispatch(
         "dequantize_convrot_w4a4_weight",
-        kwargs={
-            "qdata": qdata,
-            "scales": scales,
-            "convrot_groupsize": convrot_groupsize,
-            "quant_group_size": quant_group_size,
-            "output_dtype": output_dtype,
-        },
-    )
-    return impl(
         qdata,
         scales,
         convrot_groupsize=convrot_groupsize,
@@ -88,20 +72,11 @@ def convrot_w4a4_linear(
 ) -> torch.Tensor:
     """Compute ``x @ W.T + bias`` using ConvRot W4A4 int4 MMA."""
     if linear_dtype not in {"int4", "int8"}:
-        raise ValueError(f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}")
-    impl = registry.get_implementation(
+        raise ValueError(
+            f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}"
+        )
+    return dispatch.dispatch(
         "convrot_w4a4_linear",
-        kwargs={
-            "x": x,
-            "qweight": qweight,
-            "wscales": wscales,
-            "bias": bias,
-            "convrot_groupsize": convrot_groupsize,
-            "quant_group_size": quant_group_size,
-            "linear_dtype": linear_dtype,
-        },
-    )
-    return impl(
         x,
         qweight,
         wscales,
@@ -128,7 +103,9 @@ class TensorCoreConvRotW4A4Layout(QuantizedLayout):
         def __post_init__(self):
             super().__post_init__()
             if self.linear_dtype not in {"int4", "int8"}:
-                raise ValueError(f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {self.linear_dtype!r}")
+                raise ValueError(
+                    f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {self.linear_dtype!r}"
+                )
 
         def _tensor_fields(self) -> list[str]:
             return ["scale"]
@@ -147,7 +124,9 @@ class TensorCoreConvRotW4A4Layout(QuantizedLayout):
         **kwargs,
     ) -> tuple[torch.Tensor, Params]:
         if linear_dtype not in {"int4", "int8"}:
-            raise ValueError(f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}")
+            raise ValueError(
+                f"ConvRot W4A4 linear_dtype must be 'int4' or 'int8', got {linear_dtype!r}"
+            )
         qdata, scales = quantize_convrot_w4a4_weight(
             tensor,
             convrot_groupsize,
@@ -212,7 +191,9 @@ def _resolve_convrot_w4a4_rhs(rhs: QuantizedTensor) -> QuantizedTensor:
     return rhs
 
 
-def _convrot_w4a4_forward(input_tensor: torch.Tensor, weight: QuantizedTensor, bias: torch.Tensor | None):
+def _convrot_w4a4_forward(
+    input_tensor: torch.Tensor, weight: QuantizedTensor, bias: torch.Tensor | None
+):
     qweight, wscales = TensorCoreConvRotW4A4Layout.get_plain_tensors(weight)
     params = weight._params
     return convrot_w4a4_linear(

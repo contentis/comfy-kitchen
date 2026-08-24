@@ -4,6 +4,7 @@ import triton
 import triton.language as tl
 from comfy_kitchen._rope_utils import check_rope_inplace, detect_rms_rope_bnhd
 from comfy_kitchen.backends.eager import rope as _eager_rope
+from comfy_kitchen.registry import UnsupportedCall
 
 
 @triton.jit
@@ -91,6 +92,15 @@ def rms_rope_kernel(
     tl.store(out_base + dim_idx_0 * stride_out_dim, out_0, mask=mask)
     tl.store(out_base + dim_idx_1 * stride_out_dim, out_1, mask=mask)
 
+def _require_rms_tensors(*tensors):
+    tensors = tuple(tensor for tensor in tensors if tensor is not None)
+    device = tensors[0].device
+    if device.type not in ("cuda", "xpu") or any(tensor.device != device for tensor in tensors[1:]):
+        raise UnsupportedCall("operands must share one Triton device")
+    if any(tensor.dtype not in (torch.float32, torch.float16, torch.bfloat16) for tensor in tensors):
+        raise UnsupportedCall("tensor dtype is unsupported")
+
+
 def _rms_rope(
     x: torch.Tensor,
     freqs_cis: torch.Tensor,
@@ -99,6 +109,7 @@ def _rms_rope(
     split_half: bool,
     inplace: bool = False,
 ) -> torch.Tensor:
+    _require_rms_tensors(x, freqs_cis, scale)
     if not scale.is_contiguous():
         scale = scale.contiguous()
 
@@ -187,6 +198,7 @@ def rms_rope(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if k_scale is None:
         k_scale = q_scale
+    _require_rms_tensors(q, k, freqs_cis, q_scale, k_scale)
     return (
         _rms_rope(q, freqs_cis, q_scale, epsilon, split_half=False),
         _rms_rope(k, freqs_cis, k_scale, epsilon, split_half=False),
@@ -203,6 +215,7 @@ def rms_rope_(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if k_scale is None:
         k_scale = q_scale
+    _require_rms_tensors(q, k, freqs_cis, q_scale, k_scale)
     check_rope_inplace(q, k, readonly=(freqs_cis, q_scale, k_scale))
     return (
         _rms_rope(q, freqs_cis, q_scale, epsilon, split_half=False, inplace=True),
@@ -240,6 +253,7 @@ def rms_rope_split_half(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if k_scale is None:
         k_scale = q_scale
+    _require_rms_tensors(q, k, freqs_cis, q_scale, k_scale)
     if rot_dim and rot_dim != q.shape[-1]:
         # partial rotary is not fused in the triton kernel
         return _eager_rope.rms_rope_split_half(
@@ -261,6 +275,7 @@ def rms_rope_split_half_(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if k_scale is None:
         k_scale = q_scale
+    _require_rms_tensors(q, k, freqs_cis, q_scale, k_scale)
     if rot_dim and rot_dim != q.shape[-1]:
         # partial rotary is not fused in the triton kernel
         return _eager_rope.rms_rope_split_half_(

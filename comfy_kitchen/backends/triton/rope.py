@@ -18,6 +18,7 @@ import torch
 import triton
 import triton.language as tl
 from comfy_kitchen._rope_utils import check_rope_inplace
+from comfy_kitchen.registry import UnsupportedCall
 
 
 @triton.jit
@@ -156,6 +157,19 @@ def _apply_freq_tile(x_ptr, x_out_ptr, mask, freqs_00, freqs_01, freqs_10, freqs
     tl.store(x_out_ptr + out_offset_1, xq_out_1, mask=mask)
 
 
+def _require_rope_tensors(*inputs, freqs_cis):
+    tensors = tuple(tensor for tensor in inputs if tensor is not None)
+    if tensors[0].device.type not in ("cuda", "xpu") or any(
+        tensor.device != tensors[0].device for tensor in (*tensors[1:], freqs_cis)
+    ):
+        raise UnsupportedCall("RoPE operands must share one Triton device")
+    floats = (torch.float32, torch.float16, torch.bfloat16)
+    if any(tensor.ndim != 4 or tensor.dtype not in floats for tensor in tensors):
+        raise UnsupportedCall("Triton RoPE requires rank-4 floating-point inputs")
+    if freqs_cis.ndim != 6 or freqs_cis.dtype not in floats:
+        raise UnsupportedCall("Triton RoPE requires rank-6 floating-point frequencies")
+
+
 def _apply_rope(
     x1: torch.Tensor,
     freqs_cis: torch.Tensor,
@@ -163,6 +177,7 @@ def _apply_rope(
     split_half: bool = False,
     inplace: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    _require_rope_tensors(x1, x2, freqs_cis=freqs_cis)
     # A paired launch shares one stride description. Use separate launches when
     # Q and K differ so each tensor retains its exact layout.
     if x2 is not None and (x1.shape != x2.shape or x1.stride() != x2.stride()):

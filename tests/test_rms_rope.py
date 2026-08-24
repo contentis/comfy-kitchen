@@ -272,9 +272,7 @@ def test_rms_rope_cuda_multiple_of_32(op_name, head_dim, monkeypatch):
 
 @pytest.mark.parametrize("op_name", ["rms_rope1", "rms_rope1_"])
 @pytest.mark.parametrize("backend", ["cuda", "triton", "eager"])
-def test_rms_rope_nondefault_epsilon_and_broadcast(
-    op_name, backend, device, monkeypatch
-):
+def test_rms_rope_nondefault_epsilon_and_broadcast(op_name, backend, device, monkeypatch):
     if backend not in get_capable_backends(op_name, device):
         pytest.skip(f"{backend} does not support {op_name} on {device}")
 
@@ -294,9 +292,7 @@ def test_rms_rope_nondefault_epsilon_and_broadcast(
 @pytest.mark.parametrize("backend", ["cuda", "triton", "eager"])
 @pytest.mark.parametrize("split_half", [False, True])
 @pytest.mark.parametrize("last_dim_strided", [False, True])
-def test_rms_rope_strided_views(
-    backend, split_half, last_dim_strided, device, monkeypatch
-):
+def test_rms_rope_strided_views(backend, split_half, last_dim_strided, device, monkeypatch):
     op_name = "rms_rope_split_half1" if split_half else "rms_rope1"
     if backend not in get_capable_backends(op_name, device):
         pytest.skip(f"{backend} does not support {op_name} on {device}")
@@ -304,15 +300,11 @@ def test_rms_rope_strided_views(
     width = head_dim * (2 if last_dim_strided else 1)
     storage = torch.randn(2, 6, 5, width, device=device, dtype=torch.float16)
     x = storage[:, ::2, :, ::2] if last_dim_strided else storage[:, ::2]
-    freq_storage = torch.randn(
-        2, 1, 5, head_dim, 4, 4, device=device, dtype=torch.float32
-    )
+    freq_storage = torch.randn(2, 1, 5, head_dim, 4, 4, device=device, dtype=torch.float32)
     freqs = freq_storage[:, :, :, ::2, ::2, ::2]
     scale_storage = torch.randn(head_dim * 2, device=device, dtype=torch.float32)
     scale = scale_storage[::2]
-    reference = _reference_rms_rope(
-        x, freqs, scale, 1e-6, split_half=split_half
-    )
+    reference = _reference_rms_rope(x, freqs, scale, 1e-6, split_half=split_half)
     actual = _run_backend(op_name, backend, (x, freqs, scale), monkeypatch)
     torch.testing.assert_close(actual, reference, rtol=2e-3, atol=2e-3)
 
@@ -321,9 +313,7 @@ def test_rms_rope_triton_expanded_input(device):
     if "triton" not in get_capable_backends("rms_rope1", device):
         pytest.skip(f"triton does not support rms_rope1 on {device}")
 
-    x = torch.randn(1, 1, 1, 64, device=device, dtype=torch.float16).expand(
-        2, 3, 5, 64
-    )
+    x = torch.randn(1, 1, 1, 64, device=device, dtype=torch.float16).expand(2, 3, 5, 64)
     freqs = torch.randn(2, 1, 5, 32, 2, 2, device=device, dtype=torch.float32)
     scale = torch.randn(64, device=device, dtype=torch.float32)
     reference = _reference_rms_rope(x, freqs, scale, 1e-6)
@@ -345,9 +335,7 @@ def test_rms_rope_triton_expanded_input(device):
 )
 @pytest.mark.parametrize("backend", ["cuda", "triton"])
 @pytest.mark.parametrize("layout", ["BHND", "BNHD"])
-def test_rms_rope_gqa_different_qk_shapes(
-    op_name, backend, layout, device, monkeypatch
-):
+def test_rms_rope_gqa_different_qk_shapes(op_name, backend, layout, device, monkeypatch):
     if backend not in get_capable_backends(op_name, device):
         pytest.skip(f"{backend} does not support {op_name} on {device}")
 
@@ -372,9 +360,7 @@ def test_rms_rope_gqa_different_qk_shapes(
     )
 
     pointers = (q.data_ptr(), k.data_ptr())
-    actual = _run_backend(
-        op_name, backend, (q, k, freqs, q_scale, k_scale), monkeypatch
-    )
+    actual = _run_backend(op_name, backend, (q, k, freqs, q_scale, k_scale), monkeypatch)
 
     assert actual[0].shape == q_shape
     assert actual[1].shape == k_shape
@@ -453,17 +439,26 @@ class TestPartialRotary:
         if backend == "cuda":
             # the fused kernel must serve partial rotary itself, not fall back
             q_out, k_out = _run_backend(
-                "rms_rope_split_half", backend,
-                (q, k, freqs, q_scale, k_scale, 1e-6, self._ROT), monkeypatch)
+                "rms_rope_split_half",
+                backend,
+                (q, k, freqs, q_scale, k_scale, 1e-6, self._ROT),
+                monkeypatch,
+            )
         else:
             with ck.use_backend(backend):
                 q_out, k_out = ck.rms_rope_split_half(
-                    q, k, freqs, q_scale, k_scale, rot_dim=self._ROT)
+                    q, k, freqs, q_scale, k_scale, rot_dim=self._ROT
+                )
         for name, out, x, scale in (("q", q_out, q, q_scale), ("k", k_out, k, k_scale)):
             ref = self._reference(x, freqs, scale, 1e-6, self._ROT)
-            assert_values_close(out, ref, rtol=1e-3, atol=1e-3,
-                                max_mismatch_ratio=_max_mismatch(torch.float32, dtype),
-                                name=f"partial rotary {name} ({backend})")
+            assert_values_close(
+                out,
+                ref,
+                rtol=1e-3,
+                atol=1e-3,
+                max_mismatch_ratio=_max_mismatch(torch.float32, dtype),
+                name=f"partial rotary {name} ({backend})",
+            )
 
     @pytest.mark.parametrize("backend", ["cuda", "triton", "eager"])
     def test_full_rot_dim_matches_default(self, backend, device, seed, monkeypatch):
@@ -490,7 +485,9 @@ class TestPartialRotary:
         q_scale = torch.randn(head_dim, dtype=torch.float32, device=device)
         k_scale = torch.randn(head_dim, dtype=torch.float32, device=device)
         q, k, v = (t.view(1, seq_len, heads, head_dim) for t in qkv.split(heads * head_dim, dim=-1))
-        qr, kr, vr = (t.view(1, seq_len, heads, head_dim) for t in qkv_ref.split(heads * head_dim, dim=-1))
+        qr, kr, vr = (
+            t.view(1, seq_len, heads, head_dim) for t in qkv_ref.split(heads * head_dim, dim=-1)
+        )
         with ck.use_backend(backend):
             ck.rms_rope_split_half_(q, k, freqs, q_scale, k_scale, rot_dim=rot)
             q_ref, k_ref = ck.rms_rope_split_half(qr, kr, freqs, q_scale, k_scale, rot_dim=rot)
