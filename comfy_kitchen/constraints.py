@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 
 import torch
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
 __all__ = [
+    "with_out_param",
     "DivisibleBy",
     "ExactDims",
     "FunctionConstraints",
@@ -19,6 +17,7 @@ __all__ = [
     "ValidationResult",
     "validate_function_call",
     "validate_param",
+    "with_w4a8_packed_storage",
 ]
 
 
@@ -136,12 +135,14 @@ class FunctionConstraints:
     params: dict[str, ParamConstraint] = field(default_factory=dict)
     default_devices: frozenset[str] = field(default_factory=lambda: frozenset({"cuda", "cpu"}))
     min_compute_capability: tuple[int, int] | None = None
+    call_rules: tuple[Callable[[Mapping[str, object]], ValidationResult], ...] = ()
 
     def __hash__(self) -> int:
         return hash((
             tuple(sorted(self.params.items(), key=lambda x: x[0])),
             self.default_devices,
             self.min_compute_capability,
+            self.call_rules,
         ))
 
 
@@ -247,5 +248,121 @@ def validate_function_call(
         if not result.success:
             return result
 
+    for rule in constraints.call_rules:
+        result = rule(kwargs)
+        if not result.success:
+            return result
+
     return ValidationResult.ok()
 
+
+def sol_attn_common_call_rule(kwargs):
+    """Shared ``sol_attn`` validation. The fused backends size everything from
+    ``q`` and reach ``k``/``v`` as bare pointers, so a mismatch becomes an
+    out-of-bounds read; head_dim 128 is baked into the kernels' layout."""
+    q = kwargs.get("q")
+    if q is not None:
+        for name in ("k", "v"):
+            other = kwargs.get(name)
+            if other is None:
+                continue
+            if tuple(other.shape) != tuple(q.shape):
+                return ValidationResult.fail(
+                    name, f"must have the same shape as q {tuple(q.shape)}, got {tuple(other.shape)}"
+                )
+            if other.dtype != q.dtype:
+                return ValidationResult.fail(
+                    name, f"must have the same dtype as q ({q.dtype}), got {other.dtype}"
+                )
+            if other.device != q.device:
+                return ValidationResult.fail(
+                    name, f"must be on the same device as q ({q.device}), got {other.device}"
+                )
+        if q.shape[-1] != 128:
+            return ValidationResult.fail("q", "head_dim must be 128")
+        block_len = kwargs.get("block_len")
+        if block_len is not None:
+            n = (q.shape[1] + 63) // 64
+            if block_len.dtype != torch.int32 or block_len.dim() != 1 or block_len.numel() != n:
+                return ValidationResult.fail(
+                    "block_len", f"must be int32 of shape ({n},), got {block_len.dtype} {tuple(block_len.shape)}")
+            if block_len.device != q.device:
+                return ValidationResult.fail("block_len", f"must be on {q.device}, got {block_len.device}")
+        coarse_gate = kwargs.get("coarse_gate")
+        if coarse_gate is not None:
+            if tuple(coarse_gate.shape) != tuple(q.shape):
+                return ValidationResult.fail(
+                    "coarse_gate", f"must have q's shape {tuple(q.shape)}, got {tuple(coarse_gate.shape)}")
+            if coarse_gate.device != q.device:
+                return ValidationResult.fail("coarse_gate", f"must be on {q.device}, got {coarse_gate.device}")
+    # Both sinks are half-open [start, end) block ranges.
+    for name in ("sink_blocks", "sink_q"):
+        value = kwargs.get(name)
+        if value is None:
+            continue
+        if len(value) != 2:
+            return ValidationResult.fail(name, f"must have 2 elements [start, end), got {len(value)}")
+        start, end = value
+        if start < 0 or end < 0:
+            return ValidationResult.fail(name, f"entries must be non-negative, got {list(value)}")
+        if end < start:
+            return ValidationResult.fail(name, f"must be [start, end) with end >= start, got {list(value)}")
+    # 0 means "tau threshold"; anything else is a fraction of the key blocks.
+    topk_ratio = kwargs.get("topk_ratio")
+    if topk_ratio and not 0.0 < topk_ratio < 1.0:
+        return ValidationResult.fail("topk_ratio", f"must be 0 or in (0, 1), got {topk_ratio}")
+    # token routing budget: 64-token tiles, at most the kernels' list capacity
+    token_aug = kwargs.get("token_aug") or 0
+    if token_aug < 0 or token_aug > 256 or token_aug % 64:
+        return ValidationResult.fail("token_aug", f"must be 0 or a multiple of 64 up to 256, got {token_aug}")
+    return ValidationResult.ok()
+
+
+def na3d_common_call_rule(kwargs):
+    """Shared ``na3d`` validation (used by every backend's entry).
+
+    The fused backends size everything from ``q`` and pass ``k``/``v`` as bare
+    pointers, so a mismatch becomes an out-of-bounds read.
+    """
+    q = kwargs.get("q")
+    if q is not None:
+        for name in ("k", "v"):
+            other = kwargs.get(name)
+            if other is None:
+                continue
+            if tuple(other.shape) != tuple(q.shape):
+                return ValidationResult.fail(
+                    name, f"must have the same shape as q {tuple(q.shape)}, got {tuple(other.shape)}"
+                )
+            if other.dtype != q.dtype:
+                return ValidationResult.fail(
+                    name, f"must have the same dtype as q ({q.dtype}), got {other.dtype}"
+                )
+            if other.device != q.device:
+                return ValidationResult.fail(
+                    name, f"must be on the same device as q ({q.device}), got {other.device}"
+                )
+    for name in ("kernel_size", "is_causal"):
+        value = kwargs.get(name)
+        if value is not None and len(value) != 3:
+            return ValidationResult.fail(name, f"must have 3 elements, got {len(value)}")
+    kernel_size = kwargs.get("kernel_size")
+    if kernel_size is not None and any(k < 1 for k in kernel_size):
+        return ValidationResult.fail(
+            "kernel_size", f"entries must be positive, got {list(kernel_size)}"
+        )
+    return ValidationResult.ok()
+
+
+def with_out_param(base: FunctionConstraints) -> FunctionConstraints:
+    """The ``_out`` form of an op: base constraints plus a 5-D ``out`` in x's dtypes."""
+    out = ParamConstraint(dtypes=base.params["x"].dtypes, shape_rules=(ExactDims(5),))
+    return replace(base, params={**base.params, "out": out})
+
+
+def with_w4a8_packed_storage(base: FunctionConstraints) -> FunctionConstraints:
+    """Packed linear uses 1D records and empty scales instead of canonical 2D storage."""
+    params = dict(base.params)
+    for name in ("qdata", "s_rel"):
+        params[name] = replace(params[name], shape_rules=(ExactDims(1),))
+    return replace(base, params=params)

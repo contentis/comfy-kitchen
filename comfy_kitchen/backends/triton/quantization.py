@@ -17,6 +17,8 @@ import torch
 
 import triton
 import triton.language as tl
+from comfy_kitchen.backends._activations import apply_input_act as _apply_input_act
+from comfy_kitchen.backends._activations import apply_residual as _apply_residual
 from comfy_kitchen.float_utils import (
     F8_E4M3_MAX,
     F8_E5M2_MAX,
@@ -1023,6 +1025,11 @@ def int8_linear(
     out_dtype: torch.dtype = torch.bfloat16,
     convrot: bool = False,
     convrot_groupsize: int = 256,
+    input_act: str | None = None,
+    input_act_weight: torch.Tensor | None = None,
+    input_act_eps: float = 0.0,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """INT8 linear layer using fused Triton kernel.
 
@@ -1036,10 +1043,17 @@ def int8_linear(
         out_dtype: Output dtype.
         convrot: If True, apply online activation rotation.
         convrot_groupsize: Group size for Hadamard rotation.
+        input_act: Optional activation folded in before quantization.
+        input_act_weight: K-element weight for input_act "rms_norm".
+        input_act_eps: Eps for input_act "rms_norm".
+        residual: Optional [..., N] tensor; the result becomes
+            ``residual + residual_scale * linear(x)``.
+        residual_scale: Per-channel [N] scale for the residual form.
 
     Returns:
         Result tensor [..., N].
     """
+    x = _apply_input_act(x, input_act, input_act_weight, input_act_eps)
     orig_shape = x.shape
     x_2d = x.reshape(-1, x.shape[-1])
 
@@ -1100,4 +1114,4 @@ def int8_linear(
             has_bias=has_bias
         )
 
-    return output.reshape(*orig_shape[:-1], n)
+    return _apply_residual(output.reshape(*orig_shape[:-1], n), residual, residual_scale)

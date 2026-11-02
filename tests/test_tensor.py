@@ -14,6 +14,47 @@ from comfy_kitchen.tensor import (
 )
 
 
+@pytest.mark.parametrize("bits", [4, 6, 8])
+@pytest.mark.parametrize("activation", ["rms_norm", "swiglu"])
+@pytest.mark.parametrize("input_dtype", [torch.bfloat16, torch.float32])
+def test_linear_input_act(bits, activation, input_dtype):
+    torch.manual_seed(7)
+    w = torch.randn(32, 256, dtype=torch.bfloat16)
+    weight = (QuantizedTensor.from_float(w, "TensorWiseINT8Layout", convrot=True, per_channel=True)
+              if bits == 8 else QuantizedTensor.from_float(w, "AsymW4A8Int8Layout", bits=bits))
+    x = torch.randn(3, 512 if activation == "swiglu" else 256, dtype=input_dtype)
+    norm = torch.randn(256, dtype=input_dtype)
+    bias = torch.randn(32, dtype=input_dtype)
+    out_dtype = input_dtype if bits == 8 else w.dtype
+    residual = torch.randn(3, 32, dtype=out_dtype)
+    scale = torch.linspace(-1, 2, 32, dtype=out_dtype)
+    activated = (torch.nn.functional.rms_norm(x, (256,), norm, 1e-6) if activation == "rms_norm"
+                 else torch.nn.functional.silu(x[:, :256]) * x[:, 256:])
+    expected = torch.addcmul(residual, torch.nn.functional.linear(activated, weight, bias), scale)
+    got = weight.linear_input_act(x, bias, activation, norm, 1e-6, residual, scale)
+    assert got.dtype == out_dtype
+    assert torch.equal(got, expected)
+
+
+@pytest.mark.parametrize("layout", ["TensorCoreFP8Layout", "TensorWiseINT8Layout", "AsymW4A8Int8Layout"])
+def test_linear_input_act_not_implemented(layout):
+    weight = QuantizedTensor.from_float(torch.randn(32, 256, dtype=torch.bfloat16), layout)
+    if layout != "TensorCoreFP8Layout":
+        weight = weight.t()
+    x = torch.randn(3, weight.shape[1] * 2, dtype=torch.bfloat16)
+    original = x.clone()
+    assert weight.linear_input_act(x, input_act="swiglu") is NotImplemented
+    assert torch.equal(x, original)
+
+
+@pytest.mark.parametrize("layout", ["TensorCoreFP8Layout", "TensorWiseINT8Layout", "AsymW4A8Int8Layout"])
+def test_gemv_optimization_unsupported(layout):
+    weight = QuantizedTensor.from_float(torch.randn(32, 256, dtype=torch.bfloat16), layout)
+    storage = torch.full((64,), 73, dtype=torch.uint8)
+    assert weight.optimize_for_gemv(storage) is weight
+    assert torch.all(storage == 73)
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
 class TestTensorCoreFP8Layout:
     """Tests for FP8 quantization layout."""
@@ -1394,12 +1435,20 @@ class TestINT8LinearOperations:
 
         result = torch.nn.functional.linear(x, qt_w, bias)
 
-        # Reference: same quantized math through the eager backend.
+        # Reference: the same quantized weight through the eager backend.
         with ck.registry.use_backend("eager"):
             expected = torch.nn.functional.linear(x, qt_w, bias)
 
         assert result.shape == expected.shape
-        assert torch.allclose(result, expected, rtol=1e-2, atol=1e-1)
+        # Not the same arithmetic: eager dequantizes and multiplies in floating
+        # point, a fused backend accumulates INT32 exactly and scales once. On an
+        # element where the sum nearly cancels they differ by far more than a
+        # relative tolerance allows, so both are checked against the exact product
+        # of the dequantized operands, which is what each one approximates.
+        truth = x.float() @ qt_w.dequantize().float().t() + bias.float()
+        limit = 0.05 * truth.abs().max()
+        for name, got in (("fused", result), ("eager", expected)):
+            assert (got.float() - truth).abs().max() < limit, name
 
     def test_int8_mm(self):
         import comfy_kitchen as ck
@@ -1416,4 +1465,8 @@ class TestINT8LinearOperations:
             expected = torch.mm(a, qt_b.t())
 
         assert result.shape == expected.shape
-        assert torch.allclose(result, expected, rtol=1e-2, atol=1e-1)
+        # See test_int8_linear_weight_quantized on why this is not an allclose.
+        truth = a.float() @ qt_b.dequantize().float().t()
+        limit = 0.05 * truth.abs().max()
+        for name, got in (("fused", result), ("eager", expected)):
+            assert (got.float() - truth).abs().max() < limit, name

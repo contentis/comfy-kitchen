@@ -17,13 +17,57 @@
 #ifndef COMFY_FLOAT_UTILS_CUH_
 #define COMFY_FLOAT_UTILS_CUH_
 
+#include <cstdint>
+
 #include <cuda.h>
 #include <cuda_fp8.h>
+#include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #if CUDA_VERSION >= 12080
 #include <cuda_fp4.h>
 #endif
 
 namespace comfy {
+
+__device__ __forceinline__ float warp_reduce_fmax(float v) {
+#pragma unroll
+  for (int off = 16; off > 0; off >>= 1)
+    v = fmaxf(v, __shfl_xor_sync(0xffffffff, v, off));
+  return v;
+}
+
+__device__ __forceinline__ int8_t float_to_int8_rn(float value) {
+  int32_t quantized;
+  asm volatile("cvt.rni.sat.s8.f32 %0, %1;"
+               : "=r"(quantized)
+               : "f"(value));
+  return static_cast<int8_t>(quantized);
+}
+
+__device__ __forceinline__ int8_t quant_int8_rcp(float v,
+                                                 float inv_scale) {
+  return float_to_int8_rn(v * inv_scale);
+}
+
+__device__ __forceinline__ int8_t quant_int8(float v, float scale) {
+  return quant_int8_rcp(v, 1.f / scale);
+}
+
+// ptr must be 4-byte aligned. Callers must preserve that alignment at every
+// row offset, for example by requiring the row stride to be a multiple of 4.
+__device__ __forceinline__ void store4_i8(int8_t *ptr, int8_t a, int8_t b,
+                                          int8_t c, int8_t d) {
+  *reinterpret_cast<int32_t *>(ptr) =
+      (uint32_t)(uint8_t)a | ((uint32_t)(uint8_t)b << 8) |
+      ((uint32_t)(uint8_t)c << 16) | ((uint32_t)(uint8_t)d << 24);
+}
+
+// fp32 -> output element type conversion for kernel epilogues (round to
+// nearest even for the half types).
+template <typename T> __device__ __forceinline__ T from_float(float v);
+template <> __device__ __forceinline__ float from_float<float>(float v) { return v; }
+template <> __device__ __forceinline__ __half from_float<__half>(float v) { return __float2half(v); }
+template <> __device__ __forceinline__ __nv_bfloat16 from_float<__nv_bfloat16>(float v) { return __float2bfloat16(v); }
 
 // FP8 type traits for max values
 template <typename T>
@@ -130,4 +174,3 @@ scale_factor_swizzled_offset(size_t row_idx, size_t col_idx, uint32_t col_length
 } // namespace comfy
 
 #endif // COMFY_FLOAT_UTILS_CUH_
-

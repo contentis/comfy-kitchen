@@ -1,9 +1,23 @@
 __all__ = [
     "adaln",
+    "na3d",
+    "rms_adaln",
     "apply_rope",
+    "apply_rope_",
     "apply_rope1",
+    "apply_rope1_",
     "apply_rope_split_half",
+    "apply_rope_split_half_",
     "apply_rope_split_half1",
+    "apply_rope_split_half1_",
+    "rms_rope",
+    "rms_rope_",
+    "rms_rope1",
+    "rms_rope1_",
+    "rms_rope_split_half",
+    "rms_rope_split_half_",
+    "rms_rope_split_half1",
+    "rms_rope_split_half1_",
     "dequantize_nvfp4",
     "dequantize_per_tensor_fp8",
     "quantize_mxfp8",
@@ -12,6 +26,7 @@ __all__ = [
     "int8_linear",
     "quantize_int8_rowwise",
     "quantize_and_rotate_rowwise",
+    "w4a8_int8_linear",
 ]
 
 # Try to import triton and register if available
@@ -21,6 +36,8 @@ from comfy_kitchen.constraints import (
     ExactDims,
     FunctionConstraints,
     ParamConstraint,
+    ValidationResult,
+    na3d_common_call_rule,
 )
 from comfy_kitchen.registry import registry
 
@@ -36,7 +53,8 @@ try:
         quantize_int8_rowwise as _eager_quantize_int8_rowwise,
     )
 
-    from .adaln import adaln
+    from .adaln import adaln, rms_adaln
+    from .na import na3d
     from .quantization import (
         dequantize_nvfp4,
         dequantize_per_tensor_fp8,
@@ -51,7 +69,27 @@ try:
     from .quantization import (
         triton_quantize_rowwise as _triton_quantize_int8_rowwise,
     )
-    from .rope import apply_rope, apply_rope1, apply_rope_split_half, apply_rope_split_half1
+    from .rms_rope import (
+        rms_rope,
+        rms_rope1,
+        rms_rope1_,
+        rms_rope_,
+        rms_rope_split_half,
+        rms_rope_split_half1,
+        rms_rope_split_half1_,
+        rms_rope_split_half_,
+    )
+    from .rope import (
+        apply_rope,
+        apply_rope1,
+        apply_rope1_,
+        apply_rope_,
+        apply_rope_split_half,
+        apply_rope_split_half1,
+        apply_rope_split_half1_,
+        apply_rope_split_half_,
+    )
+    from .w4a8_int8 import w4a8_int8_linear
 except ImportError as e:
     _TRITON_AVAILABLE = False
     _TRITON_ERROR = f"ImportError: {e!s}"
@@ -80,12 +118,29 @@ if _TRITON_AVAILABLE:
 
 
 def _build_constraints() -> dict:
+    def _na3d_call_rule(kwargs):
+        common = na3d_common_call_rule(kwargs)
+        if not common.success:
+            return common
+        q = kwargs.get("q")
+        if q is not None and q.shape[-1] > 128:
+            return ValidationResult.fail("q", "head_dim > 128 not supported by triton na3d")
+        return ValidationResult.ok()
+
     cuda_devices = frozenset({"cuda"})
     triton_devices = frozenset({"cuda", "xpu"})
     standard_floats = frozenset({torch.float32, torch.float16, torch.bfloat16})
 
-    return {
+    out = {
         "adaln": FunctionConstraints(
+            params={
+                "x": ParamConstraint(dtypes=standard_floats),
+                "scale": ParamConstraint(dtypes=standard_floats),
+                "shift": ParamConstraint(dtypes=standard_floats),
+            },
+            default_devices=triton_devices,
+        ),
+        "rms_adaln": FunctionConstraints(
             params={
                 "x": ParamConstraint(dtypes=standard_floats),
                 "scale": ParamConstraint(dtypes=standard_floats),
@@ -163,6 +218,24 @@ def _build_constraints() -> dict:
             },
             default_devices=triton_devices,
         ),
+        "rms_rope1": FunctionConstraints(
+            params={
+                "x": ParamConstraint(dtypes=standard_floats),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
+                "scale": ParamConstraint(dtypes=standard_floats),
+            },
+            default_devices=triton_devices,
+        ),
+        "rms_rope": FunctionConstraints(
+            params={
+                "q": ParamConstraint(dtypes=standard_floats),
+                "k": ParamConstraint(dtypes=standard_floats),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
+                "q_scale": ParamConstraint(dtypes=standard_floats),
+                "k_scale": ParamConstraint(dtypes=standard_floats),
+            },
+            default_devices=triton_devices,
+        ),
         "int8_linear": FunctionConstraints(
             params={
                 "x": ParamConstraint(dtypes=standard_floats),
@@ -171,6 +244,23 @@ def _build_constraints() -> dict:
                 "out_dtype": ParamConstraint(dtypes=standard_floats),
                 "convrot": ParamConstraint(dtypes=frozenset({bool})),
                 "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
+                "input_act": ParamConstraint(dtypes=frozenset({str, type(None)})),
+            },
+            default_devices=triton_devices,
+            min_compute_capability=(8, 0),  # Required for Triton INT8 dot
+        ),
+        "w4a8_int8_linear": FunctionConstraints(
+            params={
+                "x": ParamConstraint(dtypes=standard_floats),
+                "qdata": ParamConstraint(dtypes=frozenset({torch.int8}), shape_rules=(ExactDims(2),)),
+                "s_rel": ParamConstraint(dtypes=frozenset({torch.float8_e4m3fn, torch.float32}), shape_rules=(ExactDims(2),)),
+                "s_channel": ParamConstraint(dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)),
+                "codebook": ParamConstraint(dtypes=frozenset({torch.float32}), shape_rules=(ExactDims(1),)),
+                "correction": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(2),)),
+                "bias": ParamConstraint(dtypes=standard_floats),
+                "group_size": ParamConstraint(dtypes=frozenset({int})),
+                "convrot_groupsize": ParamConstraint(dtypes=frozenset({int})),
+                "out_dtype": ParamConstraint(dtypes=standard_floats),
             },
             default_devices=triton_devices,
             min_compute_capability=(8, 0),  # Required for Triton INT8 dot
@@ -206,7 +296,48 @@ def _build_constraints() -> dict:
             },
             default_devices=triton_devices,
         ),
+        "rms_rope_split_half1": FunctionConstraints(
+            params={
+                "x": ParamConstraint(dtypes=standard_floats),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
+                "scale": ParamConstraint(dtypes=standard_floats),
+            },
+            default_devices=triton_devices,
+        ),
+        "rms_rope_split_half": FunctionConstraints(
+            params={
+                "q": ParamConstraint(dtypes=standard_floats),
+                "k": ParamConstraint(dtypes=standard_floats),
+                "freqs_cis": ParamConstraint(dtypes=standard_floats),
+                "q_scale": ParamConstraint(dtypes=standard_floats),
+                "k_scale": ParamConstraint(dtypes=standard_floats),
+            },
+            default_devices=triton_devices,
+        ),
     }
+    for inplace_name, functional_name in {
+        "apply_rope_": "apply_rope",
+        "apply_rope1_": "apply_rope1",
+        "apply_rope_split_half_": "apply_rope_split_half",
+        "apply_rope_split_half1_": "apply_rope_split_half1",
+        "rms_rope_": "rms_rope",
+        "rms_rope1_": "rms_rope1",
+        "rms_rope_split_half_": "rms_rope_split_half",
+        "rms_rope_split_half1_": "rms_rope_split_half1",
+    }.items():
+        out[inplace_name] = out[functional_name]
+    out["na3d"] = FunctionConstraints(
+        params={
+            "q": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(6),)),
+            "k": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(6),)),
+            "v": ParamConstraint(dtypes=standard_floats, shape_rules=(ExactDims(6),)),
+        },
+        default_devices=cuda_devices,
+        # tl.dot needs Ampere matrix capability for the non-IEEE float paths
+        min_compute_capability=(8, 0),
+        call_rules=(_na3d_call_rule,),
+    )
+    return out
 
 
 def _register():

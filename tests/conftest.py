@@ -1,3 +1,6 @@
+import math
+import sys
+
 import pytest
 import torch
 
@@ -7,7 +10,67 @@ import comfy_kitchen as ck
 def pytest_configure(config):
     config.addinivalue_line("markers", "cuda: mark test as requiring CUDA")
     config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "performance: mark test as a GPU timing benchmark")
     config.addinivalue_line("markers", "cupy: mark test as requiring CuPy")
+
+
+def pytest_sessionfinish(session, exitstatus):
+    # ROCm on Windows: pytest can hang at exit if HIP kernels left pending GPU
+    # work. See https://github.com/ROCm/TheRock/issues/999
+    torch = sys.modules.get("torch")
+    if sys.platform == "win32" and torch is not None:
+        if torch.cuda.is_available() and getattr(torch.version, "hip", None):
+            torch.cuda.synchronize()
+
+
+@pytest.fixture(autouse=True)
+def restore_backend_selection():
+    """Put the registry's priority order and disabled set back after every test.
+
+    Both are process-global, so a test that changes one and does not restore it
+    re-routes every later test in the session. The failure is silent, and worst on
+    ROCm: the default order is ["hip", "cuda", "triton", "eager"], so a list
+    written without "hip" leaves the HIP backend registered but unreachable, and
+    later dispatch assertions get triton or eager instead of failing on the
+    backend that actually changed it.
+    """
+    from comfy_kitchen.registry import registry
+
+    priority = list(registry._priority)
+    disabled = set(registry._disabled)
+    yield
+    registry.set_priority(priority)
+    for name in set(registry._disabled) - disabled:
+        registry.enable(name)
+    for name in disabled - set(registry._disabled):
+        registry.disable(name)
+
+
+def cuda_backend_available() -> bool:
+    """Whether the compiled CUDA backend is loadable.
+
+    Not torch.cuda.is_available(): PyTorch reports ROCm devices as "cuda", so on
+    a ROCm build that is True with no CUDA extension present. Tests that drive
+    the CUDA backend specifically must gate on this or they fail instead of
+    skipping. On a CUDA box the two are equivalent.
+    """
+    return ck.list_backends().get("cuda", {}).get("available", False)
+
+
+requires_cuda_backend = pytest.mark.skipif(
+    not cuda_backend_available(), reason="compiled CUDA backend required"
+)
+
+
+def skip_unless_gfx12_wmma() -> None:
+    if not getattr(torch.version, "hip", None):
+        pytest.skip("requires HIP")
+    if not ck.list_backends().get("hip", {}).get("available", False):
+        pytest.skip("compiled HIP backend required")
+    from comfy_kitchen.backends import hip
+
+    if not hip._has_nonduplicated_wmma():
+        pytest.skip("requires non-duplicated WMMA (gfx12 or gfx117)")
 
 
 @pytest.fixture(scope="session")
@@ -52,7 +115,7 @@ def get_capable_backends(func_name: str, device: str | None = None) -> list[str]
     capable = []
     backends = ck.list_backends()
 
-    for backend_name in ["cuda", "triton", "eager"]:
+    for backend_name in ["ascend", "cuda", "hip", "triton", "eager"]:
         if not backends.get(backend_name, {}).get("available", False):
             continue
 
@@ -74,7 +137,7 @@ def get_supported_devices(func_name: str) -> set[str]:
     devices = set()
     backends = ck.list_backends()
 
-    for backend_name in ["cuda", "triton", "eager"]:
+    for backend_name in ["ascend", "cuda", "hip", "triton", "eager"]:
         if not backends.get(backend_name, {}).get("available", False):
             continue
 
@@ -208,3 +271,18 @@ def assert_values_close(values, ref_values, rtol, atol, name="values", max_misma
         raise ValueError(
             f"{num_failures} {name} are not close (rtol={rtol}, atol={atol})"
         )
+
+
+def rel_err(got, ref) -> float:
+    """max |got - ref| / max |ref|, in float32 -- the tolerance metric the int8/
+    fp16 GEMM tests use (a single-LSB change in a quantized activation moves
+    whole accumulated sums, so elementwise tolerances are meaningless there)."""
+    got, ref = got.float(), ref.float()
+    return ((got - ref).abs().max() / ref.abs().max().clamp(min=1e-9)).item()
+
+
+def fp16_accum_tol(k: int) -> float:
+    """rel_err tolerance for a kernel that accumulates K fp16 products in fp16
+    against a fp32-accumulate reference: rounding error compounds roughly with
+    sqrt(K) * 2^-11 (3 sigma), floored at 0.5% for short reductions."""
+    return max(0.005, 3.0 * math.sqrt(k) * 2.0 ** -11)

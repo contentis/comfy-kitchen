@@ -89,11 +89,18 @@ set(CUDA_NVCC_FLAGS
     --expt-relaxed-constexpr
     --expt-extended-lambda
     --use_fast_math
+    --compress-mode=size
 )
 
 # Pass MSVC standard-conforming preprocessor flag to nvcc (required by CCCL 2.8+)
 if(MSVC)
     list(APPEND CUDA_NVCC_FLAGS -Xcompiler=/Zc:preprocessor)
+    # Work around MSVC's dependent non-type parameter-pack deduction bug in
+    # CuTe (NVIDIA/cutlass#3065). C++20 implicitly enables /permissive-,
+    # which produces C3545 in cute/stride.hpp on Windows ARM64.
+    if(COMFY_MSVC_PERMISSIVE)
+        list(APPEND CUDA_NVCC_FLAGS -Xcompiler=/permissive)
+    endif()
     # Suppress harmless warnings from CCCL headers (unused variables in constexpr contexts)
     list(APPEND CUDA_NVCC_FLAGS --diag-suppress=177)
 endif()
@@ -120,20 +127,44 @@ set(CUDA_SOURCES
     ops/cublas_gemm_nvfp4.cu
     ops/cublas_gemm_int8.cu
     ops/cutlass_gemm_int8.cu
+    ops/cutlass_gemm_fp16.cu
+    ops/cutlass_conv3d_fp16.cu
+    ops/group_norm_pad3d.cu
     ops/turing_int8.cu
     ops/int8_linear.cu
     ops/convrot_w4a4.cu
     ops/turing_int4.cu
-    ops/apply_rope.cu
     ops/rms_rope.cu
+    ops/na3d.cu
+    sage_attention/sol_attn.cu
+    sage_attention/sol_attn_preprocess.cu
+    sage_attention/sol_attn_producer.cu
+    sage_attention/sol_attn_vtranspose.cu
+    sage_attention/sol_attn_route.cu
+    sage_attention/sol_attn_exact.cu
+    sage_attention/sol_attn_token.cu
     ops/quantize_svdquant_w4a4.cu
     ops/scaled_mm_svdquant_w4a4.cu
     ops/awq_w4a16.cu
+    ops/w4a8_gemm.cu
+    ops/memmove.cu
     ops/adaln.cu
+    ops/flash_decode.cu
+    ops/gated_delta.cu
+    ops/delaunay3d.cu
+    ops/mesh_bvh.cu
+    ops/connected_components.cu
+    ops/edge_collapse.cu
+    ops/min_cut.cu
+    sage_attention/quant_v_int8.cu
+    sage_attention/quant_qk_int8.cu
+    sage_attention/sage_attn_launcher.cu
+    sage_attention/int8_decode.cu
 )
 
 set(CPP_SOURCES
     dlpack_bindings.cpp
+    int8_decode_bindings.cpp
 )
 
 # Keep CUDA compilation independent of the Python extension target. The
@@ -146,6 +177,10 @@ target_compile_options(comfy_kitchen_cuda_kernels PRIVATE
 )
 target_include_directories(comfy_kitchen_cuda_kernels PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/sage_attention
+    ${CMAKE_CURRENT_SOURCE_DIR}/flash_compat
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/flash-attention/csrc/flash_attn/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/cutlass/include
     ${CUDAToolkit_INCLUDE_DIRS}
 )
 

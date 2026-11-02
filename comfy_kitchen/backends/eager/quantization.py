@@ -8,6 +8,8 @@
 
 import torch
 
+from comfy_kitchen.backends._activations import apply_input_act as _apply_input_act
+from comfy_kitchen.backends._activations import apply_residual as _apply_residual
 from comfy_kitchen.float_utils import (
     E8M0_BIAS,
     F4_E2M1_MAX,
@@ -905,6 +907,12 @@ def quantize_int8_convrot_weight(
     return quantize_int8_rowwise(weight_rot, stochastic_rounding=stochastic_rounding)
 
 
+def rotate_int8_convrot_weight(weight: torch.Tensor, group_size: int) -> torch.Tensor:
+    """Portable ConvRot weight rotation used when no accelerated backend is available."""
+    h = _build_hadamard(group_size, device=weight.device, dtype=weight.dtype)
+    return _rotate_weight(weight, h, group_size)
+
+
 def dequantize_int8_convrot_weight(q: torch.Tensor, scale: torch.Tensor, group_size: int) -> torch.Tensor:
     """Dequantize INT8 ConvRot weights and rotate them back to the original basis."""
     h = _build_hadamard(group_size, device=q.device, dtype=torch.float32)
@@ -931,9 +939,47 @@ def dequantize_int8_simple(q: torch.Tensor, scale: torch.Tensor) -> torch.Tensor
     return q.float() * scale
 
 
+def dequantize_int8_embedding(
+    q: torch.Tensor,
+    scale: torch.Tensor,
+    indices: torch.Tensor,
+    group_size: int,
+    output_dtype_code: int,
+) -> torch.Tensor:
+    """Gather rows from an INT8 embedding table ``[vocab, dim]`` and dequantize only those rows.
+
+    Indexes first, unlike ``dequantize_int8_convrot_weight*`` which materializes the whole table.
+    ``scale`` is per-row ``[vocab, 1]`` or scalar. ``group_size <= 0`` means the table is not
+    ConvRot-rotated; if it is, the rows are un-rotated after the lookup (a Linear folds that into
+    its GEMM, a lookup has no GEMM). Returns ``[*indices.shape, dim]``.
+    """
+    x = torch.nn.functional.embedding(indices, q).to(torch.float32)
+    if scale.dim() >= 2:
+        x = x * torch.nn.functional.embedding(indices, scale).to(torch.float32)
+    else:
+        x = x * scale.to(torch.float32)
+    if group_size > 0:
+        h = _build_hadamard(group_size, device=q.device, dtype=torch.float32)
+        x = _rotate_weight(x.reshape(-1, x.shape[-1]), h, group_size).reshape(x.shape)
+    return x.to(DTYPE_CODE_TO_DTYPE[output_dtype_code])
+
+
 def dequantize_int8_simple_dtype(q: torch.Tensor, scale: torch.Tensor, output_dtype_code: int) -> torch.Tensor:
     """Dequantize INT8 tensor with scale into a requested floating dtype."""
     return dequantize_int8_simple(q, scale).to(DTYPE_CODE_TO_DTYPE[output_dtype_code])
+
+
+def fp16_linear(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """``linear(x)``, or ``residual + residual_scale * linear(x)``; accumulates
+    in torch's configured mode."""
+    out = torch.nn.functional.linear(x, weight, bias)
+    return _apply_residual(out, residual, residual_scale)
 
 
 def int8_linear(
@@ -944,6 +990,11 @@ def int8_linear(
     out_dtype: torch.dtype = torch.bfloat16,
     convrot: bool = False,
     convrot_groupsize: int = 256,
+    input_act: str | None = None,
+    input_act_weight: torch.Tensor | None = None,
+    input_act_eps: float = 0.0,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """INT8 linear layer using torch.int8_mm with memory-efficient scaling.
 
@@ -958,10 +1009,17 @@ def int8_linear(
         out_dtype: Output dtype.
         convrot: If True, apply online activation rotation.
         convrot_groupsize: Group size for Hadamard rotation.
+        input_act: Optional activation folded in before quantization.
+        input_act_weight: K-element weight for input_act "rms_norm".
+        input_act_eps: Eps for input_act "rms_norm".
+        residual: Optional [..., N] tensor; the result becomes
+            ``residual + residual_scale * linear(x)``.
+        residual_scale: Per-channel [N] scale for the residual form.
 
     Returns:
         Result tensor [..., N].
     """
+    x = _apply_input_act(x, input_act, input_act_weight, input_act_eps)
     if x.shape[-1] != weight.shape[-1]:
         raise ValueError(
             f"Input and weight inner dimensions must match, got {x.shape[-1]} and {weight.shape[-1]}"
@@ -1019,7 +1077,60 @@ def int8_linear(
     if bias is not None:
         result = result + bias.to(device=result.device, dtype=result.dtype).reshape(1, -1)
 
-    return result.reshape(*orig_shape[:-1], weight.shape[0])
+    result = result.reshape(*orig_shape[:-1], weight.shape[0])
+    return _apply_residual(result, residual, residual_scale)
+
+
+def _modulate_int8_input(x: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
+    """Materialize the portable batch-one modulation contract once."""
+    k = x.shape[-1]
+    if scale.numel() != k:
+        raise ValueError(
+            f"modulation_scale must contain one batch-one row of {k} values, "
+            f"got {scale.numel()}"
+        )
+    shape = (1,) * (x.ndim - 1) + (k,)
+    return x * (1.0 + scale.reshape(shape))
+
+
+def int8_linear_modulated(
+    x: torch.Tensor,
+    modulation_scale: torch.Tensor,
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype = torch.bfloat16,
+    convrot: bool = False,
+    convrot_groupsize: int = 256,
+) -> torch.Tensor:
+    """Portable batch-one modulation reference for an INT8 projection."""
+    return int8_linear(
+        _modulate_int8_input(x, modulation_scale),
+        weight, weight_scale, bias, out_dtype,
+        convrot, convrot_groupsize,
+    )
+
+
+def int8_linear_rms_modulated(
+    x: torch.Tensor,
+    norm_weight: torch.Tensor,
+    norm_eps: float,
+    modulation_scale: torch.Tensor,
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype = torch.bfloat16,
+    convrot: bool = False,
+    convrot_groupsize: int = 256,
+) -> torch.Tensor:
+    """Portable RMSNorm plus batch-one modulation reference."""
+    normalized = torch.nn.functional.rms_norm(
+        x, (x.shape[-1],), norm_weight, norm_eps
+    )
+    return int8_linear_modulated(
+        normalized, modulation_scale, weight, weight_scale, bias, out_dtype,
+        convrot, convrot_groupsize,
+    )
 
 
 # =============================================================================
@@ -1109,6 +1220,34 @@ def _op_dequantize_int8_convrot_weight_dtype_fake(q, scale, group_size, output_d
     return torch.empty_like(q, dtype=DTYPE_CODE_TO_DTYPE[output_dtype_code])
 
 
+@torch.library.custom_op("comfy_kitchen::dequantize_int8_embedding", mutates_args=())
+def _op_dequantize_int8_embedding(
+    q: torch.Tensor,
+    scale: torch.Tensor,
+    indices: torch.Tensor,
+    group_size: int,
+    output_dtype_code: int,
+) -> torch.Tensor:
+    kwargs = {
+        "q": q,
+        "scale": scale,
+        "indices": indices,
+        "group_size": group_size,
+        "output_dtype_code": output_dtype_code,
+    }
+    impl = registry.get_implementation("dequantize_int8_embedding", kwargs=kwargs)
+    return impl(**kwargs)
+
+
+@_op_dequantize_int8_embedding.register_fake
+def _op_dequantize_int8_embedding_fake(q, scale, indices, group_size, output_dtype_code):
+    return torch.empty(
+        (*indices.shape, q.shape[-1]),
+        dtype=DTYPE_CODE_TO_DTYPE[output_dtype_code],
+        device=q.device,
+    )
+
+
 @torch.library.custom_op("comfy_kitchen::dequantize_int8_simple", mutates_args=())
 def _op_dequantize_int8_simple(
     q: torch.Tensor,
@@ -1149,6 +1288,11 @@ def _op_int8_linear(
     output_dtype_code: int,
     convrot: bool = False,
     convrot_groupsize: int = 256,
+    input_act: str | None = None,
+    input_act_weight: torch.Tensor | None = None,
+    input_act_eps: float = 0.0,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
 ) -> torch.Tensor:
     out_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     kwargs = {
@@ -1159,12 +1303,20 @@ def _op_int8_linear(
         "out_dtype": out_dtype,
         "convrot": convrot,
         "convrot_groupsize": convrot_groupsize,
+        "input_act": input_act,
+        "input_act_weight": input_act_weight,
+        "input_act_eps": input_act_eps,
+        "residual": residual,
+        "residual_scale": residual_scale,
     }
     impl = registry.get_implementation("int8_linear", kwargs=kwargs)
     return impl(**kwargs)
 
 
 @_op_int8_linear.register_fake
-def _op_int8_linear_fake(x, weight, weight_scale, bias, output_dtype_code, convrot=False, convrot_groupsize=256):
+def _op_int8_linear_fake(x, weight, weight_scale, bias, output_dtype_code,
+                         convrot=False, convrot_groupsize=256, input_act=None,
+                         input_act_weight=None, input_act_eps=0.0,
+                         residual=None, residual_scale=None):
     out_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     return torch.empty(*x.shape[:-1], weight.shape[0], dtype=out_dtype, device=x.device)
