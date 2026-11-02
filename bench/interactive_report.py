@@ -3,7 +3,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from bench.peaks import add_peak_arguments, compute_peaks, compute_precision, validate_peaks  # noqa: E402
 
 
 def load_run(run_dir: Path) -> tuple[list[dict[str, str]], dict]:
@@ -21,15 +26,32 @@ def build_html(
     rows: list[dict[str, str]],
     metadata: dict,
     *,
-    peak_fp16_tflops: float,
+    peak_fp16_tflops: float | None = None,
     peak_bw_gbs: float,
+    precision_peaks: dict | None = None,
 ) -> str:
-    data = json.dumps(rows, separators=(",", ":")).replace("</", "<\\/")
+    peaks = dict(metadata.get("compute_peaks_tops", {}))
+    if peak_fp16_tflops is not None:
+        peaks["fp16"] = peak_fp16_tflops
+    peaks.update({k: v for k, v in (precision_peaks or {}).items() if v is not None})
+    if peak_bw_gbs is None:
+        peak_bw_gbs = metadata.get("peak_bw_gbs")
+    validate_peaks(peaks, peak_bw_gbs)
+    failures = [r for r in rows if r.get("status", "ok") != "ok"]
+    plotted = []
+    for row in rows:
+        if row.get("status", "ok") != "ok":
+            continue
+        precision = compute_precision(row)
+        plotted.append({**row, "compute_precision": precision, "compute_peak": peaks.get(precision)})
+    failure_data = json.dumps(failures, separators=(",", ":")).replace("</", "<\\/")
+    data = json.dumps(plotted, separators=(",", ":")).replace("</", "<\\/")
     meta = json.dumps(
         {
             **metadata,
             "peak_fp16_tflops": peak_fp16_tflops,
             "peak_bw_gbs": peak_bw_gbs,
+            "compute_peaks_tops": peaks,
         },
         separators=(",", ":"),
     ).replace("</", "<\\/")
@@ -79,6 +101,8 @@ pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #181b21; bord
       <div class="group"><div class="group-title">Workloads</div><div id="workloads"></div></div>
       <div class="group"><div class="group-title">Dtypes</div><div id="dtypes"></div></div>
     </div>
+    <p class="meta">Bandwidth uses estimated logical I/O, not measured DRAM traffic. Compute ceilings use explicitly supplied dense peaks; missing peaks remain unknown.</p>
+    <details id="failures" hidden><summary id="failure-count"></summary><pre id="failure-details"></pre></details>
     <div id="chart"></div><div id="legend" class="legend"></div>
   </section>
   <aside>
@@ -99,21 +123,13 @@ const uniq = key => [...new Set(rows.map(r => r[key]))].sort();
 const number = (r, key) => Number(r[key] || 0);
 const esc = s => String(s).replace(/[&<>]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;"}}[c]));
 
-/** Tensor-core peak vs FP16: INT8/FP8 → 2x, INT4/FP4 → 4x. */
-function peakScale(r) {{
-  let format = "";
-  try {{ format = String(JSON.parse(r.static || "{{}}").format || ""); }} catch {{}}
-  const blob = `${{r.op}} ${{r.dtype}} ${{format}}`.toLowerCase();
-  if (
-    blob.includes("nvfp4") || blob.includes("mxfp4") || blob.includes("fp4")
-    || blob.includes("int4") || blob.includes("e2m1")
-  ) return 4;
-  if (
-    blob.includes("int8") || blob.includes("float8") || blob.includes("fp8")
-    || blob.includes("mxfp8")
-  ) return 2;
-  return 1;
+const failures = {failure_data};
+if (failures.length) {{
+  document.getElementById("failures").hidden = false;
+  document.getElementById("failure-count").textContent = `${{failures.length}} failed benchmark records`;
+  document.getElementById("failure-details").textContent = JSON.stringify(failures, null, 2);
 }}
+const peakFor = r => r.compute_peak == null ? null : Number(r.compute_peak);
 
 function checks(id, key, target) {{
   const root = document.getElementById(id);
@@ -168,8 +184,8 @@ function render() {{
   const xvals = points.map(r => Math.max(number(r, xkey), 1e-12));
   const yvals = points.map(r => number(r, ykey));
 
-  const scale = Math.max(1, ...points.map(peakScale));
-  const peakTflops = peakFp16Tflops * scale;
+  const ceilings = [...new Map(points.filter(r => peakFor(r) > 0).map(r => [r.compute_precision, peakFor(r)])).entries()];
+  const peakTflops = Math.max(0, ...ceilings.map(([precision, peak]) => peak));
   const peakGbps = peakBwGbs;
   // ridge I* = peak_FLOP/s / peak_byte/s = (TFLOP/s * 1e12) / (GB/s * 1e9) = 1000 * TFLOP/s / GB/s
   const ridge = 1000 * peakTflops / peakGbps;
@@ -177,11 +193,11 @@ function render() {{
 
   let xmin = Math.min(...xvals), xmax = Math.max(...xvals);
   let ymax = Math.max(...yvals, 0);
-  if (compute) {{
+  if (compute && peakTflops > 0) {{
     xmin = Math.min(xmin, ridge / 10);
     xmax = Math.max(xmax, ridge * 10);
     ymax = Math.max(ymax, peakTflops * 1.05);
-  }} else {{
+  }} else if (!compute) {{
     ymax = Math.max(ymax, peakGbps * 1.05);
   }}
   if (!(xmax > xmin)) xmax = xmin * 10;
@@ -200,22 +216,20 @@ function render() {{
   for (const y of linTicks(0, ymax))
     svg += `<line class="grid" x1="${{L}}" y1="${{sy(y)}}" x2="${{W-R}}" y2="${{sy(y)}}"/><text class="tick" x="${{L-8}}" y="${{sy(y)+4}}" text-anchor="end">${{y.toFixed(1)}}</text>`;
   svg += `<line class="axis" x1="${{L}}" y1="${{H-B}}" x2="${{W-R}}" y2="${{H-B}}"/><line class="axis" x1="${{L}}" y1="${{T}}" x2="${{L}}" y2="${{H-B}}"/>`;
-  svg += `<text class="label" x="${{(L+W-R)/2}}" y="${{H-12}}" text-anchor="middle">${{compute ? "Arithmetic intensity (FLOP/byte)" : "Working-set I/O bytes"}}</text>`;
-  svg += `<text class="label" transform="translate(18 ${{H/2}}) rotate(-90)" text-anchor="middle">${{compute ? "Performance (TFLOP/s)" : "Bandwidth (GB/s)"}}</text>`;
+  svg += `<text class="label" x="${{(L+W-R)/2}}" y="${{H-12}}" text-anchor="middle">${{compute ? "Arithmetic intensity (operations/byte)" : "Working-set I/O bytes"}}</text>`;
+  svg += `<text class="label" transform="translate(18 ${{H/2}}) rotate(-90)" text-anchor="middle">${{compute ? "Performance (trillion operations/s)" : "Logical I/O bandwidth (GB/s)"}}</text>`;
 
   if (compute) {{
-    const x0 = Math.max(xmin, Math.min(xmax, ridge));
-    // Sample P=BW*I in data space so the roof is correct under log-X / linear-Y.
-    const n = 48;
-    let d = "";
-    for (let i = 0; i <= n; i++) {{
-      const t = i / n;
-      const x = Math.exp(Math.log(xmin) * (1 - t) + Math.log(x0) * t);
-      const y = Math.min(peakTflops, memBound(x));
-      d += `${{i ? "L" : "M"}} ${{sx(x)}} ${{sy(y)}} `;
+    // A separate roof for each known precision; never infer tensor-core ratios.
+    for (const [precision, peak] of ceilings) {{
+      let d = "";
+      for (let i = 0; i <= 64; i++) {{
+        const t = i / 64;
+        const x = Math.exp(Math.log(xmin) * (1-t) + Math.log(xmax) * t);
+        d += `${{i ? "L" : "M"}} ${{sx(x)}} ${{sy(Math.min(peak, memBound(x)))}} `;
+      }}
+      svg += `<path class="roof" d="${{d}}"><title>${{esc(precision)}} dense peak</title></path>`;
     }}
-    d += `L ${{sx(xmax)}} ${{sy(peakTflops)}}`;
-    svg += `<path class="roof" d="${{d}}"/>`;
   }} else {{
     svg += `<line class="roof" x1="${{L}}" y1="${{sy(peakGbps)}}" x2="${{W-R}}" y2="${{sy(peakGbps)}}"/>`;
   }}
@@ -236,9 +250,10 @@ function render() {{
     legend.insertAdjacentHTML("beforeend", `<span><i class="swatch" style="background:${{color(d)}}"></i>${{esc(d)}}</span>`));
   legend.insertAdjacentHTML("beforeend", "<strong>Roofline:</strong>");
   const roofLabel = compute
-    ? `${{peakTflops.toFixed(1)}} TFLOP/s (FP16 ${{peakFp16Tflops.toFixed(1)}}${{scale>1 ? ` x${{scale}}` : ""}}) · ${{peakGbps.toFixed(0)}} GB/s`
+    ? (ceilings.map(([precision, peak]) => `${{precision.toUpperCase()}} ${{peak.toFixed(1)}} TOp/s dense`).join(" · ") || "Compute peak not supplied")
     : `${{peakGbps.toFixed(0)}} GB/s`;
-  legend.insertAdjacentHTML("beforeend", `<span>— ${{roofLabel}}</span>`);
+  const unknown = compute && points.some(r => !(peakFor(r) > 0));
+  legend.insertAdjacentHTML("beforeend", `<span>— ${{esc(roofLabel)}}${{unknown ? " · some compute ceilings unknown" : ""}}</span>`);
 }}
 
 function select(r) {{
@@ -246,7 +261,7 @@ function select(r) {{
     case_id:r.case_id, op:r.op, backend:r.backend, dtype:r.dtype,
     model:r.model, workload:r.workload, source:r.from,
     static:JSON.parse(r.static), dynamic:JSON.parse(r.dynamic), layout:r.layout,
-    measured:{{ms:number(r,"ms"),tflops:number(r,"tflops"),gbps:number(r,"gbps")}}
+    measured:{{ms:number(r,"ms"),trillion_ops_per_s:number(r,"tflops"),logical_gbps:number(r,"gbps"),compute_peak:peakFor(r),compute_peak_pct:peakFor(r)>0 ? 100*number(r,"tflops")/peakFor(r) : null}}
   }};
   document.getElementById("details").innerHTML = `<pre>${{esc(JSON.stringify(setup,null,2))}}</pre>`;
   const cmd = `python bench/run_bench.py --case-id ${{r.case_id}} --backends ${{r.backend}} --ops ${{r.op}}`;
@@ -260,7 +275,7 @@ state.op=opSelect.value; opSelect.onchange=e=>{{state.op=e.target.value;render()
 checks("backends","backend",state.backends); checks("workloads","workload",state.workloads); checks("dtypes","dtype",state.dtypes);
 const gpu=metadata.gpu||{{}};
 document.getElementById("meta").textContent =
-  `CK ${{metadata.ck_version||rows[0]?.ck_version||"unknown"}} · ${{gpu.name||rows[0]?.gpu_name||"unknown GPU"}} · CC ${{gpu.compute_capability||rows[0]?.compute_capability||"?"}} · peak FP16 ${{peakFp16Tflops.toFixed(1)}} TFLOP/s · ${{peakBwGbs.toFixed(0)}} GB/s · ${{metadata.created_at||""}}`;
+  `CK ${{metadata.ck_version||rows[0]?.ck_version||"unknown"}} · ${{gpu.name||rows[0]?.gpu_name||"unknown GPU"}} · CC ${{gpu.compute_capability||rows[0]?.compute_capability||"?"}} · explicit per-precision compute peaks · ${{peakBwGbs.toFixed(0)}} GB/s · ${{metadata.created_at||""}}`;
 render();
 </script>
 </body></html>"""
@@ -270,18 +285,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build interactive HTML report from a bench run")
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("--out", type=Path, default=None)
-    parser.add_argument(
-        "--peak-fp16-tflops",
-        type=float,
-        required=True,
-        help="device peak FP16 TFLOP/s (INT8/FP8 roof uses 2x, INT4/FP4 uses 4x)",
-    )
-    parser.add_argument(
-        "--peak-bw-gbs",
-        type=float,
-        required=True,
-        help="device peak memory bandwidth in GB/s",
-    )
+    add_peak_arguments(parser)
     args = parser.parse_args()
     rows, metadata = load_run(args.run_dir)
     if not rows:
@@ -293,6 +297,7 @@ def main() -> None:
             metadata,
             peak_fp16_tflops=args.peak_fp16_tflops,
             peak_bw_gbs=args.peak_bw_gbs,
+            precision_peaks=compute_peaks(args),
         ),
         encoding="utf-8",
     )

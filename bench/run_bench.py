@@ -9,6 +9,7 @@ import math
 import os
 import re
 import sys
+import subprocess
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -29,8 +30,10 @@ from bench.generate_configs import (  # noqa: E402
     supported_workloads,
 )
 from bench.ops import SPECS, backend_supports, primary_param  # noqa: E402
+from bench.peaks import add_peak_arguments, compute_peaks, validate_peaks  # noqa: E402
 from bench.tracer_node import load_bundle  # noqa: E402
 from comfy_kitchen.registry import registry  # noqa: E402
+from comfy_kitchen.exceptions import BackendError  # noqa: E402
 
 DTYPES = {
     "float32": torch.float32,
@@ -42,6 +45,8 @@ DTYPE_NAMES = {v: k for k, v in DTYPES.items()}
 CSV_FIELDS = [
     "op",
     "case_id",
+    "status",
+    "error",
     "backend",
     "dtype",
     "model",
@@ -142,7 +147,10 @@ def bench_cuda(
         raise RuntimeError("This PyTorch build does not expose torch.cuda._sleep")
 
     # >L2 so each iter is DRAM-cold; keep modest so wall time isn't flush-dominated.
-    flush = flush if flush is not None else torch.empty(96 << 20, dtype=torch.uint8, device=device)
+    flush = flush if flush is not None else torch.empty(
+        max(96 << 20, 2 * torch.cuda.get_device_properties(device).L2_cache_size),
+        dtype=torch.uint8, device=device,
+    )
     spin = max(1, int(spin_ms * torch.cuda.get_device_properties(device).clock_rate))
     fn()
     torch.cuda.synchronize(device)
@@ -274,6 +282,27 @@ def init_csv(path: Path) -> None:
         _fsync(handle)
 
 
+def ensure_csv_schema(path: Path) -> None:
+    """Migrate older successful-only CSVs before adding status/error columns."""
+    if not path.is_file():
+        return
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fields, rows = reader.fieldnames, list(reader)
+    if fields == CSV_FIELDS:
+        return
+    if not fields or not set(fields).issubset(CSV_FIELDS) or any(None in r for r in rows):
+        raise ValueError(f"unrecognized benchmark CSV schema: {path}")
+    temporary = path.with_name(path.name + ".schema.tmp")
+    with temporary.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({**row, "status": row.get("status") or "ok", "error": row.get("error") or ""})
+        _fsync(handle)
+    temporary.replace(path)
+
+
 def append_csv_row(path: Path, row: dict[str, Any], metadata: dict[str, Any]) -> None:
     with path.open("a", newline="", encoding="utf-8") as handle:
         csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore").writerow(
@@ -298,7 +327,7 @@ def completed_case_ids(path: Path) -> set[str]:
     if not path.is_file():
         return set()
     with path.open(newline="", encoding="utf-8") as handle:
-        return {r["case_id"] for r in csv.DictReader(handle) if r.get("case_id")}
+        return {r["case_id"] for r in csv.DictReader(handle) if r.get("case_id") and r.get("status", "ok") == "ok"}
 
 
 def run_matrix(
@@ -311,7 +340,10 @@ def run_matrix(
     csv_path: Path,
     metadata: dict[str, Any],
 ) -> int:
-    flush = torch.empty(96 << 20, dtype=torch.uint8, device=device)
+    flush = torch.empty(
+        max(96 << 20, 2 * torch.cuda.get_device_properties(device).L2_cache_size),
+        dtype=torch.uint8, device=device,
+    )
     n_new = 0
     progress = tqdm(rows, desc="Benchmark", unit="case")
     for row in progress:
@@ -330,8 +362,17 @@ def run_matrix(
                 spin_ms=spin_ms,
                 flush=flush,
             )
-        except (RuntimeError, ValueError, torch.OutOfMemoryError) as error:
+        except (RuntimeError, ValueError, TypeError, BackendError) as error:
             progress.write(f"skip {row['op']} ({row['backend']}/{row['dtype']}): {error}")
+            append_csv_row(csv_path, {
+                **{k: v for k, v in row.items() if k != "case"},
+                "static": json.dumps(case["static"], sort_keys=True),
+                "dynamic": json.dumps(case["dynamic"], sort_keys=True),
+                "layout": case.get("layout", ""), "from": case.get("from", ""),
+                "status": "failed", "error": str(error),
+            }, metadata)
+            if any(text in str(error).lower() for text in ("illegal memory access", "device-side assert")):
+                raise RuntimeError("CUDA context failed; restart before resuming this run") from error
             torch.cuda.empty_cache()
             continue
         calls = max(float(row["calls"]), 1.0)
@@ -343,6 +384,8 @@ def run_matrix(
             "dynamic": json.dumps(case["dynamic"], sort_keys=True),
             "layout": case.get("layout", ""),
             "from": case.get("from", ""),
+            "status": "ok",
+            "error": "",
             "ms": seconds * 1_000,
             "flops": flops,
             "io_bytes": io_bytes,
@@ -373,8 +416,18 @@ def run_metadata(args: argparse.Namespace, device: torch.device) -> dict[str, An
         ck_version = importlib.metadata.version("comfy-kitchen")
     except importlib.metadata.PackageNotFoundError:
         ck_version = "unknown"
+    try:
+        source_commit = subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        source_commit = "unknown"
     return {
         "schema": "ck.benchmark.run.v1",
+        "source_commit": source_commit,
+        "compute_peaks_tops": compute_peaks(args),
+        "peak_bw_gbs": args.peak_bw_gbs,
+        "bandwidth_basis": "estimated logical I/O; not measured DRAM traffic",
         "created_at": datetime.now().astimezone().isoformat(),
         "ck_version": ck_version,
         "torch_version": torch.__version__,
@@ -411,6 +464,9 @@ def _print_rows(rows: list[dict[str, Any]], *, timed: bool) -> None:
         )
         print("-" * (op_w + bd_w + 50))
         for r in rows:
+            if r.get("status", "ok") != "ok":
+                print(f"{r['op']:<{op_w}}  {r['backend']}/{r['dtype']}: failed: {r.get('error', '')}")
+                continue
             metric = f"{r['tflops']:.2f} TFLOP/s" if r["flops"] else f"{r['gbps']:.2f} GB/s"
             print(
                 f"{r['op']:<{op_w}}  {r['backend'] + '/' + r['dtype']:<{bd_w}}  "
@@ -496,18 +552,7 @@ def parse_args() -> argparse.Namespace:
         help="resume run dir (skip done case_ids)",
     )
     p.add_argument("--report", action="store_true", help="also write report.html")
-    p.add_argument(
-        "--peak-fp16-tflops",
-        type=float,
-        default=None,
-        help="roofline peak FP16 TFLOP/s (INT8/FP8=2x, INT4/FP4=4x; with --report)",
-    )
-    p.add_argument(
-        "--peak-bw-gbs",
-        type=float,
-        default=None,
-        help="roofline peak bandwidth in GB/s (with --report)",
-    )
+    add_peak_arguments(p)
     return p.parse_args()
 
 
@@ -517,10 +562,16 @@ def main() -> None:
     ops = resolve_ops(args.ops)
     if unknown := ops - available_ops():
         raise SystemExit(f"unknown ops: {sorted(unknown)}")
-    if not torch.cuda.is_available():
-        raise SystemExit("CUDA is required")
+    if not args.dry_run:
+        if not torch.cuda.is_available():
+            raise SystemExit("CUDA is required for timing")
+        torch.cuda.set_device(args.device)
     device = torch.device("cuda", args.device)
-    torch.cuda.set_device(device)
+    if args.report:
+        try:
+            validate_peaks(compute_peaks(args), args.peak_bw_gbs)
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
 
     rows = build_matrix(
         recipe_dir=args.recipe_dir,
@@ -551,6 +602,7 @@ def main() -> None:
         metadata["resumed_at"] = datetime.now().astimezone().isoformat()
         metadata["settings"] = run_metadata(args, device)["settings"]
         csv_path = out_dir / "results.csv"
+        ensure_csv_schema(csv_path)
         done = completed_case_ids(csv_path)
         if not csv_path.is_file():
             init_csv(csv_path)
@@ -589,8 +641,6 @@ def main() -> None:
     print(f"\nWrote {len(results)} rows to {out_dir}{suffix}")
 
     if args.report:
-        if args.peak_fp16_tflops is None or args.peak_bw_gbs is None:
-            raise SystemExit("--report requires --peak-fp16-tflops and --peak-bw-gbs")
         from bench.interactive_report import build_html, load_run
 
         csv_rows, meta = load_run(out_dir)
@@ -601,6 +651,7 @@ def main() -> None:
                 meta,
                 peak_fp16_tflops=args.peak_fp16_tflops,
                 peak_bw_gbs=args.peak_bw_gbs,
+                precision_peaks=compute_peaks(args),
             ),
             encoding="utf-8",
         )
@@ -608,7 +659,7 @@ def main() -> None:
     else:
         print(
             f"Interactive report: python bench/interactive_report.py {out_dir} "
-            "--peak-fp16-tflops <TFLOP/s> --peak-bw-gbs <GB/s>"
+            "--peak-bw-gbs <GB/s> [--peak-int8-tops <TOP/s> ...]"
         )
 
 

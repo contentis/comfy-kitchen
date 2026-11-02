@@ -11,7 +11,7 @@ def estimate(case: dict) -> tuple[float, float]:
     s, d = case["static"], case["dynamic"]
     e, seq, h, hd = elem(s.get("dtype")), int(d["seq"]), int(s["heads"]), int(s["head_dim"])
     scales = 8 * hd if case["op"].startswith("rms_") else 0
-    return 0.0, float(e * 4 * seq * h * hd + e * seq * hd * 2 + scales)
+    return 0.0, float(e * 4 * seq * h * hd + 8 * seq * hd + scales)
 
 
 def derive(case: dict, kernel: str) -> dict | None:
@@ -28,6 +28,7 @@ def derive(case: dict, kernel: str) -> dict | None:
             "heads": s["heads"],
             "head_dim": s["head_dim"],
             "dtype": s.get("dtype", "bfloat16"),
+            "freq_dtype": "float32",
         },
         dynamic={"seq": seq},
         layout=case.get("layout") or "BHND",
@@ -52,7 +53,8 @@ def kwargs(case: dict, dtype: torch.dtype, device: torch.device, backend: str) -
 
     q = torch.randn(shape, dtype=dtype, device=device)
     k = torch.randn(shape, dtype=dtype, device=device)
-    freqs = torch.randn(freqs_shape, dtype=dtype, device=device)
+    # Real rotation matrices are FP32 even when Q/K are BF16 or FP16.
+    freqs = torch.randn(freqs_shape, dtype=torch.float32, device=device)
     if case["op"].startswith("rms_rope"):
         return {
             "q": q,

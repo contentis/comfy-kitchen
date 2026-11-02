@@ -39,8 +39,23 @@ def estimate(case: dict) -> tuple[float, float]:
     rows = int(d.get("padded_rows", d["rows"]))
     cols = int(s.get("padded_cols", s["cols"]))
     n = rows * cols
-    packed = n / 2 if str(s.get("format", "")).startswith("nvfp4") else n
-    return 0.0, float(e * int(d["rows"]) * int(s["cols"]) + packed)
+    op = case["op"]
+    original = int(d["rows"]) * int(s["cols"])
+    nvfp4 = str(s.get("format", "")).startswith("nvfp4")
+    packed = n // 2 if nvfp4 else n
+    scales = 0
+    if nvfp4 or op.endswith("mxfp8"):
+        block = 16 if nvfp4 else 32
+        scales = ceil_to(rows, 128) * ceil_to(cols // block, 4)
+    elif "int8" in op:
+        scales = 4 * int(d["rows"]) if s.get("scale_mode") == "rowwise" else 4
+    if nvfp4 or "per_tensor_fp8" in op:
+        scales += 4  # global/tensor scale
+    if op.startswith("dequantize_"):
+        return 0.0, float(packed + scales + e * n)
+    rng = original if op == "stochastic_rounding_fp8" else 0
+    return 0.0, float(e * original + packed + scales + rng)
+
 
 
 def derive(case: dict, kernel: str) -> list[dict]:

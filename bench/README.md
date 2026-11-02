@@ -141,3 +141,44 @@ Or build a report later:
 python bench/interactive_report.py .bench/<run_dir> \
   --peak-fp16-tflops 100 --peak-bw-gbs 1500
 ```
+
+
+## Current upstream compatibility and roofline limits
+
+The benchmark branch includes the current upstream API. The RMS modulation
+operation is `rms_adaln`; it accepts `x`, `scale`, `shift`, and `eps`. RoPE cases
+use FP32 rotation matrices, including BF16/FP16 Q/K inputs, so eligible CUDA
+RMS–RoPE shapes can exercise the specialized path. Frequency dtype is recorded
+in the case configuration.
+
+Compute ceilings must be supplied explicitly. Available flags are
+`--peak-fp16-tflops`, `--peak-fp32-tflops`, `--peak-fp8-tflops`,
+`--peak-fp4-tflops`, `--peak-int8-tops`, and `--peak-int4-tops`.
+Use dense per-GPU peaks for the operation being measured. FP16 does not imply
+an INT8, FP8, or FP4 ceiling; a missing compute peak is shown as unknown.
+`--peak-bw-gbs` is required for a report. Existing stored precision peaks are
+reused when rebuilding a report unless an explicit value overrides them.
+
+Bandwidth is based on estimated logical input/output bytes, including block
+scales, padding and stochastic-rounding RNG where applicable. It is not a DRAM
+counter measurement or proof of DRAM SOL. The cache flush is at least twice the
+device's reported L2 capacity. Timings include the public operation, including
+its allocations and any required initialization; they are not pure-GEMM timing
+when the operation itself includes quantization or rotation.
+
+Failed cases remain in `results.csv` with `status=failed`, the exception message
+and configuration. Reports list failures separately and omit them from charts.
+Resume skips successful cases and retries failed ones. Source commit, precision
+peaks and the bandwidth interpretation are saved in run metadata.
+
+A CPU-only planning run can use the eager backend:
+
+```bash
+python bench/run_bench.py --dry-run --backends eager --ops all
+```
+
+Timing still requires a CUDA GPU. Validate benchmark compatibility without one:
+
+```bash
+python -m pytest --confcutdir bench bench/tests -q
+```
