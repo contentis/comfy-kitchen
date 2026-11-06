@@ -1,0 +1,1198 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "MiniMaxH3Transformer3DModelWeightless",
+  "profiles": [
+    "h3-video17408"
+  ],
+  "meta": {
+    "profile": "h3-video17408",
+    "status": "complete",
+    "evidence": "weightless_meta_forward_attention_shape_adapter",
+    "context": {
+      "video_patch_rows": 17408,
+      "audio_rows": 1024,
+      "text_rows": 512,
+      "geometry_scope": "proposed patch-token counts, not an RGB pipeline capture",
+      "weights_loaded": false
+    },
+    "diffusers": "0.42.1",
+    "torch": "2.15.0",
+    "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+    "model_source_sha256": "92d665e9fa10b1417088341dce5977663a180f9e6fa404fb9330062f353fe7ef",
+    "adapters": [
+      "attention output shape only; no QK/PV arithmetic",
+      "Qwen modulation mask moved to meta device",
+      "Krea torch.compile decorators unwrapped"
+    ],
+    "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+    "capture_sha256": "6b3d6b99f46597cba04e217dabae457509989296ae7f6a2be5e17e9fabd8617a",
+    "linear_calls": 370,
+    "shape_groups": 17,
+    "main_row_candidates": [
+      1,
+      512,
+      1024,
+      17408,
+      18944
+    ]
+  },
+  "events": [
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_1",
+      "static": {
+        "N": 5376,
+        "K": 96,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            96
+          ],
+          "input_stride": [
+            1671168,
+            96,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "proj_in"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_2",
+      "static": {
+        "N": 5376,
+        "K": 32,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            32
+          ],
+          "input_stride": [
+            32768,
+            32,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "audio_proj_in"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_3",
+      "static": {
+        "N": 5376,
+        "K": 5120,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            5120
+          ],
+          "input_stride": [
+            2621440,
+            5120,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "context_embedder"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_4",
+      "static": {
+        "N": 7168,
+        "K": 5376,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 6
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            5376
+          ],
+          "input_stride": [
+            2752512,
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            7168
+          ]
+        }
+      ],
+      "tags": [
+        "token_refiner.refiner_blocks.0.attn.to_q",
+        "token_refiner.refiner_blocks.0.attn.to_k",
+        "token_refiner.refiner_blocks.0.attn.to_v",
+        "token_refiner.refiner_blocks.1.attn.to_q",
+        "token_refiner.refiner_blocks.1.attn.to_k",
+        "token_refiner.refiner_blocks.1.attn.to_v"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_5",
+      "static": {
+        "N": 5376,
+        "K": 7168,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 2
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            7168
+          ],
+          "input_stride": [
+            3670016,
+            7168,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "token_refiner.refiner_blocks.0.attn.to_out.0",
+        "token_refiner.refiner_blocks.1.attn.to_out.0"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_6",
+      "static": {
+        "N": 28672,
+        "K": 5376,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 2
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            5376
+          ],
+          "input_stride": [
+            2752512,
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            28672
+          ]
+        }
+      ],
+      "tags": [
+        "token_refiner.refiner_blocks.0.ff.net.0.proj",
+        "token_refiner.refiner_blocks.1.ff.net.0.proj"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_7",
+      "static": {
+        "N": 5376,
+        "K": 14336,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 2
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            14336
+          ],
+          "input_stride": [
+            7340032,
+            14336,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "token_refiner.refiner_blocks.0.ff.net.2",
+        "token_refiner.refiner_blocks.1.ff.net.2"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_8",
+      "static": {
+        "N": 5376,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            256
+          ],
+          "input_stride": [
+            256,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "time_embedder.linear_1"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_9",
+      "static": {
+        "N": 2688,
+        "K": 5376,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            5376
+          ],
+          "input_stride": [
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            2688
+          ]
+        }
+      ],
+      "tags": [
+        "time_embedder.linear_2"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_10",
+      "static": {
+        "N": 96768,
+        "K": 2688,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 50
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            2688
+          ],
+          "input_stride": [
+            2688,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            96768
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.adaln_proj.linear",
+        "transformer_blocks.1.adaln_proj.linear",
+        "transformer_blocks.2.adaln_proj.linear",
+        "transformer_blocks.3.adaln_proj.linear",
+        "transformer_blocks.4.adaln_proj.linear",
+        "transformer_blocks.5.adaln_proj.linear",
+        "transformer_blocks.6.adaln_proj.linear",
+        "transformer_blocks.7.adaln_proj.linear",
+        "transformer_blocks.8.adaln_proj.linear",
+        "transformer_blocks.9.adaln_proj.linear",
+        "transformer_blocks.10.adaln_proj.linear",
+        "transformer_blocks.11.adaln_proj.linear",
+        "transformer_blocks.12.adaln_proj.linear",
+        "transformer_blocks.13.adaln_proj.linear",
+        "transformer_blocks.14.adaln_proj.linear",
+        "transformer_blocks.15.adaln_proj.linear",
+        "transformer_blocks.16.adaln_proj.linear",
+        "transformer_blocks.17.adaln_proj.linear",
+        "transformer_blocks.18.adaln_proj.linear",
+        "transformer_blocks.19.adaln_proj.linear",
+        "transformer_blocks.20.adaln_proj.linear",
+        "transformer_blocks.21.adaln_proj.linear",
+        "transformer_blocks.22.adaln_proj.linear",
+        "transformer_blocks.23.adaln_proj.linear",
+        "transformer_blocks.24.adaln_proj.linear",
+        "transformer_blocks.25.adaln_proj.linear",
+        "transformer_blocks.26.adaln_proj.linear",
+        "transformer_blocks.27.adaln_proj.linear",
+        "transformer_blocks.28.adaln_proj.linear",
+        "transformer_blocks.29.adaln_proj.linear",
+        "transformer_blocks.30.adaln_proj.linear",
+        "transformer_blocks.31.adaln_proj.linear",
+        "transformer_blocks.32.adaln_proj.linear",
+        "transformer_blocks.33.adaln_proj.linear",
+        "transformer_blocks.34.adaln_proj.linear",
+        "transformer_blocks.35.adaln_proj.linear",
+        "transformer_blocks.36.adaln_proj.linear",
+        "transformer_blocks.37.adaln_proj.linear",
+        "transformer_blocks.38.adaln_proj.linear",
+        "transformer_blocks.39.adaln_proj.linear",
+        "transformer_blocks.40.adaln_proj.linear",
+        "transformer_blocks.41.adaln_proj.linear",
+        "transformer_blocks.42.adaln_proj.linear",
+        "transformer_blocks.43.adaln_proj.linear",
+        "transformer_blocks.44.adaln_proj.linear",
+        "transformer_blocks.45.adaln_proj.linear",
+        "transformer_blocks.46.adaln_proj.linear",
+        "transformer_blocks.47.adaln_proj.linear",
+        "transformer_blocks.48.adaln_proj.linear",
+        "transformer_blocks.49.adaln_proj.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_11",
+      "static": {
+        "N": 7168,
+        "K": 5376,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 18944
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 150
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            18944,
+            5376
+          ],
+          "input_stride": [
+            101842944,
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18944,
+            7168
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.attn.to_q",
+        "transformer_blocks.0.attn.to_k",
+        "transformer_blocks.0.attn.to_v",
+        "transformer_blocks.1.attn.to_q",
+        "transformer_blocks.1.attn.to_k",
+        "transformer_blocks.1.attn.to_v",
+        "transformer_blocks.2.attn.to_q",
+        "transformer_blocks.2.attn.to_k",
+        "transformer_blocks.2.attn.to_v",
+        "transformer_blocks.3.attn.to_q",
+        "transformer_blocks.3.attn.to_k",
+        "transformer_blocks.3.attn.to_v",
+        "transformer_blocks.4.attn.to_q",
+        "transformer_blocks.4.attn.to_k",
+        "transformer_blocks.4.attn.to_v",
+        "transformer_blocks.5.attn.to_q",
+        "transformer_blocks.5.attn.to_k",
+        "transformer_blocks.5.attn.to_v",
+        "transformer_blocks.6.attn.to_q",
+        "transformer_blocks.6.attn.to_k",
+        "transformer_blocks.6.attn.to_v",
+        "transformer_blocks.7.attn.to_q",
+        "transformer_blocks.7.attn.to_k",
+        "transformer_blocks.7.attn.to_v",
+        "transformer_blocks.8.attn.to_q",
+        "transformer_blocks.8.attn.to_k",
+        "transformer_blocks.8.attn.to_v",
+        "transformer_blocks.9.attn.to_q",
+        "transformer_blocks.9.attn.to_k",
+        "transformer_blocks.9.attn.to_v",
+        "transformer_blocks.10.attn.to_q",
+        "transformer_blocks.10.attn.to_k",
+        "transformer_blocks.10.attn.to_v",
+        "transformer_blocks.11.attn.to_q",
+        "transformer_blocks.11.attn.to_k",
+        "transformer_blocks.11.attn.to_v",
+        "transformer_blocks.12.attn.to_q",
+        "transformer_blocks.12.attn.to_k",
+        "transformer_blocks.12.attn.to_v",
+        "transformer_blocks.13.attn.to_q",
+        "transformer_blocks.13.attn.to_k",
+        "transformer_blocks.13.attn.to_v",
+        "transformer_blocks.14.attn.to_q",
+        "transformer_blocks.14.attn.to_k",
+        "transformer_blocks.14.attn.to_v",
+        "transformer_blocks.15.attn.to_q",
+        "transformer_blocks.15.attn.to_k",
+        "transformer_blocks.15.attn.to_v",
+        "transformer_blocks.16.attn.to_q",
+        "transformer_blocks.16.attn.to_k",
+        "transformer_blocks.16.attn.to_v",
+        "transformer_blocks.17.attn.to_q",
+        "transformer_blocks.17.attn.to_k",
+        "transformer_blocks.17.attn.to_v",
+        "transformer_blocks.18.attn.to_q",
+        "transformer_blocks.18.attn.to_k",
+        "transformer_blocks.18.attn.to_v",
+        "transformer_blocks.19.attn.to_q",
+        "transformer_blocks.19.attn.to_k",
+        "transformer_blocks.19.attn.to_v",
+        "transformer_blocks.20.attn.to_q",
+        "transformer_blocks.20.attn.to_k",
+        "transformer_blocks.20.attn.to_v",
+        "transformer_blocks.21.attn.to_q",
+        "transformer_blocks.21.attn.to_k",
+        "transformer_blocks.21.attn.to_v",
+        "transformer_blocks.22.attn.to_q",
+        "transformer_blocks.22.attn.to_k",
+        "transformer_blocks.22.attn.to_v",
+        "transformer_blocks.23.attn.to_q",
+        "transformer_blocks.23.attn.to_k",
+        "transformer_blocks.23.attn.to_v",
+        "transformer_blocks.24.attn.to_q",
+        "transformer_blocks.24.attn.to_k",
+        "transformer_blocks.24.attn.to_v",
+        "transformer_blocks.25.attn.to_q",
+        "transformer_blocks.25.attn.to_k",
+        "transformer_blocks.25.attn.to_v",
+        "transformer_blocks.26.attn.to_q",
+        "transformer_blocks.26.attn.to_k",
+        "transformer_blocks.26.attn.to_v",
+        "transformer_blocks.27.attn.to_q",
+        "transformer_blocks.27.attn.to_k",
+        "transformer_blocks.27.attn.to_v",
+        "transformer_blocks.28.attn.to_q",
+        "transformer_blocks.28.attn.to_k",
+        "transformer_blocks.28.attn.to_v",
+        "transformer_blocks.29.attn.to_q",
+        "transformer_blocks.29.attn.to_k",
+        "transformer_blocks.29.attn.to_v",
+        "transformer_blocks.30.attn.to_q",
+        "transformer_blocks.30.attn.to_k",
+        "transformer_blocks.30.attn.to_v",
+        "transformer_blocks.31.attn.to_q",
+        "transformer_blocks.31.attn.to_k",
+        "transformer_blocks.31.attn.to_v",
+        "transformer_blocks.32.attn.to_q",
+        "transformer_blocks.32.attn.to_k",
+        "transformer_blocks.32.attn.to_v",
+        "transformer_blocks.33.attn.to_q",
+        "transformer_blocks.33.attn.to_k",
+        "transformer_blocks.33.attn.to_v",
+        "transformer_blocks.34.attn.to_q",
+        "transformer_blocks.34.attn.to_k",
+        "transformer_blocks.34.attn.to_v",
+        "transformer_blocks.35.attn.to_q",
+        "transformer_blocks.35.attn.to_k",
+        "transformer_blocks.35.attn.to_v",
+        "transformer_blocks.36.attn.to_q",
+        "transformer_blocks.36.attn.to_k",
+        "transformer_blocks.36.attn.to_v",
+        "transformer_blocks.37.attn.to_q",
+        "transformer_blocks.37.attn.to_k",
+        "transformer_blocks.37.attn.to_v",
+        "transformer_blocks.38.attn.to_q",
+        "transformer_blocks.38.attn.to_k",
+        "transformer_blocks.38.attn.to_v",
+        "transformer_blocks.39.attn.to_q",
+        "transformer_blocks.39.attn.to_k",
+        "transformer_blocks.39.attn.to_v",
+        "transformer_blocks.40.attn.to_q",
+        "transformer_blocks.40.attn.to_k",
+        "transformer_blocks.40.attn.to_v",
+        "transformer_blocks.41.attn.to_q",
+        "transformer_blocks.41.attn.to_k",
+        "transformer_blocks.41.attn.to_v",
+        "transformer_blocks.42.attn.to_q",
+        "transformer_blocks.42.attn.to_k",
+        "transformer_blocks.42.attn.to_v",
+        "transformer_blocks.43.attn.to_q",
+        "transformer_blocks.43.attn.to_k",
+        "transformer_blocks.43.attn.to_v",
+        "transformer_blocks.44.attn.to_q",
+        "transformer_blocks.44.attn.to_k",
+        "transformer_blocks.44.attn.to_v",
+        "transformer_blocks.45.attn.to_q",
+        "transformer_blocks.45.attn.to_k",
+        "transformer_blocks.45.attn.to_v",
+        "transformer_blocks.46.attn.to_q",
+        "transformer_blocks.46.attn.to_k",
+        "transformer_blocks.46.attn.to_v",
+        "transformer_blocks.47.attn.to_q",
+        "transformer_blocks.47.attn.to_k",
+        "transformer_blocks.47.attn.to_v",
+        "transformer_blocks.48.attn.to_q",
+        "transformer_blocks.48.attn.to_k",
+        "transformer_blocks.48.attn.to_v",
+        "transformer_blocks.49.attn.to_q",
+        "transformer_blocks.49.attn.to_k",
+        "transformer_blocks.49.attn.to_v"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_12",
+      "static": {
+        "N": 5376,
+        "K": 7168,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 18944
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 50
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            18944,
+            7168
+          ],
+          "input_stride": [
+            135790592,
+            7168,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18944,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.attn.to_out.0",
+        "transformer_blocks.1.attn.to_out.0",
+        "transformer_blocks.2.attn.to_out.0",
+        "transformer_blocks.3.attn.to_out.0",
+        "transformer_blocks.4.attn.to_out.0",
+        "transformer_blocks.5.attn.to_out.0",
+        "transformer_blocks.6.attn.to_out.0",
+        "transformer_blocks.7.attn.to_out.0",
+        "transformer_blocks.8.attn.to_out.0",
+        "transformer_blocks.9.attn.to_out.0",
+        "transformer_blocks.10.attn.to_out.0",
+        "transformer_blocks.11.attn.to_out.0",
+        "transformer_blocks.12.attn.to_out.0",
+        "transformer_blocks.13.attn.to_out.0",
+        "transformer_blocks.14.attn.to_out.0",
+        "transformer_blocks.15.attn.to_out.0",
+        "transformer_blocks.16.attn.to_out.0",
+        "transformer_blocks.17.attn.to_out.0",
+        "transformer_blocks.18.attn.to_out.0",
+        "transformer_blocks.19.attn.to_out.0",
+        "transformer_blocks.20.attn.to_out.0",
+        "transformer_blocks.21.attn.to_out.0",
+        "transformer_blocks.22.attn.to_out.0",
+        "transformer_blocks.23.attn.to_out.0",
+        "transformer_blocks.24.attn.to_out.0",
+        "transformer_blocks.25.attn.to_out.0",
+        "transformer_blocks.26.attn.to_out.0",
+        "transformer_blocks.27.attn.to_out.0",
+        "transformer_blocks.28.attn.to_out.0",
+        "transformer_blocks.29.attn.to_out.0",
+        "transformer_blocks.30.attn.to_out.0",
+        "transformer_blocks.31.attn.to_out.0",
+        "transformer_blocks.32.attn.to_out.0",
+        "transformer_blocks.33.attn.to_out.0",
+        "transformer_blocks.34.attn.to_out.0",
+        "transformer_blocks.35.attn.to_out.0",
+        "transformer_blocks.36.attn.to_out.0",
+        "transformer_blocks.37.attn.to_out.0",
+        "transformer_blocks.38.attn.to_out.0",
+        "transformer_blocks.39.attn.to_out.0",
+        "transformer_blocks.40.attn.to_out.0",
+        "transformer_blocks.41.attn.to_out.0",
+        "transformer_blocks.42.attn.to_out.0",
+        "transformer_blocks.43.attn.to_out.0",
+        "transformer_blocks.44.attn.to_out.0",
+        "transformer_blocks.45.attn.to_out.0",
+        "transformer_blocks.46.attn.to_out.0",
+        "transformer_blocks.47.attn.to_out.0",
+        "transformer_blocks.48.attn.to_out.0",
+        "transformer_blocks.49.attn.to_out.0"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_13",
+      "static": {
+        "N": 28672,
+        "K": 5376,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 18944
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 50
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            18944,
+            5376
+          ],
+          "input_stride": [
+            101842944,
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18944,
+            28672
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.ff.net.0.proj",
+        "transformer_blocks.1.ff.net.0.proj",
+        "transformer_blocks.2.ff.net.0.proj",
+        "transformer_blocks.3.ff.net.0.proj",
+        "transformer_blocks.4.ff.net.0.proj",
+        "transformer_blocks.5.ff.net.0.proj",
+        "transformer_blocks.6.ff.net.0.proj",
+        "transformer_blocks.7.ff.net.0.proj",
+        "transformer_blocks.8.ff.net.0.proj",
+        "transformer_blocks.9.ff.net.0.proj",
+        "transformer_blocks.10.ff.net.0.proj",
+        "transformer_blocks.11.ff.net.0.proj",
+        "transformer_blocks.12.ff.net.0.proj",
+        "transformer_blocks.13.ff.net.0.proj",
+        "transformer_blocks.14.ff.net.0.proj",
+        "transformer_blocks.15.ff.net.0.proj",
+        "transformer_blocks.16.ff.net.0.proj",
+        "transformer_blocks.17.ff.net.0.proj",
+        "transformer_blocks.18.ff.net.0.proj",
+        "transformer_blocks.19.ff.net.0.proj",
+        "transformer_blocks.20.ff.net.0.proj",
+        "transformer_blocks.21.ff.net.0.proj",
+        "transformer_blocks.22.ff.net.0.proj",
+        "transformer_blocks.23.ff.net.0.proj",
+        "transformer_blocks.24.ff.net.0.proj",
+        "transformer_blocks.25.ff.net.0.proj",
+        "transformer_blocks.26.ff.net.0.proj",
+        "transformer_blocks.27.ff.net.0.proj",
+        "transformer_blocks.28.ff.net.0.proj",
+        "transformer_blocks.29.ff.net.0.proj",
+        "transformer_blocks.30.ff.net.0.proj",
+        "transformer_blocks.31.ff.net.0.proj",
+        "transformer_blocks.32.ff.net.0.proj",
+        "transformer_blocks.33.ff.net.0.proj",
+        "transformer_blocks.34.ff.net.0.proj",
+        "transformer_blocks.35.ff.net.0.proj",
+        "transformer_blocks.36.ff.net.0.proj",
+        "transformer_blocks.37.ff.net.0.proj",
+        "transformer_blocks.38.ff.net.0.proj",
+        "transformer_blocks.39.ff.net.0.proj",
+        "transformer_blocks.40.ff.net.0.proj",
+        "transformer_blocks.41.ff.net.0.proj",
+        "transformer_blocks.42.ff.net.0.proj",
+        "transformer_blocks.43.ff.net.0.proj",
+        "transformer_blocks.44.ff.net.0.proj",
+        "transformer_blocks.45.ff.net.0.proj",
+        "transformer_blocks.46.ff.net.0.proj",
+        "transformer_blocks.47.ff.net.0.proj",
+        "transformer_blocks.48.ff.net.0.proj",
+        "transformer_blocks.49.ff.net.0.proj"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_14",
+      "static": {
+        "N": 5376,
+        "K": 14336,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 18944
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 50
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            18944,
+            14336
+          ],
+          "input_stride": [
+            271581184,
+            14336,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18944,
+            5376
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.ff.net.2",
+        "transformer_blocks.1.ff.net.2",
+        "transformer_blocks.2.ff.net.2",
+        "transformer_blocks.3.ff.net.2",
+        "transformer_blocks.4.ff.net.2",
+        "transformer_blocks.5.ff.net.2",
+        "transformer_blocks.6.ff.net.2",
+        "transformer_blocks.7.ff.net.2",
+        "transformer_blocks.8.ff.net.2",
+        "transformer_blocks.9.ff.net.2",
+        "transformer_blocks.10.ff.net.2",
+        "transformer_blocks.11.ff.net.2",
+        "transformer_blocks.12.ff.net.2",
+        "transformer_blocks.13.ff.net.2",
+        "transformer_blocks.14.ff.net.2",
+        "transformer_blocks.15.ff.net.2",
+        "transformer_blocks.16.ff.net.2",
+        "transformer_blocks.17.ff.net.2",
+        "transformer_blocks.18.ff.net.2",
+        "transformer_blocks.19.ff.net.2",
+        "transformer_blocks.20.ff.net.2",
+        "transformer_blocks.21.ff.net.2",
+        "transformer_blocks.22.ff.net.2",
+        "transformer_blocks.23.ff.net.2",
+        "transformer_blocks.24.ff.net.2",
+        "transformer_blocks.25.ff.net.2",
+        "transformer_blocks.26.ff.net.2",
+        "transformer_blocks.27.ff.net.2",
+        "transformer_blocks.28.ff.net.2",
+        "transformer_blocks.29.ff.net.2",
+        "transformer_blocks.30.ff.net.2",
+        "transformer_blocks.31.ff.net.2",
+        "transformer_blocks.32.ff.net.2",
+        "transformer_blocks.33.ff.net.2",
+        "transformer_blocks.34.ff.net.2",
+        "transformer_blocks.35.ff.net.2",
+        "transformer_blocks.36.ff.net.2",
+        "transformer_blocks.37.ff.net.2",
+        "transformer_blocks.38.ff.net.2",
+        "transformer_blocks.39.ff.net.2",
+        "transformer_blocks.40.ff.net.2",
+        "transformer_blocks.41.ff.net.2",
+        "transformer_blocks.42.ff.net.2",
+        "transformer_blocks.43.ff.net.2",
+        "transformer_blocks.44.ff.net.2",
+        "transformer_blocks.45.ff.net.2",
+        "transformer_blocks.46.ff.net.2",
+        "transformer_blocks.47.ff.net.2",
+        "transformer_blocks.48.ff.net.2",
+        "transformer_blocks.49.ff.net.2"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_15",
+      "static": {
+        "N": 10752,
+        "K": 2688,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            2688
+          ],
+          "input_stride": [
+            2688,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            10752
+          ]
+        }
+      ],
+      "tags": [
+        "norm_out.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_16",
+      "static": {
+        "N": 96,
+        "K": 5376,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 18944
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            18944,
+            5376
+          ],
+          "input_stride": [
+            101842944,
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18944,
+            96
+          ]
+        }
+      ],
+      "tags": [
+        "proj_out"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_17",
+      "static": {
+        "N": 32,
+        "K": 5376,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "h3-video17408": 18944
+          }
+        }
+      },
+      "call_count": {
+        "h3-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "h3-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            18944,
+            5376
+          ],
+          "input_stride": [
+            101842944,
+            5376,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18944,
+            32
+          ]
+        }
+      ],
+      "tags": [
+        "audio_proj_out"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2897 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "LTX2VideoTransformer3DModelWeightless",
+  "profiles": [
+    "ltx25-video17408"
+  ],
+  "meta": {
+    "profile": "ltx25-video17408",
+    "status": "complete",
+    "evidence": "weightless_meta_forward_attention_shape_adapter",
+    "context": {
+      "latent_grid": [
+        17,
+        32,
+        32
+      ],
+      "video_rows": 17408,
+      "audio_rows": 1024,
+      "text_rows": 512,
+      "geometry_scope": "proposed latent geometry; no VAE/pipeline execution",
+      "weights_loaded": false
+    },
+    "diffusers": "0.42.1",
+    "torch": "2.15.0",
+    "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+    "model_source_sha256": "3a06d5043886efeb0d58f8284e7d7dc6559a71344568ccdb1230da9882727fad",
+    "adapters": [
+      "attention output shape only; no QK/PV arithmetic",
+      "Qwen modulation mask moved to meta device",
+      "Krea torch.compile decorators unwrapped"
+    ],
+    "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+    "capture_sha256": "c1fbb33adb8c4ac99602bec0a11ea48a7d2ca264058d3b5ba3bb41a65ac247ac",
+    "linear_calls": 1660,
+    "shape_groups": 26,
+    "main_row_candidates": [
+      1,
+      512,
+      1024,
+      17408
+    ]
+  },
+  "events": [
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_1",
+      "static": {
+        "N": 4096,
+        "K": 128,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            128
+          ],
+          "input_stride": [
+            2228224,
+            128,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "proj_in"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_2",
+      "static": {
+        "N": 2048,
+        "K": 128,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            128
+          ],
+          "input_stride": [
+            131072,
+            128,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "audio_proj_in"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_3",
+      "static": {
+        "N": 4096,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 4
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            256
+          ],
+          "input_stride": [
+            256,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "time_embed.emb.timestep_embedder.linear_1",
+        "prompt_adaln.emb.timestep_embedder.linear_1",
+        "av_cross_attn_video_scale_shift.emb.timestep_embedder.linear_1",
+        "av_cross_attn_video_a2v_gate.emb.timestep_embedder.linear_1"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_4",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 5
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096
+          ],
+          "input_stride": [
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "time_embed.emb.timestep_embedder.linear_2",
+        "prompt_adaln.emb.timestep_embedder.linear_2",
+        "av_cross_attn_video_scale_shift.emb.timestep_embedder.linear_2",
+        "av_cross_attn_video_a2v_gate.emb.timestep_embedder.linear_2",
+        "av_cross_attn_video_a2v_gate.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_5",
+      "static": {
+        "N": 36864,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096
+          ],
+          "input_stride": [
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            36864
+          ]
+        }
+      ],
+      "tags": [
+        "time_embed.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_6",
+      "static": {
+        "N": 2048,
+        "K": 256,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 4
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            256
+          ],
+          "input_stride": [
+            256,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "audio_time_embed.emb.timestep_embedder.linear_1",
+        "audio_prompt_adaln.emb.timestep_embedder.linear_1",
+        "av_cross_attn_audio_scale_shift.emb.timestep_embedder.linear_1",
+        "av_cross_attn_audio_v2a_gate.emb.timestep_embedder.linear_1"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_7",
+      "static": {
+        "N": 2048,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 5
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            2048
+          ],
+          "input_stride": [
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "audio_time_embed.emb.timestep_embedder.linear_2",
+        "audio_prompt_adaln.emb.timestep_embedder.linear_2",
+        "av_cross_attn_audio_scale_shift.emb.timestep_embedder.linear_2",
+        "av_cross_attn_audio_v2a_gate.emb.timestep_embedder.linear_2",
+        "av_cross_attn_audio_v2a_gate.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_8",
+      "static": {
+        "N": 18432,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            2048
+          ],
+          "input_stride": [
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            18432
+          ]
+        }
+      ],
+      "tags": [
+        "audio_time_embed.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_9",
+      "static": {
+        "N": 8192,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096
+          ],
+          "input_stride": [
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            8192
+          ]
+        }
+      ],
+      "tags": [
+        "prompt_adaln.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_10",
+      "static": {
+        "N": 4096,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            2048
+          ],
+          "input_stride": [
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "audio_prompt_adaln.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_11",
+      "static": {
+        "N": 16384,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096
+          ],
+          "input_stride": [
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            16384
+          ]
+        }
+      ],
+      "tags": [
+        "av_cross_attn_video_scale_shift.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_12",
+      "static": {
+        "N": 8192,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            2048
+          ],
+          "input_stride": [
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            8192
+          ]
+        }
+      ],
+      "tags": [
+        "av_cross_attn_audio_scale_shift.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_13",
+      "static": {
+        "N": 32,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 144
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            4096
+          ],
+          "input_stride": [
+            71303168,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            32
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.attn1.to_gate_logits",
+        "transformer_blocks.0.attn2.to_gate_logits",
+        "transformer_blocks.0.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.1.attn1.to_gate_logits",
+        "transformer_blocks.1.attn2.to_gate_logits",
+        "transformer_blocks.1.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.2.attn1.to_gate_logits",
+        "transformer_blocks.2.attn2.to_gate_logits",
+        "transformer_blocks.2.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.3.attn1.to_gate_logits",
+        "transformer_blocks.3.attn2.to_gate_logits",
+        "transformer_blocks.3.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.4.attn1.to_gate_logits",
+        "transformer_blocks.4.attn2.to_gate_logits",
+        "transformer_blocks.4.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.5.attn1.to_gate_logits",
+        "transformer_blocks.5.attn2.to_gate_logits",
+        "transformer_blocks.5.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.6.attn1.to_gate_logits",
+        "transformer_blocks.6.attn2.to_gate_logits",
+        "transformer_blocks.6.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.7.attn1.to_gate_logits",
+        "transformer_blocks.7.attn2.to_gate_logits",
+        "transformer_blocks.7.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.8.attn1.to_gate_logits",
+        "transformer_blocks.8.attn2.to_gate_logits",
+        "transformer_blocks.8.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.9.attn1.to_gate_logits",
+        "transformer_blocks.9.attn2.to_gate_logits",
+        "transformer_blocks.9.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.10.attn1.to_gate_logits",
+        "transformer_blocks.10.attn2.to_gate_logits",
+        "transformer_blocks.10.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.11.attn1.to_gate_logits",
+        "transformer_blocks.11.attn2.to_gate_logits",
+        "transformer_blocks.11.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.12.attn1.to_gate_logits",
+        "transformer_blocks.12.attn2.to_gate_logits",
+        "transformer_blocks.12.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.13.attn1.to_gate_logits",
+        "transformer_blocks.13.attn2.to_gate_logits",
+        "transformer_blocks.13.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.14.attn1.to_gate_logits",
+        "transformer_blocks.14.attn2.to_gate_logits",
+        "transformer_blocks.14.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.15.attn1.to_gate_logits",
+        "transformer_blocks.15.attn2.to_gate_logits",
+        "transformer_blocks.15.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.16.attn1.to_gate_logits",
+        "transformer_blocks.16.attn2.to_gate_logits",
+        "transformer_blocks.16.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.17.attn1.to_gate_logits",
+        "transformer_blocks.17.attn2.to_gate_logits",
+        "transformer_blocks.17.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.18.attn1.to_gate_logits",
+        "transformer_blocks.18.attn2.to_gate_logits",
+        "transformer_blocks.18.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.19.attn1.to_gate_logits",
+        "transformer_blocks.19.attn2.to_gate_logits",
+        "transformer_blocks.19.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.20.attn1.to_gate_logits",
+        "transformer_blocks.20.attn2.to_gate_logits",
+        "transformer_blocks.20.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.21.attn1.to_gate_logits",
+        "transformer_blocks.21.attn2.to_gate_logits",
+        "transformer_blocks.21.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.22.attn1.to_gate_logits",
+        "transformer_blocks.22.attn2.to_gate_logits",
+        "transformer_blocks.22.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.23.attn1.to_gate_logits",
+        "transformer_blocks.23.attn2.to_gate_logits",
+        "transformer_blocks.23.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.24.attn1.to_gate_logits",
+        "transformer_blocks.24.attn2.to_gate_logits",
+        "transformer_blocks.24.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.25.attn1.to_gate_logits",
+        "transformer_blocks.25.attn2.to_gate_logits",
+        "transformer_blocks.25.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.26.attn1.to_gate_logits",
+        "transformer_blocks.26.attn2.to_gate_logits",
+        "transformer_blocks.26.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.27.attn1.to_gate_logits",
+        "transformer_blocks.27.attn2.to_gate_logits",
+        "transformer_blocks.27.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.28.attn1.to_gate_logits",
+        "transformer_blocks.28.attn2.to_gate_logits",
+        "transformer_blocks.28.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.29.attn1.to_gate_logits",
+        "transformer_blocks.29.attn2.to_gate_logits",
+        "transformer_blocks.29.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.30.attn1.to_gate_logits",
+        "transformer_blocks.30.attn2.to_gate_logits",
+        "transformer_blocks.30.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.31.attn1.to_gate_logits",
+        "transformer_blocks.31.attn2.to_gate_logits",
+        "transformer_blocks.31.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.32.attn1.to_gate_logits",
+        "transformer_blocks.32.attn2.to_gate_logits",
+        "transformer_blocks.32.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.33.attn1.to_gate_logits",
+        "transformer_blocks.33.attn2.to_gate_logits",
+        "transformer_blocks.33.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.34.attn1.to_gate_logits",
+        "transformer_blocks.34.attn2.to_gate_logits",
+        "transformer_blocks.34.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.35.attn1.to_gate_logits",
+        "transformer_blocks.35.attn2.to_gate_logits",
+        "transformer_blocks.35.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.36.attn1.to_gate_logits",
+        "transformer_blocks.36.attn2.to_gate_logits",
+        "transformer_blocks.36.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.37.attn1.to_gate_logits",
+        "transformer_blocks.37.attn2.to_gate_logits",
+        "transformer_blocks.37.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.38.attn1.to_gate_logits",
+        "transformer_blocks.38.attn2.to_gate_logits",
+        "transformer_blocks.38.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.39.attn1.to_gate_logits",
+        "transformer_blocks.39.attn2.to_gate_logits",
+        "transformer_blocks.39.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.40.attn1.to_gate_logits",
+        "transformer_blocks.40.attn2.to_gate_logits",
+        "transformer_blocks.40.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.41.attn1.to_gate_logits",
+        "transformer_blocks.41.attn2.to_gate_logits",
+        "transformer_blocks.41.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.42.attn1.to_gate_logits",
+        "transformer_blocks.42.attn2.to_gate_logits",
+        "transformer_blocks.42.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.43.attn1.to_gate_logits",
+        "transformer_blocks.43.attn2.to_gate_logits",
+        "transformer_blocks.43.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.44.attn1.to_gate_logits",
+        "transformer_blocks.44.attn2.to_gate_logits",
+        "transformer_blocks.44.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.45.attn1.to_gate_logits",
+        "transformer_blocks.45.attn2.to_gate_logits",
+        "transformer_blocks.45.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.46.attn1.to_gate_logits",
+        "transformer_blocks.46.attn2.to_gate_logits",
+        "transformer_blocks.46.audio_to_video_attn.to_gate_logits",
+        "transformer_blocks.47.attn1.to_gate_logits",
+        "transformer_blocks.47.attn2.to_gate_logits",
+        "transformer_blocks.47.audio_to_video_attn.to_gate_logits"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_14",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 288
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            4096
+          ],
+          "input_stride": [
+            71303168,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.attn1.to_v",
+        "transformer_blocks.0.attn1.to_q",
+        "transformer_blocks.0.attn1.to_k",
+        "transformer_blocks.0.attn1.to_out.0",
+        "transformer_blocks.0.attn2.to_q",
+        "transformer_blocks.0.attn2.to_out.0",
+        "transformer_blocks.1.attn1.to_v",
+        "transformer_blocks.1.attn1.to_q",
+        "transformer_blocks.1.attn1.to_k",
+        "transformer_blocks.1.attn1.to_out.0",
+        "transformer_blocks.1.attn2.to_q",
+        "transformer_blocks.1.attn2.to_out.0",
+        "transformer_blocks.2.attn1.to_v",
+        "transformer_blocks.2.attn1.to_q",
+        "transformer_blocks.2.attn1.to_k",
+        "transformer_blocks.2.attn1.to_out.0",
+        "transformer_blocks.2.attn2.to_q",
+        "transformer_blocks.2.attn2.to_out.0",
+        "transformer_blocks.3.attn1.to_v",
+        "transformer_blocks.3.attn1.to_q",
+        "transformer_blocks.3.attn1.to_k",
+        "transformer_blocks.3.attn1.to_out.0",
+        "transformer_blocks.3.attn2.to_q",
+        "transformer_blocks.3.attn2.to_out.0",
+        "transformer_blocks.4.attn1.to_v",
+        "transformer_blocks.4.attn1.to_q",
+        "transformer_blocks.4.attn1.to_k",
+        "transformer_blocks.4.attn1.to_out.0",
+        "transformer_blocks.4.attn2.to_q",
+        "transformer_blocks.4.attn2.to_out.0",
+        "transformer_blocks.5.attn1.to_v",
+        "transformer_blocks.5.attn1.to_q",
+        "transformer_blocks.5.attn1.to_k",
+        "transformer_blocks.5.attn1.to_out.0",
+        "transformer_blocks.5.attn2.to_q",
+        "transformer_blocks.5.attn2.to_out.0",
+        "transformer_blocks.6.attn1.to_v",
+        "transformer_blocks.6.attn1.to_q",
+        "transformer_blocks.6.attn1.to_k",
+        "transformer_blocks.6.attn1.to_out.0",
+        "transformer_blocks.6.attn2.to_q",
+        "transformer_blocks.6.attn2.to_out.0",
+        "transformer_blocks.7.attn1.to_v",
+        "transformer_blocks.7.attn1.to_q",
+        "transformer_blocks.7.attn1.to_k",
+        "transformer_blocks.7.attn1.to_out.0",
+        "transformer_blocks.7.attn2.to_q",
+        "transformer_blocks.7.attn2.to_out.0",
+        "transformer_blocks.8.attn1.to_v",
+        "transformer_blocks.8.attn1.to_q",
+        "transformer_blocks.8.attn1.to_k",
+        "transformer_blocks.8.attn1.to_out.0",
+        "transformer_blocks.8.attn2.to_q",
+        "transformer_blocks.8.attn2.to_out.0",
+        "transformer_blocks.9.attn1.to_v",
+        "transformer_blocks.9.attn1.to_q",
+        "transformer_blocks.9.attn1.to_k",
+        "transformer_blocks.9.attn1.to_out.0",
+        "transformer_blocks.9.attn2.to_q",
+        "transformer_blocks.9.attn2.to_out.0",
+        "transformer_blocks.10.attn1.to_v",
+        "transformer_blocks.10.attn1.to_q",
+        "transformer_blocks.10.attn1.to_k",
+        "transformer_blocks.10.attn1.to_out.0",
+        "transformer_blocks.10.attn2.to_q",
+        "transformer_blocks.10.attn2.to_out.0",
+        "transformer_blocks.11.attn1.to_v",
+        "transformer_blocks.11.attn1.to_q",
+        "transformer_blocks.11.attn1.to_k",
+        "transformer_blocks.11.attn1.to_out.0",
+        "transformer_blocks.11.attn2.to_q",
+        "transformer_blocks.11.attn2.to_out.0",
+        "transformer_blocks.12.attn1.to_v",
+        "transformer_blocks.12.attn1.to_q",
+        "transformer_blocks.12.attn1.to_k",
+        "transformer_blocks.12.attn1.to_out.0",
+        "transformer_blocks.12.attn2.to_q",
+        "transformer_blocks.12.attn2.to_out.0",
+        "transformer_blocks.13.attn1.to_v",
+        "transformer_blocks.13.attn1.to_q",
+        "transformer_blocks.13.attn1.to_k",
+        "transformer_blocks.13.attn1.to_out.0",
+        "transformer_blocks.13.attn2.to_q",
+        "transformer_blocks.13.attn2.to_out.0",
+        "transformer_blocks.14.attn1.to_v",
+        "transformer_blocks.14.attn1.to_q",
+        "transformer_blocks.14.attn1.to_k",
+        "transformer_blocks.14.attn1.to_out.0",
+        "transformer_blocks.14.attn2.to_q",
+        "transformer_blocks.14.attn2.to_out.0",
+        "transformer_blocks.15.attn1.to_v",
+        "transformer_blocks.15.attn1.to_q",
+        "transformer_blocks.15.attn1.to_k",
+        "transformer_blocks.15.attn1.to_out.0",
+        "transformer_blocks.15.attn2.to_q",
+        "transformer_blocks.15.attn2.to_out.0",
+        "transformer_blocks.16.attn1.to_v",
+        "transformer_blocks.16.attn1.to_q",
+        "transformer_blocks.16.attn1.to_k",
+        "transformer_blocks.16.attn1.to_out.0",
+        "transformer_blocks.16.attn2.to_q",
+        "transformer_blocks.16.attn2.to_out.0",
+        "transformer_blocks.17.attn1.to_v",
+        "transformer_blocks.17.attn1.to_q",
+        "transformer_blocks.17.attn1.to_k",
+        "transformer_blocks.17.attn1.to_out.0",
+        "transformer_blocks.17.attn2.to_q",
+        "transformer_blocks.17.attn2.to_out.0",
+        "transformer_blocks.18.attn1.to_v",
+        "transformer_blocks.18.attn1.to_q",
+        "transformer_blocks.18.attn1.to_k",
+        "transformer_blocks.18.attn1.to_out.0",
+        "transformer_blocks.18.attn2.to_q",
+        "transformer_blocks.18.attn2.to_out.0",
+        "transformer_blocks.19.attn1.to_v",
+        "transformer_blocks.19.attn1.to_q",
+        "transformer_blocks.19.attn1.to_k",
+        "transformer_blocks.19.attn1.to_out.0",
+        "transformer_blocks.19.attn2.to_q",
+        "transformer_blocks.19.attn2.to_out.0",
+        "transformer_blocks.20.attn1.to_v",
+        "transformer_blocks.20.attn1.to_q",
+        "transformer_blocks.20.attn1.to_k",
+        "transformer_blocks.20.attn1.to_out.0",
+        "transformer_blocks.20.attn2.to_q",
+        "transformer_blocks.20.attn2.to_out.0",
+        "transformer_blocks.21.attn1.to_v",
+        "transformer_blocks.21.attn1.to_q",
+        "transformer_blocks.21.attn1.to_k",
+        "transformer_blocks.21.attn1.to_out.0",
+        "transformer_blocks.21.attn2.to_q",
+        "transformer_blocks.21.attn2.to_out.0",
+        "transformer_blocks.22.attn1.to_v",
+        "transformer_blocks.22.attn1.to_q",
+        "transformer_blocks.22.attn1.to_k",
+        "transformer_blocks.22.attn1.to_out.0",
+        "transformer_blocks.22.attn2.to_q",
+        "transformer_blocks.22.attn2.to_out.0",
+        "transformer_blocks.23.attn1.to_v",
+        "transformer_blocks.23.attn1.to_q",
+        "transformer_blocks.23.attn1.to_k",
+        "transformer_blocks.23.attn1.to_out.0",
+        "transformer_blocks.23.attn2.to_q",
+        "transformer_blocks.23.attn2.to_out.0",
+        "transformer_blocks.24.attn1.to_v",
+        "transformer_blocks.24.attn1.to_q",
+        "transformer_blocks.24.attn1.to_k",
+        "transformer_blocks.24.attn1.to_out.0",
+        "transformer_blocks.24.attn2.to_q",
+        "transformer_blocks.24.attn2.to_out.0",
+        "transformer_blocks.25.attn1.to_v",
+        "transformer_blocks.25.attn1.to_q",
+        "transformer_blocks.25.attn1.to_k",
+        "transformer_blocks.25.attn1.to_out.0",
+        "transformer_blocks.25.attn2.to_q",
+        "transformer_blocks.25.attn2.to_out.0",
+        "transformer_blocks.26.attn1.to_v",
+        "transformer_blocks.26.attn1.to_q",
+        "transformer_blocks.26.attn1.to_k",
+        "transformer_blocks.26.attn1.to_out.0",
+        "transformer_blocks.26.attn2.to_q",
+        "transformer_blocks.26.attn2.to_out.0",
+        "transformer_blocks.27.attn1.to_v",
+        "transformer_blocks.27.attn1.to_q",
+        "transformer_blocks.27.attn1.to_k",
+        "transformer_blocks.27.attn1.to_out.0",
+        "transformer_blocks.27.attn2.to_q",
+        "transformer_blocks.27.attn2.to_out.0",
+        "transformer_blocks.28.attn1.to_v",
+        "transformer_blocks.28.attn1.to_q",
+        "transformer_blocks.28.attn1.to_k",
+        "transformer_blocks.28.attn1.to_out.0",
+        "transformer_blocks.28.attn2.to_q",
+        "transformer_blocks.28.attn2.to_out.0",
+        "transformer_blocks.29.attn1.to_v",
+        "transformer_blocks.29.attn1.to_q",
+        "transformer_blocks.29.attn1.to_k",
+        "transformer_blocks.29.attn1.to_out.0",
+        "transformer_blocks.29.attn2.to_q",
+        "transformer_blocks.29.attn2.to_out.0",
+        "transformer_blocks.30.attn1.to_v",
+        "transformer_blocks.30.attn1.to_q",
+        "transformer_blocks.30.attn1.to_k",
+        "transformer_blocks.30.attn1.to_out.0",
+        "transformer_blocks.30.attn2.to_q",
+        "transformer_blocks.30.attn2.to_out.0",
+        "transformer_blocks.31.attn1.to_v",
+        "transformer_blocks.31.attn1.to_q",
+        "transformer_blocks.31.attn1.to_k",
+        "transformer_blocks.31.attn1.to_out.0",
+        "transformer_blocks.31.attn2.to_q",
+        "transformer_blocks.31.attn2.to_out.0",
+        "transformer_blocks.32.attn1.to_v",
+        "transformer_blocks.32.attn1.to_q",
+        "transformer_blocks.32.attn1.to_k",
+        "transformer_blocks.32.attn1.to_out.0",
+        "transformer_blocks.32.attn2.to_q",
+        "transformer_blocks.32.attn2.to_out.0",
+        "transformer_blocks.33.attn1.to_v",
+        "transformer_blocks.33.attn1.to_q",
+        "transformer_blocks.33.attn1.to_k",
+        "transformer_blocks.33.attn1.to_out.0",
+        "transformer_blocks.33.attn2.to_q",
+        "transformer_blocks.33.attn2.to_out.0",
+        "transformer_blocks.34.attn1.to_v",
+        "transformer_blocks.34.attn1.to_q",
+        "transformer_blocks.34.attn1.to_k",
+        "transformer_blocks.34.attn1.to_out.0",
+        "transformer_blocks.34.attn2.to_q",
+        "transformer_blocks.34.attn2.to_out.0",
+        "transformer_blocks.35.attn1.to_v",
+        "transformer_blocks.35.attn1.to_q",
+        "transformer_blocks.35.attn1.to_k",
+        "transformer_blocks.35.attn1.to_out.0",
+        "transformer_blocks.35.attn2.to_q",
+        "transformer_blocks.35.attn2.to_out.0",
+        "transformer_blocks.36.attn1.to_v",
+        "transformer_blocks.36.attn1.to_q",
+        "transformer_blocks.36.attn1.to_k",
+        "transformer_blocks.36.attn1.to_out.0",
+        "transformer_blocks.36.attn2.to_q",
+        "transformer_blocks.36.attn2.to_out.0",
+        "transformer_blocks.37.attn1.to_v",
+        "transformer_blocks.37.attn1.to_q",
+        "transformer_blocks.37.attn1.to_k",
+        "transformer_blocks.37.attn1.to_out.0",
+        "transformer_blocks.37.attn2.to_q",
+        "transformer_blocks.37.attn2.to_out.0",
+        "transformer_blocks.38.attn1.to_v",
+        "transformer_blocks.38.attn1.to_q",
+        "transformer_blocks.38.attn1.to_k",
+        "transformer_blocks.38.attn1.to_out.0",
+        "transformer_blocks.38.attn2.to_q",
+        "transformer_blocks.38.attn2.to_out.0",
+        "transformer_blocks.39.attn1.to_v",
+        "transformer_blocks.39.attn1.to_q",
+        "transformer_blocks.39.attn1.to_k",
+        "transformer_blocks.39.attn1.to_out.0",
+        "transformer_blocks.39.attn2.to_q",
+        "transformer_blocks.39.attn2.to_out.0",
+        "transformer_blocks.40.attn1.to_v",
+        "transformer_blocks.40.attn1.to_q",
+        "transformer_blocks.40.attn1.to_k",
+        "transformer_blocks.40.attn1.to_out.0",
+        "transformer_blocks.40.attn2.to_q",
+        "transformer_blocks.40.attn2.to_out.0",
+        "transformer_blocks.41.attn1.to_v",
+        "transformer_blocks.41.attn1.to_q",
+        "transformer_blocks.41.attn1.to_k",
+        "transformer_blocks.41.attn1.to_out.0",
+        "transformer_blocks.41.attn2.to_q",
+        "transformer_blocks.41.attn2.to_out.0",
+        "transformer_blocks.42.attn1.to_v",
+        "transformer_blocks.42.attn1.to_q",
+        "transformer_blocks.42.attn1.to_k",
+        "transformer_blocks.42.attn1.to_out.0",
+        "transformer_blocks.42.attn2.to_q",
+        "transformer_blocks.42.attn2.to_out.0",
+        "transformer_blocks.43.attn1.to_v",
+        "transformer_blocks.43.attn1.to_q",
+        "transformer_blocks.43.attn1.to_k",
+        "transformer_blocks.43.attn1.to_out.0",
+        "transformer_blocks.43.attn2.to_q",
+        "transformer_blocks.43.attn2.to_out.0",
+        "transformer_blocks.44.attn1.to_v",
+        "transformer_blocks.44.attn1.to_q",
+        "transformer_blocks.44.attn1.to_k",
+        "transformer_blocks.44.attn1.to_out.0",
+        "transformer_blocks.44.attn2.to_q",
+        "transformer_blocks.44.attn2.to_out.0",
+        "transformer_blocks.45.attn1.to_v",
+        "transformer_blocks.45.attn1.to_q",
+        "transformer_blocks.45.attn1.to_k",
+        "transformer_blocks.45.attn1.to_out.0",
+        "transformer_blocks.45.attn2.to_q",
+        "transformer_blocks.45.attn2.to_out.0",
+        "transformer_blocks.46.attn1.to_v",
+        "transformer_blocks.46.attn1.to_q",
+        "transformer_blocks.46.attn1.to_k",
+        "transformer_blocks.46.attn1.to_out.0",
+        "transformer_blocks.46.attn2.to_q",
+        "transformer_blocks.46.attn2.to_out.0",
+        "transformer_blocks.47.attn1.to_v",
+        "transformer_blocks.47.attn1.to_q",
+        "transformer_blocks.47.attn1.to_k",
+        "transformer_blocks.47.attn1.to_out.0",
+        "transformer_blocks.47.attn2.to_q",
+        "transformer_blocks.47.attn2.to_out.0"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_15",
+      "static": {
+        "N": 32,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 144
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            2048
+          ],
+          "input_stride": [
+            2097152,
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            32
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_attn1.to_gate_logits",
+        "transformer_blocks.0.audio_attn2.to_gate_logits",
+        "transformer_blocks.0.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.1.audio_attn1.to_gate_logits",
+        "transformer_blocks.1.audio_attn2.to_gate_logits",
+        "transformer_blocks.1.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.2.audio_attn1.to_gate_logits",
+        "transformer_blocks.2.audio_attn2.to_gate_logits",
+        "transformer_blocks.2.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.3.audio_attn1.to_gate_logits",
+        "transformer_blocks.3.audio_attn2.to_gate_logits",
+        "transformer_blocks.3.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.4.audio_attn1.to_gate_logits",
+        "transformer_blocks.4.audio_attn2.to_gate_logits",
+        "transformer_blocks.4.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.5.audio_attn1.to_gate_logits",
+        "transformer_blocks.5.audio_attn2.to_gate_logits",
+        "transformer_blocks.5.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.6.audio_attn1.to_gate_logits",
+        "transformer_blocks.6.audio_attn2.to_gate_logits",
+        "transformer_blocks.6.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.7.audio_attn1.to_gate_logits",
+        "transformer_blocks.7.audio_attn2.to_gate_logits",
+        "transformer_blocks.7.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.8.audio_attn1.to_gate_logits",
+        "transformer_blocks.8.audio_attn2.to_gate_logits",
+        "transformer_blocks.8.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.9.audio_attn1.to_gate_logits",
+        "transformer_blocks.9.audio_attn2.to_gate_logits",
+        "transformer_blocks.9.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.10.audio_attn1.to_gate_logits",
+        "transformer_blocks.10.audio_attn2.to_gate_logits",
+        "transformer_blocks.10.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.11.audio_attn1.to_gate_logits",
+        "transformer_blocks.11.audio_attn2.to_gate_logits",
+        "transformer_blocks.11.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.12.audio_attn1.to_gate_logits",
+        "transformer_blocks.12.audio_attn2.to_gate_logits",
+        "transformer_blocks.12.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.13.audio_attn1.to_gate_logits",
+        "transformer_blocks.13.audio_attn2.to_gate_logits",
+        "transformer_blocks.13.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.14.audio_attn1.to_gate_logits",
+        "transformer_blocks.14.audio_attn2.to_gate_logits",
+        "transformer_blocks.14.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.15.audio_attn1.to_gate_logits",
+        "transformer_blocks.15.audio_attn2.to_gate_logits",
+        "transformer_blocks.15.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.16.audio_attn1.to_gate_logits",
+        "transformer_blocks.16.audio_attn2.to_gate_logits",
+        "transformer_blocks.16.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.17.audio_attn1.to_gate_logits",
+        "transformer_blocks.17.audio_attn2.to_gate_logits",
+        "transformer_blocks.17.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.18.audio_attn1.to_gate_logits",
+        "transformer_blocks.18.audio_attn2.to_gate_logits",
+        "transformer_blocks.18.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.19.audio_attn1.to_gate_logits",
+        "transformer_blocks.19.audio_attn2.to_gate_logits",
+        "transformer_blocks.19.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.20.audio_attn1.to_gate_logits",
+        "transformer_blocks.20.audio_attn2.to_gate_logits",
+        "transformer_blocks.20.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.21.audio_attn1.to_gate_logits",
+        "transformer_blocks.21.audio_attn2.to_gate_logits",
+        "transformer_blocks.21.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.22.audio_attn1.to_gate_logits",
+        "transformer_blocks.22.audio_attn2.to_gate_logits",
+        "transformer_blocks.22.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.23.audio_attn1.to_gate_logits",
+        "transformer_blocks.23.audio_attn2.to_gate_logits",
+        "transformer_blocks.23.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.24.audio_attn1.to_gate_logits",
+        "transformer_blocks.24.audio_attn2.to_gate_logits",
+        "transformer_blocks.24.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.25.audio_attn1.to_gate_logits",
+        "transformer_blocks.25.audio_attn2.to_gate_logits",
+        "transformer_blocks.25.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.26.audio_attn1.to_gate_logits",
+        "transformer_blocks.26.audio_attn2.to_gate_logits",
+        "transformer_blocks.26.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.27.audio_attn1.to_gate_logits",
+        "transformer_blocks.27.audio_attn2.to_gate_logits",
+        "transformer_blocks.27.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.28.audio_attn1.to_gate_logits",
+        "transformer_blocks.28.audio_attn2.to_gate_logits",
+        "transformer_blocks.28.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.29.audio_attn1.to_gate_logits",
+        "transformer_blocks.29.audio_attn2.to_gate_logits",
+        "transformer_blocks.29.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.30.audio_attn1.to_gate_logits",
+        "transformer_blocks.30.audio_attn2.to_gate_logits",
+        "transformer_blocks.30.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.31.audio_attn1.to_gate_logits",
+        "transformer_blocks.31.audio_attn2.to_gate_logits",
+        "transformer_blocks.31.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.32.audio_attn1.to_gate_logits",
+        "transformer_blocks.32.audio_attn2.to_gate_logits",
+        "transformer_blocks.32.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.33.audio_attn1.to_gate_logits",
+        "transformer_blocks.33.audio_attn2.to_gate_logits",
+        "transformer_blocks.33.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.34.audio_attn1.to_gate_logits",
+        "transformer_blocks.34.audio_attn2.to_gate_logits",
+        "transformer_blocks.34.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.35.audio_attn1.to_gate_logits",
+        "transformer_blocks.35.audio_attn2.to_gate_logits",
+        "transformer_blocks.35.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.36.audio_attn1.to_gate_logits",
+        "transformer_blocks.36.audio_attn2.to_gate_logits",
+        "transformer_blocks.36.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.37.audio_attn1.to_gate_logits",
+        "transformer_blocks.37.audio_attn2.to_gate_logits",
+        "transformer_blocks.37.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.38.audio_attn1.to_gate_logits",
+        "transformer_blocks.38.audio_attn2.to_gate_logits",
+        "transformer_blocks.38.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.39.audio_attn1.to_gate_logits",
+        "transformer_blocks.39.audio_attn2.to_gate_logits",
+        "transformer_blocks.39.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.40.audio_attn1.to_gate_logits",
+        "transformer_blocks.40.audio_attn2.to_gate_logits",
+        "transformer_blocks.40.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.41.audio_attn1.to_gate_logits",
+        "transformer_blocks.41.audio_attn2.to_gate_logits",
+        "transformer_blocks.41.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.42.audio_attn1.to_gate_logits",
+        "transformer_blocks.42.audio_attn2.to_gate_logits",
+        "transformer_blocks.42.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.43.audio_attn1.to_gate_logits",
+        "transformer_blocks.43.audio_attn2.to_gate_logits",
+        "transformer_blocks.43.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.44.audio_attn1.to_gate_logits",
+        "transformer_blocks.44.audio_attn2.to_gate_logits",
+        "transformer_blocks.44.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.45.audio_attn1.to_gate_logits",
+        "transformer_blocks.45.audio_attn2.to_gate_logits",
+        "transformer_blocks.45.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.46.audio_attn1.to_gate_logits",
+        "transformer_blocks.46.audio_attn2.to_gate_logits",
+        "transformer_blocks.46.video_to_audio_attn.to_gate_logits",
+        "transformer_blocks.47.audio_attn1.to_gate_logits",
+        "transformer_blocks.47.audio_attn2.to_gate_logits",
+        "transformer_blocks.47.video_to_audio_attn.to_gate_logits"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_16",
+      "static": {
+        "N": 2048,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 480
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            2048
+          ],
+          "input_stride": [
+            2097152,
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_attn1.to_v",
+        "transformer_blocks.0.audio_attn1.to_q",
+        "transformer_blocks.0.audio_attn1.to_k",
+        "transformer_blocks.0.audio_attn1.to_out.0",
+        "transformer_blocks.0.audio_attn2.to_q",
+        "transformer_blocks.0.audio_attn2.to_out.0",
+        "transformer_blocks.0.audio_to_video_attn.to_v",
+        "transformer_blocks.0.audio_to_video_attn.to_k",
+        "transformer_blocks.0.video_to_audio_attn.to_q",
+        "transformer_blocks.0.video_to_audio_attn.to_out.0",
+        "transformer_blocks.1.audio_attn1.to_v",
+        "transformer_blocks.1.audio_attn1.to_q",
+        "transformer_blocks.1.audio_attn1.to_k",
+        "transformer_blocks.1.audio_attn1.to_out.0",
+        "transformer_blocks.1.audio_attn2.to_q",
+        "transformer_blocks.1.audio_attn2.to_out.0",
+        "transformer_blocks.1.audio_to_video_attn.to_v",
+        "transformer_blocks.1.audio_to_video_attn.to_k",
+        "transformer_blocks.1.video_to_audio_attn.to_q",
+        "transformer_blocks.1.video_to_audio_attn.to_out.0",
+        "transformer_blocks.2.audio_attn1.to_v",
+        "transformer_blocks.2.audio_attn1.to_q",
+        "transformer_blocks.2.audio_attn1.to_k",
+        "transformer_blocks.2.audio_attn1.to_out.0",
+        "transformer_blocks.2.audio_attn2.to_q",
+        "transformer_blocks.2.audio_attn2.to_out.0",
+        "transformer_blocks.2.audio_to_video_attn.to_v",
+        "transformer_blocks.2.audio_to_video_attn.to_k",
+        "transformer_blocks.2.video_to_audio_attn.to_q",
+        "transformer_blocks.2.video_to_audio_attn.to_out.0",
+        "transformer_blocks.3.audio_attn1.to_v",
+        "transformer_blocks.3.audio_attn1.to_q",
+        "transformer_blocks.3.audio_attn1.to_k",
+        "transformer_blocks.3.audio_attn1.to_out.0",
+        "transformer_blocks.3.audio_attn2.to_q",
+        "transformer_blocks.3.audio_attn2.to_out.0",
+        "transformer_blocks.3.audio_to_video_attn.to_v",
+        "transformer_blocks.3.audio_to_video_attn.to_k",
+        "transformer_blocks.3.video_to_audio_attn.to_q",
+        "transformer_blocks.3.video_to_audio_attn.to_out.0",
+        "transformer_blocks.4.audio_attn1.to_v",
+        "transformer_blocks.4.audio_attn1.to_q",
+        "transformer_blocks.4.audio_attn1.to_k",
+        "transformer_blocks.4.audio_attn1.to_out.0",
+        "transformer_blocks.4.audio_attn2.to_q",
+        "transformer_blocks.4.audio_attn2.to_out.0",
+        "transformer_blocks.4.audio_to_video_attn.to_v",
+        "transformer_blocks.4.audio_to_video_attn.to_k",
+        "transformer_blocks.4.video_to_audio_attn.to_q",
+        "transformer_blocks.4.video_to_audio_attn.to_out.0",
+        "transformer_blocks.5.audio_attn1.to_v",
+        "transformer_blocks.5.audio_attn1.to_q",
+        "transformer_blocks.5.audio_attn1.to_k",
+        "transformer_blocks.5.audio_attn1.to_out.0",
+        "transformer_blocks.5.audio_attn2.to_q",
+        "transformer_blocks.5.audio_attn2.to_out.0",
+        "transformer_blocks.5.audio_to_video_attn.to_v",
+        "transformer_blocks.5.audio_to_video_attn.to_k",
+        "transformer_blocks.5.video_to_audio_attn.to_q",
+        "transformer_blocks.5.video_to_audio_attn.to_out.0",
+        "transformer_blocks.6.audio_attn1.to_v",
+        "transformer_blocks.6.audio_attn1.to_q",
+        "transformer_blocks.6.audio_attn1.to_k",
+        "transformer_blocks.6.audio_attn1.to_out.0",
+        "transformer_blocks.6.audio_attn2.to_q",
+        "transformer_blocks.6.audio_attn2.to_out.0",
+        "transformer_blocks.6.audio_to_video_attn.to_v",
+        "transformer_blocks.6.audio_to_video_attn.to_k",
+        "transformer_blocks.6.video_to_audio_attn.to_q",
+        "transformer_blocks.6.video_to_audio_attn.to_out.0",
+        "transformer_blocks.7.audio_attn1.to_v",
+        "transformer_blocks.7.audio_attn1.to_q",
+        "transformer_blocks.7.audio_attn1.to_k",
+        "transformer_blocks.7.audio_attn1.to_out.0",
+        "transformer_blocks.7.audio_attn2.to_q",
+        "transformer_blocks.7.audio_attn2.to_out.0",
+        "transformer_blocks.7.audio_to_video_attn.to_v",
+        "transformer_blocks.7.audio_to_video_attn.to_k",
+        "transformer_blocks.7.video_to_audio_attn.to_q",
+        "transformer_blocks.7.video_to_audio_attn.to_out.0",
+        "transformer_blocks.8.audio_attn1.to_v",
+        "transformer_blocks.8.audio_attn1.to_q",
+        "transformer_blocks.8.audio_attn1.to_k",
+        "transformer_blocks.8.audio_attn1.to_out.0",
+        "transformer_blocks.8.audio_attn2.to_q",
+        "transformer_blocks.8.audio_attn2.to_out.0",
+        "transformer_blocks.8.audio_to_video_attn.to_v",
+        "transformer_blocks.8.audio_to_video_attn.to_k",
+        "transformer_blocks.8.video_to_audio_attn.to_q",
+        "transformer_blocks.8.video_to_audio_attn.to_out.0",
+        "transformer_blocks.9.audio_attn1.to_v",
+        "transformer_blocks.9.audio_attn1.to_q",
+        "transformer_blocks.9.audio_attn1.to_k",
+        "transformer_blocks.9.audio_attn1.to_out.0",
+        "transformer_blocks.9.audio_attn2.to_q",
+        "transformer_blocks.9.audio_attn2.to_out.0",
+        "transformer_blocks.9.audio_to_video_attn.to_v",
+        "transformer_blocks.9.audio_to_video_attn.to_k",
+        "transformer_blocks.9.video_to_audio_attn.to_q",
+        "transformer_blocks.9.video_to_audio_attn.to_out.0",
+        "transformer_blocks.10.audio_attn1.to_v",
+        "transformer_blocks.10.audio_attn1.to_q",
+        "transformer_blocks.10.audio_attn1.to_k",
+        "transformer_blocks.10.audio_attn1.to_out.0",
+        "transformer_blocks.10.audio_attn2.to_q",
+        "transformer_blocks.10.audio_attn2.to_out.0",
+        "transformer_blocks.10.audio_to_video_attn.to_v",
+        "transformer_blocks.10.audio_to_video_attn.to_k",
+        "transformer_blocks.10.video_to_audio_attn.to_q",
+        "transformer_blocks.10.video_to_audio_attn.to_out.0",
+        "transformer_blocks.11.audio_attn1.to_v",
+        "transformer_blocks.11.audio_attn1.to_q",
+        "transformer_blocks.11.audio_attn1.to_k",
+        "transformer_blocks.11.audio_attn1.to_out.0",
+        "transformer_blocks.11.audio_attn2.to_q",
+        "transformer_blocks.11.audio_attn2.to_out.0",
+        "transformer_blocks.11.audio_to_video_attn.to_v",
+        "transformer_blocks.11.audio_to_video_attn.to_k",
+        "transformer_blocks.11.video_to_audio_attn.to_q",
+        "transformer_blocks.11.video_to_audio_attn.to_out.0",
+        "transformer_blocks.12.audio_attn1.to_v",
+        "transformer_blocks.12.audio_attn1.to_q",
+        "transformer_blocks.12.audio_attn1.to_k",
+        "transformer_blocks.12.audio_attn1.to_out.0",
+        "transformer_blocks.12.audio_attn2.to_q",
+        "transformer_blocks.12.audio_attn2.to_out.0",
+        "transformer_blocks.12.audio_to_video_attn.to_v",
+        "transformer_blocks.12.audio_to_video_attn.to_k",
+        "transformer_blocks.12.video_to_audio_attn.to_q",
+        "transformer_blocks.12.video_to_audio_attn.to_out.0",
+        "transformer_blocks.13.audio_attn1.to_v",
+        "transformer_blocks.13.audio_attn1.to_q",
+        "transformer_blocks.13.audio_attn1.to_k",
+        "transformer_blocks.13.audio_attn1.to_out.0",
+        "transformer_blocks.13.audio_attn2.to_q",
+        "transformer_blocks.13.audio_attn2.to_out.0",
+        "transformer_blocks.13.audio_to_video_attn.to_v",
+        "transformer_blocks.13.audio_to_video_attn.to_k",
+        "transformer_blocks.13.video_to_audio_attn.to_q",
+        "transformer_blocks.13.video_to_audio_attn.to_out.0",
+        "transformer_blocks.14.audio_attn1.to_v",
+        "transformer_blocks.14.audio_attn1.to_q",
+        "transformer_blocks.14.audio_attn1.to_k",
+        "transformer_blocks.14.audio_attn1.to_out.0",
+        "transformer_blocks.14.audio_attn2.to_q",
+        "transformer_blocks.14.audio_attn2.to_out.0",
+        "transformer_blocks.14.audio_to_video_attn.to_v",
+        "transformer_blocks.14.audio_to_video_attn.to_k",
+        "transformer_blocks.14.video_to_audio_attn.to_q",
+        "transformer_blocks.14.video_to_audio_attn.to_out.0",
+        "transformer_blocks.15.audio_attn1.to_v",
+        "transformer_blocks.15.audio_attn1.to_q",
+        "transformer_blocks.15.audio_attn1.to_k",
+        "transformer_blocks.15.audio_attn1.to_out.0",
+        "transformer_blocks.15.audio_attn2.to_q",
+        "transformer_blocks.15.audio_attn2.to_out.0",
+        "transformer_blocks.15.audio_to_video_attn.to_v",
+        "transformer_blocks.15.audio_to_video_attn.to_k",
+        "transformer_blocks.15.video_to_audio_attn.to_q",
+        "transformer_blocks.15.video_to_audio_attn.to_out.0",
+        "transformer_blocks.16.audio_attn1.to_v",
+        "transformer_blocks.16.audio_attn1.to_q",
+        "transformer_blocks.16.audio_attn1.to_k",
+        "transformer_blocks.16.audio_attn1.to_out.0",
+        "transformer_blocks.16.audio_attn2.to_q",
+        "transformer_blocks.16.audio_attn2.to_out.0",
+        "transformer_blocks.16.audio_to_video_attn.to_v",
+        "transformer_blocks.16.audio_to_video_attn.to_k",
+        "transformer_blocks.16.video_to_audio_attn.to_q",
+        "transformer_blocks.16.video_to_audio_attn.to_out.0",
+        "transformer_blocks.17.audio_attn1.to_v",
+        "transformer_blocks.17.audio_attn1.to_q",
+        "transformer_blocks.17.audio_attn1.to_k",
+        "transformer_blocks.17.audio_attn1.to_out.0",
+        "transformer_blocks.17.audio_attn2.to_q",
+        "transformer_blocks.17.audio_attn2.to_out.0",
+        "transformer_blocks.17.audio_to_video_attn.to_v",
+        "transformer_blocks.17.audio_to_video_attn.to_k",
+        "transformer_blocks.17.video_to_audio_attn.to_q",
+        "transformer_blocks.17.video_to_audio_attn.to_out.0",
+        "transformer_blocks.18.audio_attn1.to_v",
+        "transformer_blocks.18.audio_attn1.to_q",
+        "transformer_blocks.18.audio_attn1.to_k",
+        "transformer_blocks.18.audio_attn1.to_out.0",
+        "transformer_blocks.18.audio_attn2.to_q",
+        "transformer_blocks.18.audio_attn2.to_out.0",
+        "transformer_blocks.18.audio_to_video_attn.to_v",
+        "transformer_blocks.18.audio_to_video_attn.to_k",
+        "transformer_blocks.18.video_to_audio_attn.to_q",
+        "transformer_blocks.18.video_to_audio_attn.to_out.0",
+        "transformer_blocks.19.audio_attn1.to_v",
+        "transformer_blocks.19.audio_attn1.to_q",
+        "transformer_blocks.19.audio_attn1.to_k",
+        "transformer_blocks.19.audio_attn1.to_out.0",
+        "transformer_blocks.19.audio_attn2.to_q",
+        "transformer_blocks.19.audio_attn2.to_out.0",
+        "transformer_blocks.19.audio_to_video_attn.to_v",
+        "transformer_blocks.19.audio_to_video_attn.to_k",
+        "transformer_blocks.19.video_to_audio_attn.to_q",
+        "transformer_blocks.19.video_to_audio_attn.to_out.0",
+        "transformer_blocks.20.audio_attn1.to_v",
+        "transformer_blocks.20.audio_attn1.to_q",
+        "transformer_blocks.20.audio_attn1.to_k",
+        "transformer_blocks.20.audio_attn1.to_out.0",
+        "transformer_blocks.20.audio_attn2.to_q",
+        "transformer_blocks.20.audio_attn2.to_out.0",
+        "transformer_blocks.20.audio_to_video_attn.to_v",
+        "transformer_blocks.20.audio_to_video_attn.to_k",
+        "transformer_blocks.20.video_to_audio_attn.to_q",
+        "transformer_blocks.20.video_to_audio_attn.to_out.0",
+        "transformer_blocks.21.audio_attn1.to_v",
+        "transformer_blocks.21.audio_attn1.to_q",
+        "transformer_blocks.21.audio_attn1.to_k",
+        "transformer_blocks.21.audio_attn1.to_out.0",
+        "transformer_blocks.21.audio_attn2.to_q",
+        "transformer_blocks.21.audio_attn2.to_out.0",
+        "transformer_blocks.21.audio_to_video_attn.to_v",
+        "transformer_blocks.21.audio_to_video_attn.to_k",
+        "transformer_blocks.21.video_to_audio_attn.to_q",
+        "transformer_blocks.21.video_to_audio_attn.to_out.0",
+        "transformer_blocks.22.audio_attn1.to_v",
+        "transformer_blocks.22.audio_attn1.to_q",
+        "transformer_blocks.22.audio_attn1.to_k",
+        "transformer_blocks.22.audio_attn1.to_out.0",
+        "transformer_blocks.22.audio_attn2.to_q",
+        "transformer_blocks.22.audio_attn2.to_out.0",
+        "transformer_blocks.22.audio_to_video_attn.to_v",
+        "transformer_blocks.22.audio_to_video_attn.to_k",
+        "transformer_blocks.22.video_to_audio_attn.to_q",
+        "transformer_blocks.22.video_to_audio_attn.to_out.0",
+        "transformer_blocks.23.audio_attn1.to_v",
+        "transformer_blocks.23.audio_attn1.to_q",
+        "transformer_blocks.23.audio_attn1.to_k",
+        "transformer_blocks.23.audio_attn1.to_out.0",
+        "transformer_blocks.23.audio_attn2.to_q",
+        "transformer_blocks.23.audio_attn2.to_out.0",
+        "transformer_blocks.23.audio_to_video_attn.to_v",
+        "transformer_blocks.23.audio_to_video_attn.to_k",
+        "transformer_blocks.23.video_to_audio_attn.to_q",
+        "transformer_blocks.23.video_to_audio_attn.to_out.0",
+        "transformer_blocks.24.audio_attn1.to_v",
+        "transformer_blocks.24.audio_attn1.to_q",
+        "transformer_blocks.24.audio_attn1.to_k",
+        "transformer_blocks.24.audio_attn1.to_out.0",
+        "transformer_blocks.24.audio_attn2.to_q",
+        "transformer_blocks.24.audio_attn2.to_out.0",
+        "transformer_blocks.24.audio_to_video_attn.to_v",
+        "transformer_blocks.24.audio_to_video_attn.to_k",
+        "transformer_blocks.24.video_to_audio_attn.to_q",
+        "transformer_blocks.24.video_to_audio_attn.to_out.0",
+        "transformer_blocks.25.audio_attn1.to_v",
+        "transformer_blocks.25.audio_attn1.to_q",
+        "transformer_blocks.25.audio_attn1.to_k",
+        "transformer_blocks.25.audio_attn1.to_out.0",
+        "transformer_blocks.25.audio_attn2.to_q",
+        "transformer_blocks.25.audio_attn2.to_out.0",
+        "transformer_blocks.25.audio_to_video_attn.to_v",
+        "transformer_blocks.25.audio_to_video_attn.to_k",
+        "transformer_blocks.25.video_to_audio_attn.to_q",
+        "transformer_blocks.25.video_to_audio_attn.to_out.0",
+        "transformer_blocks.26.audio_attn1.to_v",
+        "transformer_blocks.26.audio_attn1.to_q",
+        "transformer_blocks.26.audio_attn1.to_k",
+        "transformer_blocks.26.audio_attn1.to_out.0",
+        "transformer_blocks.26.audio_attn2.to_q",
+        "transformer_blocks.26.audio_attn2.to_out.0",
+        "transformer_blocks.26.audio_to_video_attn.to_v",
+        "transformer_blocks.26.audio_to_video_attn.to_k",
+        "transformer_blocks.26.video_to_audio_attn.to_q",
+        "transformer_blocks.26.video_to_audio_attn.to_out.0",
+        "transformer_blocks.27.audio_attn1.to_v",
+        "transformer_blocks.27.audio_attn1.to_q",
+        "transformer_blocks.27.audio_attn1.to_k",
+        "transformer_blocks.27.audio_attn1.to_out.0",
+        "transformer_blocks.27.audio_attn2.to_q",
+        "transformer_blocks.27.audio_attn2.to_out.0",
+        "transformer_blocks.27.audio_to_video_attn.to_v",
+        "transformer_blocks.27.audio_to_video_attn.to_k",
+        "transformer_blocks.27.video_to_audio_attn.to_q",
+        "transformer_blocks.27.video_to_audio_attn.to_out.0",
+        "transformer_blocks.28.audio_attn1.to_v",
+        "transformer_blocks.28.audio_attn1.to_q",
+        "transformer_blocks.28.audio_attn1.to_k",
+        "transformer_blocks.28.audio_attn1.to_out.0",
+        "transformer_blocks.28.audio_attn2.to_q",
+        "transformer_blocks.28.audio_attn2.to_out.0",
+        "transformer_blocks.28.audio_to_video_attn.to_v",
+        "transformer_blocks.28.audio_to_video_attn.to_k",
+        "transformer_blocks.28.video_to_audio_attn.to_q",
+        "transformer_blocks.28.video_to_audio_attn.to_out.0",
+        "transformer_blocks.29.audio_attn1.to_v",
+        "transformer_blocks.29.audio_attn1.to_q",
+        "transformer_blocks.29.audio_attn1.to_k",
+        "transformer_blocks.29.audio_attn1.to_out.0",
+        "transformer_blocks.29.audio_attn2.to_q",
+        "transformer_blocks.29.audio_attn2.to_out.0",
+        "transformer_blocks.29.audio_to_video_attn.to_v",
+        "transformer_blocks.29.audio_to_video_attn.to_k",
+        "transformer_blocks.29.video_to_audio_attn.to_q",
+        "transformer_blocks.29.video_to_audio_attn.to_out.0",
+        "transformer_blocks.30.audio_attn1.to_v",
+        "transformer_blocks.30.audio_attn1.to_q",
+        "transformer_blocks.30.audio_attn1.to_k",
+        "transformer_blocks.30.audio_attn1.to_out.0",
+        "transformer_blocks.30.audio_attn2.to_q",
+        "transformer_blocks.30.audio_attn2.to_out.0",
+        "transformer_blocks.30.audio_to_video_attn.to_v",
+        "transformer_blocks.30.audio_to_video_attn.to_k",
+        "transformer_blocks.30.video_to_audio_attn.to_q",
+        "transformer_blocks.30.video_to_audio_attn.to_out.0",
+        "transformer_blocks.31.audio_attn1.to_v",
+        "transformer_blocks.31.audio_attn1.to_q",
+        "transformer_blocks.31.audio_attn1.to_k",
+        "transformer_blocks.31.audio_attn1.to_out.0",
+        "transformer_blocks.31.audio_attn2.to_q",
+        "transformer_blocks.31.audio_attn2.to_out.0",
+        "transformer_blocks.31.audio_to_video_attn.to_v",
+        "transformer_blocks.31.audio_to_video_attn.to_k",
+        "transformer_blocks.31.video_to_audio_attn.to_q",
+        "transformer_blocks.31.video_to_audio_attn.to_out.0",
+        "transformer_blocks.32.audio_attn1.to_v",
+        "transformer_blocks.32.audio_attn1.to_q",
+        "transformer_blocks.32.audio_attn1.to_k",
+        "transformer_blocks.32.audio_attn1.to_out.0",
+        "transformer_blocks.32.audio_attn2.to_q",
+        "transformer_blocks.32.audio_attn2.to_out.0",
+        "transformer_blocks.32.audio_to_video_attn.to_v",
+        "transformer_blocks.32.audio_to_video_attn.to_k",
+        "transformer_blocks.32.video_to_audio_attn.to_q",
+        "transformer_blocks.32.video_to_audio_attn.to_out.0",
+        "transformer_blocks.33.audio_attn1.to_v",
+        "transformer_blocks.33.audio_attn1.to_q",
+        "transformer_blocks.33.audio_attn1.to_k",
+        "transformer_blocks.33.audio_attn1.to_out.0",
+        "transformer_blocks.33.audio_attn2.to_q",
+        "transformer_blocks.33.audio_attn2.to_out.0",
+        "transformer_blocks.33.audio_to_video_attn.to_v",
+        "transformer_blocks.33.audio_to_video_attn.to_k",
+        "transformer_blocks.33.video_to_audio_attn.to_q",
+        "transformer_blocks.33.video_to_audio_attn.to_out.0",
+        "transformer_blocks.34.audio_attn1.to_v",
+        "transformer_blocks.34.audio_attn1.to_q",
+        "transformer_blocks.34.audio_attn1.to_k",
+        "transformer_blocks.34.audio_attn1.to_out.0",
+        "transformer_blocks.34.audio_attn2.to_q",
+        "transformer_blocks.34.audio_attn2.to_out.0",
+        "transformer_blocks.34.audio_to_video_attn.to_v",
+        "transformer_blocks.34.audio_to_video_attn.to_k",
+        "transformer_blocks.34.video_to_audio_attn.to_q",
+        "transformer_blocks.34.video_to_audio_attn.to_out.0",
+        "transformer_blocks.35.audio_attn1.to_v",
+        "transformer_blocks.35.audio_attn1.to_q",
+        "transformer_blocks.35.audio_attn1.to_k",
+        "transformer_blocks.35.audio_attn1.to_out.0",
+        "transformer_blocks.35.audio_attn2.to_q",
+        "transformer_blocks.35.audio_attn2.to_out.0",
+        "transformer_blocks.35.audio_to_video_attn.to_v",
+        "transformer_blocks.35.audio_to_video_attn.to_k",
+        "transformer_blocks.35.video_to_audio_attn.to_q",
+        "transformer_blocks.35.video_to_audio_attn.to_out.0",
+        "transformer_blocks.36.audio_attn1.to_v",
+        "transformer_blocks.36.audio_attn1.to_q",
+        "transformer_blocks.36.audio_attn1.to_k",
+        "transformer_blocks.36.audio_attn1.to_out.0",
+        "transformer_blocks.36.audio_attn2.to_q",
+        "transformer_blocks.36.audio_attn2.to_out.0",
+        "transformer_blocks.36.audio_to_video_attn.to_v",
+        "transformer_blocks.36.audio_to_video_attn.to_k",
+        "transformer_blocks.36.video_to_audio_attn.to_q",
+        "transformer_blocks.36.video_to_audio_attn.to_out.0",
+        "transformer_blocks.37.audio_attn1.to_v",
+        "transformer_blocks.37.audio_attn1.to_q",
+        "transformer_blocks.37.audio_attn1.to_k",
+        "transformer_blocks.37.audio_attn1.to_out.0",
+        "transformer_blocks.37.audio_attn2.to_q",
+        "transformer_blocks.37.audio_attn2.to_out.0",
+        "transformer_blocks.37.audio_to_video_attn.to_v",
+        "transformer_blocks.37.audio_to_video_attn.to_k",
+        "transformer_blocks.37.video_to_audio_attn.to_q",
+        "transformer_blocks.37.video_to_audio_attn.to_out.0",
+        "transformer_blocks.38.audio_attn1.to_v",
+        "transformer_blocks.38.audio_attn1.to_q",
+        "transformer_blocks.38.audio_attn1.to_k",
+        "transformer_blocks.38.audio_attn1.to_out.0",
+        "transformer_blocks.38.audio_attn2.to_q",
+        "transformer_blocks.38.audio_attn2.to_out.0",
+        "transformer_blocks.38.audio_to_video_attn.to_v",
+        "transformer_blocks.38.audio_to_video_attn.to_k",
+        "transformer_blocks.38.video_to_audio_attn.to_q",
+        "transformer_blocks.38.video_to_audio_attn.to_out.0",
+        "transformer_blocks.39.audio_attn1.to_v",
+        "transformer_blocks.39.audio_attn1.to_q",
+        "transformer_blocks.39.audio_attn1.to_k",
+        "transformer_blocks.39.audio_attn1.to_out.0",
+        "transformer_blocks.39.audio_attn2.to_q",
+        "transformer_blocks.39.audio_attn2.to_out.0",
+        "transformer_blocks.39.audio_to_video_attn.to_v",
+        "transformer_blocks.39.audio_to_video_attn.to_k",
+        "transformer_blocks.39.video_to_audio_attn.to_q",
+        "transformer_blocks.39.video_to_audio_attn.to_out.0",
+        "transformer_blocks.40.audio_attn1.to_v",
+        "transformer_blocks.40.audio_attn1.to_q",
+        "transformer_blocks.40.audio_attn1.to_k",
+        "transformer_blocks.40.audio_attn1.to_out.0",
+        "transformer_blocks.40.audio_attn2.to_q",
+        "transformer_blocks.40.audio_attn2.to_out.0",
+        "transformer_blocks.40.audio_to_video_attn.to_v",
+        "transformer_blocks.40.audio_to_video_attn.to_k",
+        "transformer_blocks.40.video_to_audio_attn.to_q",
+        "transformer_blocks.40.video_to_audio_attn.to_out.0",
+        "transformer_blocks.41.audio_attn1.to_v",
+        "transformer_blocks.41.audio_attn1.to_q",
+        "transformer_blocks.41.audio_attn1.to_k",
+        "transformer_blocks.41.audio_attn1.to_out.0",
+        "transformer_blocks.41.audio_attn2.to_q",
+        "transformer_blocks.41.audio_attn2.to_out.0",
+        "transformer_blocks.41.audio_to_video_attn.to_v",
+        "transformer_blocks.41.audio_to_video_attn.to_k",
+        "transformer_blocks.41.video_to_audio_attn.to_q",
+        "transformer_blocks.41.video_to_audio_attn.to_out.0",
+        "transformer_blocks.42.audio_attn1.to_v",
+        "transformer_blocks.42.audio_attn1.to_q",
+        "transformer_blocks.42.audio_attn1.to_k",
+        "transformer_blocks.42.audio_attn1.to_out.0",
+        "transformer_blocks.42.audio_attn2.to_q",
+        "transformer_blocks.42.audio_attn2.to_out.0",
+        "transformer_blocks.42.audio_to_video_attn.to_v",
+        "transformer_blocks.42.audio_to_video_attn.to_k",
+        "transformer_blocks.42.video_to_audio_attn.to_q",
+        "transformer_blocks.42.video_to_audio_attn.to_out.0",
+        "transformer_blocks.43.audio_attn1.to_v",
+        "transformer_blocks.43.audio_attn1.to_q",
+        "transformer_blocks.43.audio_attn1.to_k",
+        "transformer_blocks.43.audio_attn1.to_out.0",
+        "transformer_blocks.43.audio_attn2.to_q",
+        "transformer_blocks.43.audio_attn2.to_out.0",
+        "transformer_blocks.43.audio_to_video_attn.to_v",
+        "transformer_blocks.43.audio_to_video_attn.to_k",
+        "transformer_blocks.43.video_to_audio_attn.to_q",
+        "transformer_blocks.43.video_to_audio_attn.to_out.0",
+        "transformer_blocks.44.audio_attn1.to_v",
+        "transformer_blocks.44.audio_attn1.to_q",
+        "transformer_blocks.44.audio_attn1.to_k",
+        "transformer_blocks.44.audio_attn1.to_out.0",
+        "transformer_blocks.44.audio_attn2.to_q",
+        "transformer_blocks.44.audio_attn2.to_out.0",
+        "transformer_blocks.44.audio_to_video_attn.to_v",
+        "transformer_blocks.44.audio_to_video_attn.to_k",
+        "transformer_blocks.44.video_to_audio_attn.to_q",
+        "transformer_blocks.44.video_to_audio_attn.to_out.0",
+        "transformer_blocks.45.audio_attn1.to_v",
+        "transformer_blocks.45.audio_attn1.to_q",
+        "transformer_blocks.45.audio_attn1.to_k",
+        "transformer_blocks.45.audio_attn1.to_out.0",
+        "transformer_blocks.45.audio_attn2.to_q",
+        "transformer_blocks.45.audio_attn2.to_out.0",
+        "transformer_blocks.45.audio_to_video_attn.to_v",
+        "transformer_blocks.45.audio_to_video_attn.to_k",
+        "transformer_blocks.45.video_to_audio_attn.to_q",
+        "transformer_blocks.45.video_to_audio_attn.to_out.0",
+        "transformer_blocks.46.audio_attn1.to_v",
+        "transformer_blocks.46.audio_attn1.to_q",
+        "transformer_blocks.46.audio_attn1.to_k",
+        "transformer_blocks.46.audio_attn1.to_out.0",
+        "transformer_blocks.46.audio_attn2.to_q",
+        "transformer_blocks.46.audio_attn2.to_out.0",
+        "transformer_blocks.46.audio_to_video_attn.to_v",
+        "transformer_blocks.46.audio_to_video_attn.to_k",
+        "transformer_blocks.46.video_to_audio_attn.to_q",
+        "transformer_blocks.46.video_to_audio_attn.to_out.0",
+        "transformer_blocks.47.audio_attn1.to_v",
+        "transformer_blocks.47.audio_attn1.to_q",
+        "transformer_blocks.47.audio_attn1.to_k",
+        "transformer_blocks.47.audio_attn1.to_out.0",
+        "transformer_blocks.47.audio_attn2.to_q",
+        "transformer_blocks.47.audio_attn2.to_out.0",
+        "transformer_blocks.47.audio_to_video_attn.to_v",
+        "transformer_blocks.47.audio_to_video_attn.to_k",
+        "transformer_blocks.47.video_to_audio_attn.to_q",
+        "transformer_blocks.47.video_to_audio_attn.to_out.0"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_17",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 96
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            4096
+          ],
+          "input_stride": [
+            2097152,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.attn2.to_v",
+        "transformer_blocks.0.attn2.to_k",
+        "transformer_blocks.1.attn2.to_v",
+        "transformer_blocks.1.attn2.to_k",
+        "transformer_blocks.2.attn2.to_v",
+        "transformer_blocks.2.attn2.to_k",
+        "transformer_blocks.3.attn2.to_v",
+        "transformer_blocks.3.attn2.to_k",
+        "transformer_blocks.4.attn2.to_v",
+        "transformer_blocks.4.attn2.to_k",
+        "transformer_blocks.5.attn2.to_v",
+        "transformer_blocks.5.attn2.to_k",
+        "transformer_blocks.6.attn2.to_v",
+        "transformer_blocks.6.attn2.to_k",
+        "transformer_blocks.7.attn2.to_v",
+        "transformer_blocks.7.attn2.to_k",
+        "transformer_blocks.8.attn2.to_v",
+        "transformer_blocks.8.attn2.to_k",
+        "transformer_blocks.9.attn2.to_v",
+        "transformer_blocks.9.attn2.to_k",
+        "transformer_blocks.10.attn2.to_v",
+        "transformer_blocks.10.attn2.to_k",
+        "transformer_blocks.11.attn2.to_v",
+        "transformer_blocks.11.attn2.to_k",
+        "transformer_blocks.12.attn2.to_v",
+        "transformer_blocks.12.attn2.to_k",
+        "transformer_blocks.13.attn2.to_v",
+        "transformer_blocks.13.attn2.to_k",
+        "transformer_blocks.14.attn2.to_v",
+        "transformer_blocks.14.attn2.to_k",
+        "transformer_blocks.15.attn2.to_v",
+        "transformer_blocks.15.attn2.to_k",
+        "transformer_blocks.16.attn2.to_v",
+        "transformer_blocks.16.attn2.to_k",
+        "transformer_blocks.17.attn2.to_v",
+        "transformer_blocks.17.attn2.to_k",
+        "transformer_blocks.18.attn2.to_v",
+        "transformer_blocks.18.attn2.to_k",
+        "transformer_blocks.19.attn2.to_v",
+        "transformer_blocks.19.attn2.to_k",
+        "transformer_blocks.20.attn2.to_v",
+        "transformer_blocks.20.attn2.to_k",
+        "transformer_blocks.21.attn2.to_v",
+        "transformer_blocks.21.attn2.to_k",
+        "transformer_blocks.22.attn2.to_v",
+        "transformer_blocks.22.attn2.to_k",
+        "transformer_blocks.23.attn2.to_v",
+        "transformer_blocks.23.attn2.to_k",
+        "transformer_blocks.24.attn2.to_v",
+        "transformer_blocks.24.attn2.to_k",
+        "transformer_blocks.25.attn2.to_v",
+        "transformer_blocks.25.attn2.to_k",
+        "transformer_blocks.26.attn2.to_v",
+        "transformer_blocks.26.attn2.to_k",
+        "transformer_blocks.27.attn2.to_v",
+        "transformer_blocks.27.attn2.to_k",
+        "transformer_blocks.28.attn2.to_v",
+        "transformer_blocks.28.attn2.to_k",
+        "transformer_blocks.29.attn2.to_v",
+        "transformer_blocks.29.attn2.to_k",
+        "transformer_blocks.30.attn2.to_v",
+        "transformer_blocks.30.attn2.to_k",
+        "transformer_blocks.31.attn2.to_v",
+        "transformer_blocks.31.attn2.to_k",
+        "transformer_blocks.32.attn2.to_v",
+        "transformer_blocks.32.attn2.to_k",
+        "transformer_blocks.33.attn2.to_v",
+        "transformer_blocks.33.attn2.to_k",
+        "transformer_blocks.34.attn2.to_v",
+        "transformer_blocks.34.attn2.to_k",
+        "transformer_blocks.35.attn2.to_v",
+        "transformer_blocks.35.attn2.to_k",
+        "transformer_blocks.36.attn2.to_v",
+        "transformer_blocks.36.attn2.to_k",
+        "transformer_blocks.37.attn2.to_v",
+        "transformer_blocks.37.attn2.to_k",
+        "transformer_blocks.38.attn2.to_v",
+        "transformer_blocks.38.attn2.to_k",
+        "transformer_blocks.39.attn2.to_v",
+        "transformer_blocks.39.attn2.to_k",
+        "transformer_blocks.40.attn2.to_v",
+        "transformer_blocks.40.attn2.to_k",
+        "transformer_blocks.41.attn2.to_v",
+        "transformer_blocks.41.attn2.to_k",
+        "transformer_blocks.42.attn2.to_v",
+        "transformer_blocks.42.attn2.to_k",
+        "transformer_blocks.43.attn2.to_v",
+        "transformer_blocks.43.attn2.to_k",
+        "transformer_blocks.44.attn2.to_v",
+        "transformer_blocks.44.attn2.to_k",
+        "transformer_blocks.45.attn2.to_v",
+        "transformer_blocks.45.attn2.to_k",
+        "transformer_blocks.46.attn2.to_v",
+        "transformer_blocks.46.attn2.to_k",
+        "transformer_blocks.47.attn2.to_v",
+        "transformer_blocks.47.attn2.to_k"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_18",
+      "static": {
+        "N": 2048,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 512
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 96
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            512,
+            2048
+          ],
+          "input_stride": [
+            1048576,
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            512,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_attn2.to_v",
+        "transformer_blocks.0.audio_attn2.to_k",
+        "transformer_blocks.1.audio_attn2.to_v",
+        "transformer_blocks.1.audio_attn2.to_k",
+        "transformer_blocks.2.audio_attn2.to_v",
+        "transformer_blocks.2.audio_attn2.to_k",
+        "transformer_blocks.3.audio_attn2.to_v",
+        "transformer_blocks.3.audio_attn2.to_k",
+        "transformer_blocks.4.audio_attn2.to_v",
+        "transformer_blocks.4.audio_attn2.to_k",
+        "transformer_blocks.5.audio_attn2.to_v",
+        "transformer_blocks.5.audio_attn2.to_k",
+        "transformer_blocks.6.audio_attn2.to_v",
+        "transformer_blocks.6.audio_attn2.to_k",
+        "transformer_blocks.7.audio_attn2.to_v",
+        "transformer_blocks.7.audio_attn2.to_k",
+        "transformer_blocks.8.audio_attn2.to_v",
+        "transformer_blocks.8.audio_attn2.to_k",
+        "transformer_blocks.9.audio_attn2.to_v",
+        "transformer_blocks.9.audio_attn2.to_k",
+        "transformer_blocks.10.audio_attn2.to_v",
+        "transformer_blocks.10.audio_attn2.to_k",
+        "transformer_blocks.11.audio_attn2.to_v",
+        "transformer_blocks.11.audio_attn2.to_k",
+        "transformer_blocks.12.audio_attn2.to_v",
+        "transformer_blocks.12.audio_attn2.to_k",
+        "transformer_blocks.13.audio_attn2.to_v",
+        "transformer_blocks.13.audio_attn2.to_k",
+        "transformer_blocks.14.audio_attn2.to_v",
+        "transformer_blocks.14.audio_attn2.to_k",
+        "transformer_blocks.15.audio_attn2.to_v",
+        "transformer_blocks.15.audio_attn2.to_k",
+        "transformer_blocks.16.audio_attn2.to_v",
+        "transformer_blocks.16.audio_attn2.to_k",
+        "transformer_blocks.17.audio_attn2.to_v",
+        "transformer_blocks.17.audio_attn2.to_k",
+        "transformer_blocks.18.audio_attn2.to_v",
+        "transformer_blocks.18.audio_attn2.to_k",
+        "transformer_blocks.19.audio_attn2.to_v",
+        "transformer_blocks.19.audio_attn2.to_k",
+        "transformer_blocks.20.audio_attn2.to_v",
+        "transformer_blocks.20.audio_attn2.to_k",
+        "transformer_blocks.21.audio_attn2.to_v",
+        "transformer_blocks.21.audio_attn2.to_k",
+        "transformer_blocks.22.audio_attn2.to_v",
+        "transformer_blocks.22.audio_attn2.to_k",
+        "transformer_blocks.23.audio_attn2.to_v",
+        "transformer_blocks.23.audio_attn2.to_k",
+        "transformer_blocks.24.audio_attn2.to_v",
+        "transformer_blocks.24.audio_attn2.to_k",
+        "transformer_blocks.25.audio_attn2.to_v",
+        "transformer_blocks.25.audio_attn2.to_k",
+        "transformer_blocks.26.audio_attn2.to_v",
+        "transformer_blocks.26.audio_attn2.to_k",
+        "transformer_blocks.27.audio_attn2.to_v",
+        "transformer_blocks.27.audio_attn2.to_k",
+        "transformer_blocks.28.audio_attn2.to_v",
+        "transformer_blocks.28.audio_attn2.to_k",
+        "transformer_blocks.29.audio_attn2.to_v",
+        "transformer_blocks.29.audio_attn2.to_k",
+        "transformer_blocks.30.audio_attn2.to_v",
+        "transformer_blocks.30.audio_attn2.to_k",
+        "transformer_blocks.31.audio_attn2.to_v",
+        "transformer_blocks.31.audio_attn2.to_k",
+        "transformer_blocks.32.audio_attn2.to_v",
+        "transformer_blocks.32.audio_attn2.to_k",
+        "transformer_blocks.33.audio_attn2.to_v",
+        "transformer_blocks.33.audio_attn2.to_k",
+        "transformer_blocks.34.audio_attn2.to_v",
+        "transformer_blocks.34.audio_attn2.to_k",
+        "transformer_blocks.35.audio_attn2.to_v",
+        "transformer_blocks.35.audio_attn2.to_k",
+        "transformer_blocks.36.audio_attn2.to_v",
+        "transformer_blocks.36.audio_attn2.to_k",
+        "transformer_blocks.37.audio_attn2.to_v",
+        "transformer_blocks.37.audio_attn2.to_k",
+        "transformer_blocks.38.audio_attn2.to_v",
+        "transformer_blocks.38.audio_attn2.to_k",
+        "transformer_blocks.39.audio_attn2.to_v",
+        "transformer_blocks.39.audio_attn2.to_k",
+        "transformer_blocks.40.audio_attn2.to_v",
+        "transformer_blocks.40.audio_attn2.to_k",
+        "transformer_blocks.41.audio_attn2.to_v",
+        "transformer_blocks.41.audio_attn2.to_k",
+        "transformer_blocks.42.audio_attn2.to_v",
+        "transformer_blocks.42.audio_attn2.to_k",
+        "transformer_blocks.43.audio_attn2.to_v",
+        "transformer_blocks.43.audio_attn2.to_k",
+        "transformer_blocks.44.audio_attn2.to_v",
+        "transformer_blocks.44.audio_attn2.to_k",
+        "transformer_blocks.45.audio_attn2.to_v",
+        "transformer_blocks.45.audio_attn2.to_k",
+        "transformer_blocks.46.audio_attn2.to_v",
+        "transformer_blocks.46.audio_attn2.to_k",
+        "transformer_blocks.47.audio_attn2.to_v",
+        "transformer_blocks.47.audio_attn2.to_k"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_19",
+      "static": {
+        "N": 2048,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 144
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            4096
+          ],
+          "input_stride": [
+            71303168,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_to_video_attn.to_q",
+        "transformer_blocks.0.video_to_audio_attn.to_v",
+        "transformer_blocks.0.video_to_audio_attn.to_k",
+        "transformer_blocks.1.audio_to_video_attn.to_q",
+        "transformer_blocks.1.video_to_audio_attn.to_v",
+        "transformer_blocks.1.video_to_audio_attn.to_k",
+        "transformer_blocks.2.audio_to_video_attn.to_q",
+        "transformer_blocks.2.video_to_audio_attn.to_v",
+        "transformer_blocks.2.video_to_audio_attn.to_k",
+        "transformer_blocks.3.audio_to_video_attn.to_q",
+        "transformer_blocks.3.video_to_audio_attn.to_v",
+        "transformer_blocks.3.video_to_audio_attn.to_k",
+        "transformer_blocks.4.audio_to_video_attn.to_q",
+        "transformer_blocks.4.video_to_audio_attn.to_v",
+        "transformer_blocks.4.video_to_audio_attn.to_k",
+        "transformer_blocks.5.audio_to_video_attn.to_q",
+        "transformer_blocks.5.video_to_audio_attn.to_v",
+        "transformer_blocks.5.video_to_audio_attn.to_k",
+        "transformer_blocks.6.audio_to_video_attn.to_q",
+        "transformer_blocks.6.video_to_audio_attn.to_v",
+        "transformer_blocks.6.video_to_audio_attn.to_k",
+        "transformer_blocks.7.audio_to_video_attn.to_q",
+        "transformer_blocks.7.video_to_audio_attn.to_v",
+        "transformer_blocks.7.video_to_audio_attn.to_k",
+        "transformer_blocks.8.audio_to_video_attn.to_q",
+        "transformer_blocks.8.video_to_audio_attn.to_v",
+        "transformer_blocks.8.video_to_audio_attn.to_k",
+        "transformer_blocks.9.audio_to_video_attn.to_q",
+        "transformer_blocks.9.video_to_audio_attn.to_v",
+        "transformer_blocks.9.video_to_audio_attn.to_k",
+        "transformer_blocks.10.audio_to_video_attn.to_q",
+        "transformer_blocks.10.video_to_audio_attn.to_v",
+        "transformer_blocks.10.video_to_audio_attn.to_k",
+        "transformer_blocks.11.audio_to_video_attn.to_q",
+        "transformer_blocks.11.video_to_audio_attn.to_v",
+        "transformer_blocks.11.video_to_audio_attn.to_k",
+        "transformer_blocks.12.audio_to_video_attn.to_q",
+        "transformer_blocks.12.video_to_audio_attn.to_v",
+        "transformer_blocks.12.video_to_audio_attn.to_k",
+        "transformer_blocks.13.audio_to_video_attn.to_q",
+        "transformer_blocks.13.video_to_audio_attn.to_v",
+        "transformer_blocks.13.video_to_audio_attn.to_k",
+        "transformer_blocks.14.audio_to_video_attn.to_q",
+        "transformer_blocks.14.video_to_audio_attn.to_v",
+        "transformer_blocks.14.video_to_audio_attn.to_k",
+        "transformer_blocks.15.audio_to_video_attn.to_q",
+        "transformer_blocks.15.video_to_audio_attn.to_v",
+        "transformer_blocks.15.video_to_audio_attn.to_k",
+        "transformer_blocks.16.audio_to_video_attn.to_q",
+        "transformer_blocks.16.video_to_audio_attn.to_v",
+        "transformer_blocks.16.video_to_audio_attn.to_k",
+        "transformer_blocks.17.audio_to_video_attn.to_q",
+        "transformer_blocks.17.video_to_audio_attn.to_v",
+        "transformer_blocks.17.video_to_audio_attn.to_k",
+        "transformer_blocks.18.audio_to_video_attn.to_q",
+        "transformer_blocks.18.video_to_audio_attn.to_v",
+        "transformer_blocks.18.video_to_audio_attn.to_k",
+        "transformer_blocks.19.audio_to_video_attn.to_q",
+        "transformer_blocks.19.video_to_audio_attn.to_v",
+        "transformer_blocks.19.video_to_audio_attn.to_k",
+        "transformer_blocks.20.audio_to_video_attn.to_q",
+        "transformer_blocks.20.video_to_audio_attn.to_v",
+        "transformer_blocks.20.video_to_audio_attn.to_k",
+        "transformer_blocks.21.audio_to_video_attn.to_q",
+        "transformer_blocks.21.video_to_audio_attn.to_v",
+        "transformer_blocks.21.video_to_audio_attn.to_k",
+        "transformer_blocks.22.audio_to_video_attn.to_q",
+        "transformer_blocks.22.video_to_audio_attn.to_v",
+        "transformer_blocks.22.video_to_audio_attn.to_k",
+        "transformer_blocks.23.audio_to_video_attn.to_q",
+        "transformer_blocks.23.video_to_audio_attn.to_v",
+        "transformer_blocks.23.video_to_audio_attn.to_k",
+        "transformer_blocks.24.audio_to_video_attn.to_q",
+        "transformer_blocks.24.video_to_audio_attn.to_v",
+        "transformer_blocks.24.video_to_audio_attn.to_k",
+        "transformer_blocks.25.audio_to_video_attn.to_q",
+        "transformer_blocks.25.video_to_audio_attn.to_v",
+        "transformer_blocks.25.video_to_audio_attn.to_k",
+        "transformer_blocks.26.audio_to_video_attn.to_q",
+        "transformer_blocks.26.video_to_audio_attn.to_v",
+        "transformer_blocks.26.video_to_audio_attn.to_k",
+        "transformer_blocks.27.audio_to_video_attn.to_q",
+        "transformer_blocks.27.video_to_audio_attn.to_v",
+        "transformer_blocks.27.video_to_audio_attn.to_k",
+        "transformer_blocks.28.audio_to_video_attn.to_q",
+        "transformer_blocks.28.video_to_audio_attn.to_v",
+        "transformer_blocks.28.video_to_audio_attn.to_k",
+        "transformer_blocks.29.audio_to_video_attn.to_q",
+        "transformer_blocks.29.video_to_audio_attn.to_v",
+        "transformer_blocks.29.video_to_audio_attn.to_k",
+        "transformer_blocks.30.audio_to_video_attn.to_q",
+        "transformer_blocks.30.video_to_audio_attn.to_v",
+        "transformer_blocks.30.video_to_audio_attn.to_k",
+        "transformer_blocks.31.audio_to_video_attn.to_q",
+        "transformer_blocks.31.video_to_audio_attn.to_v",
+        "transformer_blocks.31.video_to_audio_attn.to_k",
+        "transformer_blocks.32.audio_to_video_attn.to_q",
+        "transformer_blocks.32.video_to_audio_attn.to_v",
+        "transformer_blocks.32.video_to_audio_attn.to_k",
+        "transformer_blocks.33.audio_to_video_attn.to_q",
+        "transformer_blocks.33.video_to_audio_attn.to_v",
+        "transformer_blocks.33.video_to_audio_attn.to_k",
+        "transformer_blocks.34.audio_to_video_attn.to_q",
+        "transformer_blocks.34.video_to_audio_attn.to_v",
+        "transformer_blocks.34.video_to_audio_attn.to_k",
+        "transformer_blocks.35.audio_to_video_attn.to_q",
+        "transformer_blocks.35.video_to_audio_attn.to_v",
+        "transformer_blocks.35.video_to_audio_attn.to_k",
+        "transformer_blocks.36.audio_to_video_attn.to_q",
+        "transformer_blocks.36.video_to_audio_attn.to_v",
+        "transformer_blocks.36.video_to_audio_attn.to_k",
+        "transformer_blocks.37.audio_to_video_attn.to_q",
+        "transformer_blocks.37.video_to_audio_attn.to_v",
+        "transformer_blocks.37.video_to_audio_attn.to_k",
+        "transformer_blocks.38.audio_to_video_attn.to_q",
+        "transformer_blocks.38.video_to_audio_attn.to_v",
+        "transformer_blocks.38.video_to_audio_attn.to_k",
+        "transformer_blocks.39.audio_to_video_attn.to_q",
+        "transformer_blocks.39.video_to_audio_attn.to_v",
+        "transformer_blocks.39.video_to_audio_attn.to_k",
+        "transformer_blocks.40.audio_to_video_attn.to_q",
+        "transformer_blocks.40.video_to_audio_attn.to_v",
+        "transformer_blocks.40.video_to_audio_attn.to_k",
+        "transformer_blocks.41.audio_to_video_attn.to_q",
+        "transformer_blocks.41.video_to_audio_attn.to_v",
+        "transformer_blocks.41.video_to_audio_attn.to_k",
+        "transformer_blocks.42.audio_to_video_attn.to_q",
+        "transformer_blocks.42.video_to_audio_attn.to_v",
+        "transformer_blocks.42.video_to_audio_attn.to_k",
+        "transformer_blocks.43.audio_to_video_attn.to_q",
+        "transformer_blocks.43.video_to_audio_attn.to_v",
+        "transformer_blocks.43.video_to_audio_attn.to_k",
+        "transformer_blocks.44.audio_to_video_attn.to_q",
+        "transformer_blocks.44.video_to_audio_attn.to_v",
+        "transformer_blocks.44.video_to_audio_attn.to_k",
+        "transformer_blocks.45.audio_to_video_attn.to_q",
+        "transformer_blocks.45.video_to_audio_attn.to_v",
+        "transformer_blocks.45.video_to_audio_attn.to_k",
+        "transformer_blocks.46.audio_to_video_attn.to_q",
+        "transformer_blocks.46.video_to_audio_attn.to_v",
+        "transformer_blocks.46.video_to_audio_attn.to_k",
+        "transformer_blocks.47.audio_to_video_attn.to_q",
+        "transformer_blocks.47.video_to_audio_attn.to_v",
+        "transformer_blocks.47.video_to_audio_attn.to_k"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_20",
+      "static": {
+        "N": 4096,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 48
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            2048
+          ],
+          "input_stride": [
+            35651584,
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_to_video_attn.to_out.0",
+        "transformer_blocks.1.audio_to_video_attn.to_out.0",
+        "transformer_blocks.2.audio_to_video_attn.to_out.0",
+        "transformer_blocks.3.audio_to_video_attn.to_out.0",
+        "transformer_blocks.4.audio_to_video_attn.to_out.0",
+        "transformer_blocks.5.audio_to_video_attn.to_out.0",
+        "transformer_blocks.6.audio_to_video_attn.to_out.0",
+        "transformer_blocks.7.audio_to_video_attn.to_out.0",
+        "transformer_blocks.8.audio_to_video_attn.to_out.0",
+        "transformer_blocks.9.audio_to_video_attn.to_out.0",
+        "transformer_blocks.10.audio_to_video_attn.to_out.0",
+        "transformer_blocks.11.audio_to_video_attn.to_out.0",
+        "transformer_blocks.12.audio_to_video_attn.to_out.0",
+        "transformer_blocks.13.audio_to_video_attn.to_out.0",
+        "transformer_blocks.14.audio_to_video_attn.to_out.0",
+        "transformer_blocks.15.audio_to_video_attn.to_out.0",
+        "transformer_blocks.16.audio_to_video_attn.to_out.0",
+        "transformer_blocks.17.audio_to_video_attn.to_out.0",
+        "transformer_blocks.18.audio_to_video_attn.to_out.0",
+        "transformer_blocks.19.audio_to_video_attn.to_out.0",
+        "transformer_blocks.20.audio_to_video_attn.to_out.0",
+        "transformer_blocks.21.audio_to_video_attn.to_out.0",
+        "transformer_blocks.22.audio_to_video_attn.to_out.0",
+        "transformer_blocks.23.audio_to_video_attn.to_out.0",
+        "transformer_blocks.24.audio_to_video_attn.to_out.0",
+        "transformer_blocks.25.audio_to_video_attn.to_out.0",
+        "transformer_blocks.26.audio_to_video_attn.to_out.0",
+        "transformer_blocks.27.audio_to_video_attn.to_out.0",
+        "transformer_blocks.28.audio_to_video_attn.to_out.0",
+        "transformer_blocks.29.audio_to_video_attn.to_out.0",
+        "transformer_blocks.30.audio_to_video_attn.to_out.0",
+        "transformer_blocks.31.audio_to_video_attn.to_out.0",
+        "transformer_blocks.32.audio_to_video_attn.to_out.0",
+        "transformer_blocks.33.audio_to_video_attn.to_out.0",
+        "transformer_blocks.34.audio_to_video_attn.to_out.0",
+        "transformer_blocks.35.audio_to_video_attn.to_out.0",
+        "transformer_blocks.36.audio_to_video_attn.to_out.0",
+        "transformer_blocks.37.audio_to_video_attn.to_out.0",
+        "transformer_blocks.38.audio_to_video_attn.to_out.0",
+        "transformer_blocks.39.audio_to_video_attn.to_out.0",
+        "transformer_blocks.40.audio_to_video_attn.to_out.0",
+        "transformer_blocks.41.audio_to_video_attn.to_out.0",
+        "transformer_blocks.42.audio_to_video_attn.to_out.0",
+        "transformer_blocks.43.audio_to_video_attn.to_out.0",
+        "transformer_blocks.44.audio_to_video_attn.to_out.0",
+        "transformer_blocks.45.audio_to_video_attn.to_out.0",
+        "transformer_blocks.46.audio_to_video_attn.to_out.0",
+        "transformer_blocks.47.audio_to_video_attn.to_out.0"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_21",
+      "static": {
+        "N": 16384,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 48
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            4096
+          ],
+          "input_stride": [
+            71303168,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            16384
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.ff.net.0.proj",
+        "transformer_blocks.1.ff.net.0.proj",
+        "transformer_blocks.2.ff.net.0.proj",
+        "transformer_blocks.3.ff.net.0.proj",
+        "transformer_blocks.4.ff.net.0.proj",
+        "transformer_blocks.5.ff.net.0.proj",
+        "transformer_blocks.6.ff.net.0.proj",
+        "transformer_blocks.7.ff.net.0.proj",
+        "transformer_blocks.8.ff.net.0.proj",
+        "transformer_blocks.9.ff.net.0.proj",
+        "transformer_blocks.10.ff.net.0.proj",
+        "transformer_blocks.11.ff.net.0.proj",
+        "transformer_blocks.12.ff.net.0.proj",
+        "transformer_blocks.13.ff.net.0.proj",
+        "transformer_blocks.14.ff.net.0.proj",
+        "transformer_blocks.15.ff.net.0.proj",
+        "transformer_blocks.16.ff.net.0.proj",
+        "transformer_blocks.17.ff.net.0.proj",
+        "transformer_blocks.18.ff.net.0.proj",
+        "transformer_blocks.19.ff.net.0.proj",
+        "transformer_blocks.20.ff.net.0.proj",
+        "transformer_blocks.21.ff.net.0.proj",
+        "transformer_blocks.22.ff.net.0.proj",
+        "transformer_blocks.23.ff.net.0.proj",
+        "transformer_blocks.24.ff.net.0.proj",
+        "transformer_blocks.25.ff.net.0.proj",
+        "transformer_blocks.26.ff.net.0.proj",
+        "transformer_blocks.27.ff.net.0.proj",
+        "transformer_blocks.28.ff.net.0.proj",
+        "transformer_blocks.29.ff.net.0.proj",
+        "transformer_blocks.30.ff.net.0.proj",
+        "transformer_blocks.31.ff.net.0.proj",
+        "transformer_blocks.32.ff.net.0.proj",
+        "transformer_blocks.33.ff.net.0.proj",
+        "transformer_blocks.34.ff.net.0.proj",
+        "transformer_blocks.35.ff.net.0.proj",
+        "transformer_blocks.36.ff.net.0.proj",
+        "transformer_blocks.37.ff.net.0.proj",
+        "transformer_blocks.38.ff.net.0.proj",
+        "transformer_blocks.39.ff.net.0.proj",
+        "transformer_blocks.40.ff.net.0.proj",
+        "transformer_blocks.41.ff.net.0.proj",
+        "transformer_blocks.42.ff.net.0.proj",
+        "transformer_blocks.43.ff.net.0.proj",
+        "transformer_blocks.44.ff.net.0.proj",
+        "transformer_blocks.45.ff.net.0.proj",
+        "transformer_blocks.46.ff.net.0.proj",
+        "transformer_blocks.47.ff.net.0.proj"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_22",
+      "static": {
+        "N": 4096,
+        "K": 16384,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 48
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            16384
+          ],
+          "input_stride": [
+            285212672,
+            16384,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.ff.net.2",
+        "transformer_blocks.1.ff.net.2",
+        "transformer_blocks.2.ff.net.2",
+        "transformer_blocks.3.ff.net.2",
+        "transformer_blocks.4.ff.net.2",
+        "transformer_blocks.5.ff.net.2",
+        "transformer_blocks.6.ff.net.2",
+        "transformer_blocks.7.ff.net.2",
+        "transformer_blocks.8.ff.net.2",
+        "transformer_blocks.9.ff.net.2",
+        "transformer_blocks.10.ff.net.2",
+        "transformer_blocks.11.ff.net.2",
+        "transformer_blocks.12.ff.net.2",
+        "transformer_blocks.13.ff.net.2",
+        "transformer_blocks.14.ff.net.2",
+        "transformer_blocks.15.ff.net.2",
+        "transformer_blocks.16.ff.net.2",
+        "transformer_blocks.17.ff.net.2",
+        "transformer_blocks.18.ff.net.2",
+        "transformer_blocks.19.ff.net.2",
+        "transformer_blocks.20.ff.net.2",
+        "transformer_blocks.21.ff.net.2",
+        "transformer_blocks.22.ff.net.2",
+        "transformer_blocks.23.ff.net.2",
+        "transformer_blocks.24.ff.net.2",
+        "transformer_blocks.25.ff.net.2",
+        "transformer_blocks.26.ff.net.2",
+        "transformer_blocks.27.ff.net.2",
+        "transformer_blocks.28.ff.net.2",
+        "transformer_blocks.29.ff.net.2",
+        "transformer_blocks.30.ff.net.2",
+        "transformer_blocks.31.ff.net.2",
+        "transformer_blocks.32.ff.net.2",
+        "transformer_blocks.33.ff.net.2",
+        "transformer_blocks.34.ff.net.2",
+        "transformer_blocks.35.ff.net.2",
+        "transformer_blocks.36.ff.net.2",
+        "transformer_blocks.37.ff.net.2",
+        "transformer_blocks.38.ff.net.2",
+        "transformer_blocks.39.ff.net.2",
+        "transformer_blocks.40.ff.net.2",
+        "transformer_blocks.41.ff.net.2",
+        "transformer_blocks.42.ff.net.2",
+        "transformer_blocks.43.ff.net.2",
+        "transformer_blocks.44.ff.net.2",
+        "transformer_blocks.45.ff.net.2",
+        "transformer_blocks.46.ff.net.2",
+        "transformer_blocks.47.ff.net.2"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_23",
+      "static": {
+        "N": 8192,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 48
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            2048
+          ],
+          "input_stride": [
+            2097152,
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            8192
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_ff.net.0.proj",
+        "transformer_blocks.1.audio_ff.net.0.proj",
+        "transformer_blocks.2.audio_ff.net.0.proj",
+        "transformer_blocks.3.audio_ff.net.0.proj",
+        "transformer_blocks.4.audio_ff.net.0.proj",
+        "transformer_blocks.5.audio_ff.net.0.proj",
+        "transformer_blocks.6.audio_ff.net.0.proj",
+        "transformer_blocks.7.audio_ff.net.0.proj",
+        "transformer_blocks.8.audio_ff.net.0.proj",
+        "transformer_blocks.9.audio_ff.net.0.proj",
+        "transformer_blocks.10.audio_ff.net.0.proj",
+        "transformer_blocks.11.audio_ff.net.0.proj",
+        "transformer_blocks.12.audio_ff.net.0.proj",
+        "transformer_blocks.13.audio_ff.net.0.proj",
+        "transformer_blocks.14.audio_ff.net.0.proj",
+        "transformer_blocks.15.audio_ff.net.0.proj",
+        "transformer_blocks.16.audio_ff.net.0.proj",
+        "transformer_blocks.17.audio_ff.net.0.proj",
+        "transformer_blocks.18.audio_ff.net.0.proj",
+        "transformer_blocks.19.audio_ff.net.0.proj",
+        "transformer_blocks.20.audio_ff.net.0.proj",
+        "transformer_blocks.21.audio_ff.net.0.proj",
+        "transformer_blocks.22.audio_ff.net.0.proj",
+        "transformer_blocks.23.audio_ff.net.0.proj",
+        "transformer_blocks.24.audio_ff.net.0.proj",
+        "transformer_blocks.25.audio_ff.net.0.proj",
+        "transformer_blocks.26.audio_ff.net.0.proj",
+        "transformer_blocks.27.audio_ff.net.0.proj",
+        "transformer_blocks.28.audio_ff.net.0.proj",
+        "transformer_blocks.29.audio_ff.net.0.proj",
+        "transformer_blocks.30.audio_ff.net.0.proj",
+        "transformer_blocks.31.audio_ff.net.0.proj",
+        "transformer_blocks.32.audio_ff.net.0.proj",
+        "transformer_blocks.33.audio_ff.net.0.proj",
+        "transformer_blocks.34.audio_ff.net.0.proj",
+        "transformer_blocks.35.audio_ff.net.0.proj",
+        "transformer_blocks.36.audio_ff.net.0.proj",
+        "transformer_blocks.37.audio_ff.net.0.proj",
+        "transformer_blocks.38.audio_ff.net.0.proj",
+        "transformer_blocks.39.audio_ff.net.0.proj",
+        "transformer_blocks.40.audio_ff.net.0.proj",
+        "transformer_blocks.41.audio_ff.net.0.proj",
+        "transformer_blocks.42.audio_ff.net.0.proj",
+        "transformer_blocks.43.audio_ff.net.0.proj",
+        "transformer_blocks.44.audio_ff.net.0.proj",
+        "transformer_blocks.45.audio_ff.net.0.proj",
+        "transformer_blocks.46.audio_ff.net.0.proj",
+        "transformer_blocks.47.audio_ff.net.0.proj"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_24",
+      "static": {
+        "N": 2048,
+        "K": 8192,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 48
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            8192
+          ],
+          "input_stride": [
+            8388608,
+            8192,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            2048
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.audio_ff.net.2",
+        "transformer_blocks.1.audio_ff.net.2",
+        "transformer_blocks.2.audio_ff.net.2",
+        "transformer_blocks.3.audio_ff.net.2",
+        "transformer_blocks.4.audio_ff.net.2",
+        "transformer_blocks.5.audio_ff.net.2",
+        "transformer_blocks.6.audio_ff.net.2",
+        "transformer_blocks.7.audio_ff.net.2",
+        "transformer_blocks.8.audio_ff.net.2",
+        "transformer_blocks.9.audio_ff.net.2",
+        "transformer_blocks.10.audio_ff.net.2",
+        "transformer_blocks.11.audio_ff.net.2",
+        "transformer_blocks.12.audio_ff.net.2",
+        "transformer_blocks.13.audio_ff.net.2",
+        "transformer_blocks.14.audio_ff.net.2",
+        "transformer_blocks.15.audio_ff.net.2",
+        "transformer_blocks.16.audio_ff.net.2",
+        "transformer_blocks.17.audio_ff.net.2",
+        "transformer_blocks.18.audio_ff.net.2",
+        "transformer_blocks.19.audio_ff.net.2",
+        "transformer_blocks.20.audio_ff.net.2",
+        "transformer_blocks.21.audio_ff.net.2",
+        "transformer_blocks.22.audio_ff.net.2",
+        "transformer_blocks.23.audio_ff.net.2",
+        "transformer_blocks.24.audio_ff.net.2",
+        "transformer_blocks.25.audio_ff.net.2",
+        "transformer_blocks.26.audio_ff.net.2",
+        "transformer_blocks.27.audio_ff.net.2",
+        "transformer_blocks.28.audio_ff.net.2",
+        "transformer_blocks.29.audio_ff.net.2",
+        "transformer_blocks.30.audio_ff.net.2",
+        "transformer_blocks.31.audio_ff.net.2",
+        "transformer_blocks.32.audio_ff.net.2",
+        "transformer_blocks.33.audio_ff.net.2",
+        "transformer_blocks.34.audio_ff.net.2",
+        "transformer_blocks.35.audio_ff.net.2",
+        "transformer_blocks.36.audio_ff.net.2",
+        "transformer_blocks.37.audio_ff.net.2",
+        "transformer_blocks.38.audio_ff.net.2",
+        "transformer_blocks.39.audio_ff.net.2",
+        "transformer_blocks.40.audio_ff.net.2",
+        "transformer_blocks.41.audio_ff.net.2",
+        "transformer_blocks.42.audio_ff.net.2",
+        "transformer_blocks.43.audio_ff.net.2",
+        "transformer_blocks.44.audio_ff.net.2",
+        "transformer_blocks.45.audio_ff.net.2",
+        "transformer_blocks.46.audio_ff.net.2",
+        "transformer_blocks.47.audio_ff.net.2"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_25",
+      "static": {
+        "N": 128,
+        "K": 4096,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 17408
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            17408,
+            4096
+          ],
+          "input_stride": [
+            71303168,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            17408,
+            128
+          ]
+        }
+      ],
+      "tags": [
+        "proj_out"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_26",
+      "static": {
+        "N": 128,
+        "K": 2048,
+        "bias": true,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "ltx25-video17408": 1024
+          }
+        }
+      },
+      "call_count": {
+        "ltx25-video17408": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "ltx25-video17408",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            1024,
+            2048
+          ],
+          "input_stride": [
+            2097152,
+            2048,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            1024,
+            128
+          ]
+        }
+      ],
+      "tags": [
+        "audio_proj_out"
+      ]
+    }
+  ]
+}

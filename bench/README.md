@@ -182,3 +182,7 @@ Timing still requires a CUDA GPU. Validate benchmark compatibility without one:
 ```bash
 python -m pytest --confcutdir bench bench/tests -q
 ```
+
+## DiT shape catalog
+
+The opt-in [catalog](catalog/README.md) includes weightless forward shape executions for Qwen Image2.1, MiniMax H3, Krea2 and LTX2.5. Proposed input layouts, executed shapes and real checkpoint captures are labeled separately. Preview exact shapes with `python bench/generate_configs.py --trace bench/catalog/shape_runs --workload replay`. The tracer preserves repeated-module shape variants; set `one_shot=false` to observe multiple steps.

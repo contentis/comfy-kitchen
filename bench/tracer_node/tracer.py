@@ -28,7 +28,16 @@ def _prod(shape: list[int]) -> int:
 
 def _fingerprint(ev: dict) -> str:
     return json.dumps(
-        {"op": ev["op"], "static": ev["static"], "layout": ev.get("layout")},
+        {
+            "op": ev["op"],
+            "layer": ev.get("layer"),
+            "static": ev["static"],
+            "layout": ev.get("layout"),
+            "dynamic_values": {
+                k: sorted(set(v.get("values", {}).values()))
+                for k, v in ev.get("dynamic", {}).items()
+            },
+        },
         sort_keys=True,
     )
 
@@ -61,7 +70,9 @@ def write_bundle(data: dict, path: str | Path) -> Path:
     return out
 
 
-def _merge_to_disk(path: str | Path, events: list[dict], *, profile: str, model: str) -> dict:
+def _merge_to_disk(
+    path: str | Path, events: list[dict], *, profile: str, model: str, metadata: dict | None = None
+) -> dict:
     out = _bundle_path(path)
     if out.is_file():
         data = json.loads(out.read_text(encoding="utf-8"))
@@ -73,6 +84,16 @@ def _merge_to_disk(path: str | Path, events: list[dict], *, profile: str, model:
     if profile not in profiles:
         profiles.append(profile)
 
+    if metadata is not None:
+        contexts = data.setdefault("meta", {}).setdefault("profile_context", {})
+        if profile in contexts and contexts[profile] != metadata:
+            raise ValueError("Use a distinct profile for each workload context")
+        contexts[profile] = metadata
+    sessions = data.setdefault("meta", {}).setdefault("capture_sessions", {})
+    sessions[profile] = sessions.get(profile, 0) + 1
+    for event in events:
+        for observation in event.get("observations", []):
+            observation["capture_session"] = sessions[profile]
     index = {_fingerprint(e): e for e in data["events"]}
     for incoming in events:
         key = _fingerprint(incoming)
@@ -83,6 +104,7 @@ def _merge_to_disk(path: str | Path, events: list[dict], *, profile: str, model:
         existing = index[key]
         for p, n in incoming["call_count"].items():
             existing["call_count"][p] = existing["call_count"].get(p, 0) + n
+        existing.setdefault("observations", []).extend(incoming.get("observations", []))
         for name, payload in incoming["dynamic"].items():
             slot = existing["dynamic"].setdefault(name, {"values": {}})
             slot.setdefault("values", {}).update(payload.get("values", {}))
@@ -120,84 +142,118 @@ def _patch_sdpa(on_call):
         functional.scaled_dot_product_attention = original
 
 
-def capture_events(
+@contextmanager
+def observe_events(
     model: nn.Module,
-    args: tuple = (),
-    kwargs: dict | None = None,
     *,
     profile: str = "default",
     capture_linear: bool = True,
     capture_sdpa: bool = True,
-) -> list[dict]:
-    kwargs = kwargs or {}
+):
+    """Observe successful calls without executing or retaining their tensors."""
     events: list[dict] = []
-    inputs: dict[str, list[int] | None] = {}
     hooks = []
+    sdpa_index = 0
+    forward_index = 0
 
-    def make_hook(name: str):
-        def hook(_m, inp, _out):
-            t = inp[0] if inp and isinstance(inp[0], torch.Tensor) else None
-            inputs[name] = [int(x) for x in t.shape] if t is not None else None
+    def on_model_forward(_module, _args):
+        nonlocal forward_index
+        forward_index += 1
+
+    def make_hook(name):
+        def hook(mod, args, output):
+            value = args[0] if args else None
+            if not isinstance(value, torch.Tensor):
+                return
+            shape = list(value.shape)
+            events.append(
+                {
+                    "op": "gemm",
+                    "family": "linear",
+                    "layer": name,
+                    "static": {
+                        "N": int(mod.out_features),
+                        "K": int(mod.in_features),
+                        "bias": getattr(mod, "bias", None) is not None,
+                        "dtype": _dtype(value.dtype),
+                    },
+                    "dynamic": _dyn(profile, M=_prod(shape[:-1]) if len(shape) > 1 else 1),
+                    "call_count": {profile: 1},
+                    "layout": None,
+                    "observations": [
+                        {
+                            "profile": profile,
+                            "forward_index": forward_index,
+                            "input_shape": shape,
+                            "input_stride": list(value.stride()),
+                            "input_dtype": _dtype(value.dtype),
+                            "weight_dtype": str(
+                                getattr(getattr(mod, "weight", None), "dtype", "unknown")
+                            ),
+                            "output_shape": list(output.shape)
+                            if isinstance(output, torch.Tensor)
+                            else None,
+                        }
+                    ],
+                }
+            )
 
         return hook
 
-    if capture_linear:
-        for name, mod in model.named_modules():
-            if _is_linear(mod):
-                hooks.append(mod.register_forward_hook(make_hook(name)))
-
-    def on_sdpa(f_args, f_kwargs):
-        q, k = f_args[0], f_args[1]
-        qs, ks = [int(x) for x in q.shape], [int(x) for x in k.shape]
+    def on_sdpa(args, kwargs):
+        nonlocal sdpa_index
+        sdpa_index += 1
+        q, k = args[:2]
         events.append(
             {
                 "op": "sdpa",
-                "layer": f"sdpa.{len(events) + 1:03d}",
+                "layer": f"sdpa.{sdpa_index:03d}",
                 "static": {
-                    "batch": qs[0],
-                    "heads": qs[1],
-                    "head_dim": qs[3],
+                    "batch": int(q.shape[0]),
+                    "heads": int(q.shape[1]),
+                    "head_dim": int(q.shape[-1]),
                     "dtype": _dtype(q.dtype),
-                    "causal": bool(f_kwargs.get("is_causal", False)),
-                    "dropout_p": float(f_kwargs.get("dropout_p", 0.0)),
-                    "kv_heads": ks[1],
+                    "causal": bool(kwargs.get("is_causal", False)),
+                    "dropout_p": float(kwargs.get("dropout_p", 0.0)),
+                    "kv_heads": int(k.shape[1]),
                 },
-                "dynamic": _dyn(profile, q_tokens=qs[2], kv_tokens=ks[2]),
+                "dynamic": _dyn(profile, q_tokens=int(q.shape[2]), kv_tokens=int(k.shape[2])),
                 "call_count": {profile: 1},
                 "layout": "BHND",
             }
         )
 
     try:
-        ctx = _patch_sdpa(on_sdpa) if capture_sdpa else nullcontext()
-        with ctx, torch.no_grad():
-            model(*args, **kwargs)
-
+        hooks.append(model.register_forward_pre_hook(on_model_forward))
         if capture_linear:
             for name, mod in model.named_modules():
-                shape = inputs.get(name)
-                if shape is None or not _is_linear(mod):
-                    continue
-                w = getattr(mod, "weight", None)
-                dtype = w.dtype if isinstance(w, torch.Tensor) else "unknown"
-                events.append(
-                    {
-                        "op": "gemm",
-                        "layer": name,
-                        "static": {
-                            "N": int(mod.out_features),
-                            "K": int(mod.in_features),
-                            "bias": getattr(mod, "bias", None) is not None,
-                            "dtype": _dtype(dtype),
-                        },
-                        "dynamic": _dyn(profile, M=_prod(shape[:-1]) if len(shape) > 1 else 1),
-                        "call_count": {profile: 1},
-                        "layout": None,
-                    }
-                )
+                if _is_linear(mod):
+                    hooks.append(mod.register_forward_hook(make_hook(name)))
+        with _patch_sdpa(on_sdpa) if capture_sdpa else nullcontext():
+            yield events
     finally:
-        for h in hooks:
-            h.remove()
+        for handle in hooks:
+            handle.remove()
+
+
+@contextmanager
+def track_model_shapes(model, *, path, profile="default", metadata=None, capture_sdpa=False):
+    """Record calls from an externally driven pipeline without retaining tensors."""
+    with observe_events(model, profile=profile, capture_sdpa=capture_sdpa) as events:
+        yield
+    _merge_to_disk(path, events, profile=profile, model=type(model).__name__, metadata=metadata)
+
+
+def capture_events(
+    model, args=(), kwargs=None, *, profile="default", capture_linear=True, capture_sdpa=True
+):
+    with (
+        observe_events(
+            model, profile=profile, capture_linear=capture_linear, capture_sdpa=capture_sdpa
+        ) as events,
+        torch.no_grad(),
+    ):
+        model(*args, **(kwargs or {}))
     return events
 
 
@@ -255,6 +311,7 @@ class CKOpTrace:
                 "capture_sdpa": ("BOOLEAN", {"default": True}),
                 "one_shot": ("BOOLEAN", {"default": True}),
                 "reset_bundle": ("BOOLEAN", {"default": False}),
+                "context_json": ("STRING", {"default": "{}"}),
             },
         }
 
@@ -274,7 +331,11 @@ class CKOpTrace:
         capture_sdpa: bool = True,
         one_shot: bool = True,
         reset_bundle: bool = False,
+        context_json: str = "{}",
     ) -> tuple[Any, str]:
+        context = json.loads(context_json)
+        if not isinstance(context, dict):
+            raise ValueError("context_json must be a JSON object")
         base, diffusion = _diffusion_model(model)
         model_name = type(diffusion).__name__
         name = (filename or "bundle.json").strip()
@@ -297,27 +358,25 @@ class CKOpTrace:
 
         def patched(*args, **kwargs):
             if state["one_shot"]:
-                state["base"].diffusion_model.forward = state["fwd"]
+                diffusion.forward = state["fwd"]
+            with observe_events(
+                diffusion,
+                profile=state["profile"],
+                capture_linear=state["linear"],
+                capture_sdpa=state["sdpa"],
+            ) as events:
+                output = state["fwd"](*args, **kwargs)
             try:
-                data = capture_and_merge_to_disk(
-                    state["base"].diffusion_model,
-                    args,
-                    kwargs,
-                    path=state["path"],
-                    profile=state["profile"],
-                    model_name=model_name,
-                    capture_linear=state["linear"],
-                    capture_sdpa=state["sdpa"],
-                )
-                logger.info(
-                    "ck.tracer wrote %d events → %s",
-                    len(data["events"]),
+                _merge_to_disk(
                     state["path"],
+                    events,
+                    profile=state["profile"],
+                    model=model_name,
+                    metadata=context,
                 )
             except Exception:
-                logger.exception("ck.tracer capture failed; continuing")
-                state["base"].diffusion_model.forward = state["fwd"]
-            return state["fwd"](*args, **kwargs)
+                logger.exception("ck.tracer could not save metadata")
+            return output
 
         diffusion.forward = patched
         return (model, str(out))

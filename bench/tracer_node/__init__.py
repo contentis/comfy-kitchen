@@ -6,6 +6,7 @@ from .tracer import (
     capture_and_merge_to_disk,
     load_bundle,
     write_bundle,
+    track_model_shapes,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "capture_and_merge_to_disk",
     "load_bundle",
     "write_bundle",
+    "track_model_shapes",
 ]

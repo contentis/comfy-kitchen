@@ -1,0 +1,446 @@
+{
+  "schema": "ck.dit_catalog.v1",
+  "models": {
+    "qwen21": {
+      "label": "Qwen Image 2.1",
+      "dimensions": {
+        "hidden": 4096,
+        "mlp": 12288
+      },
+      "sources": {
+        "qwen-config.json": {
+          "sha256": "56ae3281c4e6c2d1aa3658252d187488071815fd79bef15808bb0205fc1a2241",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/resolve/main/transformer/config.json",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/qwen-config.json"
+        },
+        "qwen-model.py": {
+          "sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+          "url": "https://raw.githubusercontent.com/huggingface/diffusers/main/src/diffusers/models/transformers/transformer_qwenimage21.py",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/qwen-model.py"
+        }
+      },
+      "evidence": "published-config-and-code; no runtime M capture",
+      "model": "QwenImage21Config",
+      "operators": [
+        {
+          "role": "attention.qkv",
+          "N": 4096,
+          "K": 4096,
+          "calls": 3,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "attention.out",
+          "N": 4096,
+          "K": 4096,
+          "calls": 1,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "ffn.value_gate",
+          "N": 12288,
+          "K": 4096,
+          "calls": 2,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "ffn.down",
+          "N": 4096,
+          "K": 12288,
+          "calls": 1,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "conditioning.modulation",
+          "N": 16384,
+          "K": 4096,
+          "calls": 1,
+          "stream": "conditioning",
+          "bias": false,
+          "row_binding": "conditioning_rows"
+        }
+      ],
+      "row_semantics": "Flattened GEMM rows; main sequence includes any packed/joint context and implementation padding. Not raw pixel/latent token counts."
+    },
+    "h3": {
+      "label": "MiniMax H3",
+      "dimensions": {
+        "hidden": 5376,
+        "attention": 7168,
+        "mlp": 14336
+      },
+      "sources": {
+        "h3-config.json": {
+          "sha256": "74c11bff524336576096993cbfcdcdc2ef4fa2fa4409df693bdcbc6c666282ae",
+          "url": "https://raw.githubusercontent.com/MiniMax-AI/MiniMax-H3/main/transformer/config.json",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/h3-config.json"
+        },
+        "h3-model.py": {
+          "sha256": "f9758cc36131bb7425655f4ce6106d1ebd2f75de02877c6748883a56c5afc47b",
+          "url": "https://raw.githubusercontent.com/huggingface/diffusers/main/src/diffusers/models/transformers/transformer_minimax_h3.py",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/h3-model.py"
+        }
+      },
+      "notes": "SwiGLU input is a packed value/gate projection: N=2*14336. Residual hidden size differs from attention width.",
+      "evidence": "published-config-and-code; no runtime M capture",
+      "model": "MiniMaxH3Config",
+      "operators": [
+        {
+          "role": "attention.qkv",
+          "N": 7168,
+          "K": 5376,
+          "calls": 3,
+          "stream": "joint_video_audio",
+          "bias": false,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "attention.out",
+          "N": 5376,
+          "K": 7168,
+          "calls": 1,
+          "stream": "joint_video_audio",
+          "bias": false,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "ffn.packed_value_gate",
+          "N": 28672,
+          "K": 5376,
+          "calls": 1,
+          "stream": "joint_video_audio",
+          "bias": false,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "ffn.down",
+          "N": 5376,
+          "K": 14336,
+          "calls": 1,
+          "stream": "joint_video_audio",
+          "bias": false,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "text.input",
+          "N": 5376,
+          "K": 5120,
+          "calls": 1,
+          "stream": "text",
+          "bias": true,
+          "row_binding": "text_rows"
+        },
+        {
+          "role": "conditioning.block_modulation",
+          "N": 96768,
+          "K": 2688,
+          "calls": 1,
+          "stream": "conditioning",
+          "bias": true,
+          "row_binding": "conditioning_rows"
+        }
+      ],
+      "row_semantics": "Flattened GEMM rows; main sequence includes any packed/joint context and implementation padding. Not raw pixel/latent token counts."
+    },
+    "krea2": {
+      "label": "Krea2 Raw/Turbo",
+      "dimensions": {
+        "hidden": 6144,
+        "q_heads": 48,
+        "kv_heads": 12,
+        "mlp": 16384,
+        "text_hidden": 2560,
+        "text_mlp": 6912
+      },
+      "sources": {
+        "krea-inference.py": {
+          "sha256": "a9f04f66aa687d2880d047c9e36fc3d46f3ff78ae05a03316a0d020cf6e3a5f7",
+          "url": "https://raw.githubusercontent.com/krea-ai/krea-2/main/inference.py",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/krea-inference.py"
+        },
+        "krea-mmdit.py": {
+          "sha256": "938d6b7191a137ff045d02320b2f8c7c01165f9b9f0ba9fd40942fc63d2c4d3a",
+          "url": "https://raw.githubusercontent.com/krea-ai/krea-2/main/mmdit.py",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/krea-mmdit.py"
+        }
+      },
+      "notes": "GQA K/V output is 12*128=1536. MLP uses rounded 2/3 expansion, not 4*hidden.",
+      "evidence": "published-config-and-code; no runtime M capture",
+      "model": "Krea2Config",
+      "operators": [
+        {
+          "role": "attention.q_gate_out",
+          "N": 6144,
+          "K": 6144,
+          "calls": 3,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "attention.kv",
+          "N": 1536,
+          "K": 6144,
+          "calls": 2,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "ffn.value_gate",
+          "N": 16384,
+          "K": 6144,
+          "calls": 2,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "ffn.down",
+          "N": 6144,
+          "K": 16384,
+          "calls": 1,
+          "stream": "image",
+          "bias": false,
+          "row_binding": "image_rows"
+        },
+        {
+          "role": "text.attention.qkv_gate_out",
+          "N": 2560,
+          "K": 2560,
+          "calls": 5,
+          "stream": "text",
+          "bias": false,
+          "row_binding": "text_rows"
+        },
+        {
+          "role": "text.ffn.value_gate",
+          "N": 6912,
+          "K": 2560,
+          "calls": 2,
+          "stream": "text",
+          "bias": false,
+          "row_binding": "text_rows"
+        },
+        {
+          "role": "text.ffn.down",
+          "N": 2560,
+          "K": 6912,
+          "calls": 1,
+          "stream": "text",
+          "bias": false,
+          "row_binding": "text_rows"
+        },
+        {
+          "role": "text.project_in",
+          "N": 6144,
+          "K": 2560,
+          "calls": 1,
+          "stream": "text",
+          "bias": true,
+          "row_binding": "text_rows"
+        },
+        {
+          "role": "text.project_out",
+          "N": 6144,
+          "K": 6144,
+          "calls": 1,
+          "stream": "text",
+          "bias": true,
+          "row_binding": "text_rows"
+        },
+        {
+          "role": "conditioning.timestep_in",
+          "N": 6144,
+          "K": 256,
+          "calls": 1,
+          "stream": "conditioning",
+          "bias": true,
+          "row_binding": "conditioning_rows"
+        },
+        {
+          "role": "conditioning.timestep_out",
+          "N": 6144,
+          "K": 6144,
+          "calls": 1,
+          "stream": "conditioning",
+          "bias": true,
+          "row_binding": "conditioning_rows"
+        },
+        {
+          "role": "conditioning.modulation",
+          "N": 36864,
+          "K": 6144,
+          "calls": 1,
+          "stream": "conditioning",
+          "bias": true,
+          "row_binding": "conditioning_rows"
+        }
+      ],
+      "row_semantics": "Flattened GEMM rows; main sequence includes any packed/joint context and implementation padding. Not raw pixel/latent token counts."
+    },
+    "ltx25": {
+      "label": "LTX 2.5 video/audio",
+      "dimensions": {
+        "video_hidden": 4096,
+        "audio_hidden": 2048,
+        "video_mlp": 16384,
+        "audio_mlp": 8192,
+        "layers": 48
+      },
+      "sources": {
+        "ltx-converter.py": {
+          "sha256": "16a0924a5f044b9a003ec92f70a45cd4bc6b7448089b140aa1c426d2a1d3d42e",
+          "url": "https://raw.githubusercontent.com/huggingface/diffusers/main/scripts/convert_ltx2_to_diffusers.py",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/ltx-converter.py"
+        },
+        "ltx-model.py": {
+          "sha256": "3a06d5043886efeb0d58f8284e7d7dc6559a71344568ccdb1230da9882727fad",
+          "url": "https://raw.githubusercontent.com/huggingface/diffusers/main/src/diffusers/models/transformers/transformer_ltx2.py",
+          "origin_snapshot_path": "kernels/gemm_tuning/model_sources/ltx-model.py"
+        }
+      },
+      "notes": "Derived from the explicit version=2.5 branch in official Diffusers conversion code and standard GELU FeedForward expansion. Checkpoint header access returned HTTP401. Covers core self-attention and FFNs; excludes cross-modal/conditioning projections.",
+      "evidence": "published-config-and-code; no runtime M capture",
+      "model": "LTX25Config",
+      "operators": [
+        {
+          "role": "video.attention.qkv",
+          "N": 4096,
+          "K": 4096,
+          "calls": 3,
+          "stream": "video",
+          "bias": true,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "video.attention.out",
+          "N": 4096,
+          "K": 4096,
+          "calls": 1,
+          "stream": "video",
+          "bias": true,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "video.ffn.up",
+          "N": 16384,
+          "K": 4096,
+          "calls": 1,
+          "stream": "video",
+          "bias": false,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "video.ffn.down",
+          "N": 4096,
+          "K": 16384,
+          "calls": 1,
+          "stream": "video",
+          "bias": false,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "audio.attention.qkv",
+          "N": 2048,
+          "K": 2048,
+          "calls": 3,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        },
+        {
+          "role": "audio.attention.out",
+          "N": 2048,
+          "K": 2048,
+          "calls": 1,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        },
+        {
+          "role": "audio.ffn.up",
+          "N": 8192,
+          "K": 2048,
+          "calls": 1,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        },
+        {
+          "role": "audio.ffn.down",
+          "N": 2048,
+          "K": 8192,
+          "calls": 1,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        },
+        {
+          "role": "a2v.query",
+          "N": 2048,
+          "K": 4096,
+          "calls": 1,
+          "stream": "video",
+          "bias": true,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "a2v.kv",
+          "N": 2048,
+          "K": 2048,
+          "calls": 2,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        },
+        {
+          "role": "a2v.out",
+          "N": 4096,
+          "K": 2048,
+          "calls": 1,
+          "stream": "video",
+          "bias": true,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "v2a.query",
+          "N": 2048,
+          "K": 2048,
+          "calls": 1,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        },
+        {
+          "role": "v2a.kv",
+          "N": 2048,
+          "K": 4096,
+          "calls": 2,
+          "stream": "video",
+          "bias": true,
+          "row_binding": "video_rows"
+        },
+        {
+          "role": "v2a.out",
+          "N": 2048,
+          "K": 2048,
+          "calls": 1,
+          "stream": "audio",
+          "bias": true,
+          "row_binding": "audio_rows"
+        }
+      ],
+      "row_semantics": "Flattened GEMM rows; main sequence includes any packed/joint context and implementation padding. Not raw pixel/latent token counts."
+    }
+  },
+  "scope": "Selected denoiser projections including FFN, GQA, audio/video cross-modal and conditioning cases. Not complete runtime coverage."
+}

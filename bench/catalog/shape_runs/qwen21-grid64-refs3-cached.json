@@ -1,0 +1,691 @@
+{
+  "schema": "ck.triage.bundle.v1",
+  "model": "QwenImage21Transformer2DModelWeightless",
+  "profiles": [
+    "qwen21-grid64-refs3-cached"
+  ],
+  "meta": {
+    "profile": "qwen21-grid64-refs3-cached",
+    "status": "complete",
+    "evidence": "weightless_meta_forward_attention_shape_adapter",
+    "context": {
+      "target_grid": [
+        1,
+        64,
+        64
+      ],
+      "reference_images": 3,
+      "text_rows": 512,
+      "phase": "cached",
+      "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+      "weights_loaded": false
+    },
+    "diffusers": "0.42.1",
+    "torch": "2.15.0",
+    "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+    "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+    "adapters": [
+      "attention output shape only; no QK/PV arithmetic",
+      "Qwen modulation mask moved to meta device",
+      "Krea torch.compile decorators unwrapped"
+    ],
+    "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+    "capture_sha256": "bca80a8a93009aed3e448cd4a03b25c4d51f484c17fa5c27f44171728ed4cdf8",
+    "linear_calls": 232,
+    "shape_groups": 9,
+    "main_row_candidates": [
+      2,
+      3584,
+      4096,
+      16384
+    ]
+  },
+  "events": [
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_1",
+      "static": {
+        "N": 4096,
+        "K": 64,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 16384
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            16384,
+            64
+          ],
+          "input_stride": [
+            1048576,
+            64,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            16384,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "img_in"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_2",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 3584
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 2
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            3584,
+            4096
+          ],
+          "input_stride": [
+            14680064,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            3584,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "txt_in.in_layer",
+        "txt_in.out_layer"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_3",
+      "static": {
+        "N": 4096,
+        "K": 256,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 2
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            2,
+            256
+          ],
+          "input_stride": [
+            256,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            2,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "time_text_embed.timestep_embedder.linear_1"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_4",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 2
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 2
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            2,
+            4096
+          ],
+          "input_stride": [
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            2,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "time_text_embed.timestep_embedder.linear_2",
+        "norm_out.linear"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_5",
+      "static": {
+        "N": 16384,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 2
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            2,
+            4096
+          ],
+          "input_stride": [
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            2,
+            16384
+          ]
+        }
+      ],
+      "tags": [
+        "modulation.1"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_6",
+      "static": {
+        "N": 4096,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 4096
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 128
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096,
+            4096
+          ],
+          "input_stride": [
+            16777216,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.attn.to_q",
+        "transformer_blocks.0.attn.to_k",
+        "transformer_blocks.0.attn.to_v",
+        "transformer_blocks.0.attn.to_out.0",
+        "transformer_blocks.1.attn.to_q",
+        "transformer_blocks.1.attn.to_k",
+        "transformer_blocks.1.attn.to_v",
+        "transformer_blocks.1.attn.to_out.0",
+        "transformer_blocks.2.attn.to_q",
+        "transformer_blocks.2.attn.to_k",
+        "transformer_blocks.2.attn.to_v",
+        "transformer_blocks.2.attn.to_out.0",
+        "transformer_blocks.3.attn.to_q",
+        "transformer_blocks.3.attn.to_k",
+        "transformer_blocks.3.attn.to_v",
+        "transformer_blocks.3.attn.to_out.0",
+        "transformer_blocks.4.attn.to_q",
+        "transformer_blocks.4.attn.to_k",
+        "transformer_blocks.4.attn.to_v",
+        "transformer_blocks.4.attn.to_out.0",
+        "transformer_blocks.5.attn.to_q",
+        "transformer_blocks.5.attn.to_k",
+        "transformer_blocks.5.attn.to_v",
+        "transformer_blocks.5.attn.to_out.0",
+        "transformer_blocks.6.attn.to_q",
+        "transformer_blocks.6.attn.to_k",
+        "transformer_blocks.6.attn.to_v",
+        "transformer_blocks.6.attn.to_out.0",
+        "transformer_blocks.7.attn.to_q",
+        "transformer_blocks.7.attn.to_k",
+        "transformer_blocks.7.attn.to_v",
+        "transformer_blocks.7.attn.to_out.0",
+        "transformer_blocks.8.attn.to_q",
+        "transformer_blocks.8.attn.to_k",
+        "transformer_blocks.8.attn.to_v",
+        "transformer_blocks.8.attn.to_out.0",
+        "transformer_blocks.9.attn.to_q",
+        "transformer_blocks.9.attn.to_k",
+        "transformer_blocks.9.attn.to_v",
+        "transformer_blocks.9.attn.to_out.0",
+        "transformer_blocks.10.attn.to_q",
+        "transformer_blocks.10.attn.to_k",
+        "transformer_blocks.10.attn.to_v",
+        "transformer_blocks.10.attn.to_out.0",
+        "transformer_blocks.11.attn.to_q",
+        "transformer_blocks.11.attn.to_k",
+        "transformer_blocks.11.attn.to_v",
+        "transformer_blocks.11.attn.to_out.0",
+        "transformer_blocks.12.attn.to_q",
+        "transformer_blocks.12.attn.to_k",
+        "transformer_blocks.12.attn.to_v",
+        "transformer_blocks.12.attn.to_out.0",
+        "transformer_blocks.13.attn.to_q",
+        "transformer_blocks.13.attn.to_k",
+        "transformer_blocks.13.attn.to_v",
+        "transformer_blocks.13.attn.to_out.0",
+        "transformer_blocks.14.attn.to_q",
+        "transformer_blocks.14.attn.to_k",
+        "transformer_blocks.14.attn.to_v",
+        "transformer_blocks.14.attn.to_out.0",
+        "transformer_blocks.15.attn.to_q",
+        "transformer_blocks.15.attn.to_k",
+        "transformer_blocks.15.attn.to_v",
+        "transformer_blocks.15.attn.to_out.0",
+        "transformer_blocks.16.attn.to_q",
+        "transformer_blocks.16.attn.to_k",
+        "transformer_blocks.16.attn.to_v",
+        "transformer_blocks.16.attn.to_out.0",
+        "transformer_blocks.17.attn.to_q",
+        "transformer_blocks.17.attn.to_k",
+        "transformer_blocks.17.attn.to_v",
+        "transformer_blocks.17.attn.to_out.0",
+        "transformer_blocks.18.attn.to_q",
+        "transformer_blocks.18.attn.to_k",
+        "transformer_blocks.18.attn.to_v",
+        "transformer_blocks.18.attn.to_out.0",
+        "transformer_blocks.19.attn.to_q",
+        "transformer_blocks.19.attn.to_k",
+        "transformer_blocks.19.attn.to_v",
+        "transformer_blocks.19.attn.to_out.0",
+        "transformer_blocks.20.attn.to_q",
+        "transformer_blocks.20.attn.to_k",
+        "transformer_blocks.20.attn.to_v",
+        "transformer_blocks.20.attn.to_out.0",
+        "transformer_blocks.21.attn.to_q",
+        "transformer_blocks.21.attn.to_k",
+        "transformer_blocks.21.attn.to_v",
+        "transformer_blocks.21.attn.to_out.0",
+        "transformer_blocks.22.attn.to_q",
+        "transformer_blocks.22.attn.to_k",
+        "transformer_blocks.22.attn.to_v",
+        "transformer_blocks.22.attn.to_out.0",
+        "transformer_blocks.23.attn.to_q",
+        "transformer_blocks.23.attn.to_k",
+        "transformer_blocks.23.attn.to_v",
+        "transformer_blocks.23.attn.to_out.0",
+        "transformer_blocks.24.attn.to_q",
+        "transformer_blocks.24.attn.to_k",
+        "transformer_blocks.24.attn.to_v",
+        "transformer_blocks.24.attn.to_out.0",
+        "transformer_blocks.25.attn.to_q",
+        "transformer_blocks.25.attn.to_k",
+        "transformer_blocks.25.attn.to_v",
+        "transformer_blocks.25.attn.to_out.0",
+        "transformer_blocks.26.attn.to_q",
+        "transformer_blocks.26.attn.to_k",
+        "transformer_blocks.26.attn.to_v",
+        "transformer_blocks.26.attn.to_out.0",
+        "transformer_blocks.27.attn.to_q",
+        "transformer_blocks.27.attn.to_k",
+        "transformer_blocks.27.attn.to_v",
+        "transformer_blocks.27.attn.to_out.0",
+        "transformer_blocks.28.attn.to_q",
+        "transformer_blocks.28.attn.to_k",
+        "transformer_blocks.28.attn.to_v",
+        "transformer_blocks.28.attn.to_out.0",
+        "transformer_blocks.29.attn.to_q",
+        "transformer_blocks.29.attn.to_k",
+        "transformer_blocks.29.attn.to_v",
+        "transformer_blocks.29.attn.to_out.0",
+        "transformer_blocks.30.attn.to_q",
+        "transformer_blocks.30.attn.to_k",
+        "transformer_blocks.30.attn.to_v",
+        "transformer_blocks.30.attn.to_out.0",
+        "transformer_blocks.31.attn.to_q",
+        "transformer_blocks.31.attn.to_k",
+        "transformer_blocks.31.attn.to_v",
+        "transformer_blocks.31.attn.to_out.0"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_7",
+      "static": {
+        "N": 12288,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 4096
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 64
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096,
+            4096
+          ],
+          "input_stride": [
+            16777216,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096,
+            12288
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.img_mlp.gate_layer",
+        "transformer_blocks.0.img_mlp.proj",
+        "transformer_blocks.1.img_mlp.gate_layer",
+        "transformer_blocks.1.img_mlp.proj",
+        "transformer_blocks.2.img_mlp.gate_layer",
+        "transformer_blocks.2.img_mlp.proj",
+        "transformer_blocks.3.img_mlp.gate_layer",
+        "transformer_blocks.3.img_mlp.proj",
+        "transformer_blocks.4.img_mlp.gate_layer",
+        "transformer_blocks.4.img_mlp.proj",
+        "transformer_blocks.5.img_mlp.gate_layer",
+        "transformer_blocks.5.img_mlp.proj",
+        "transformer_blocks.6.img_mlp.gate_layer",
+        "transformer_blocks.6.img_mlp.proj",
+        "transformer_blocks.7.img_mlp.gate_layer",
+        "transformer_blocks.7.img_mlp.proj",
+        "transformer_blocks.8.img_mlp.gate_layer",
+        "transformer_blocks.8.img_mlp.proj",
+        "transformer_blocks.9.img_mlp.gate_layer",
+        "transformer_blocks.9.img_mlp.proj",
+        "transformer_blocks.10.img_mlp.gate_layer",
+        "transformer_blocks.10.img_mlp.proj",
+        "transformer_blocks.11.img_mlp.gate_layer",
+        "transformer_blocks.11.img_mlp.proj",
+        "transformer_blocks.12.img_mlp.gate_layer",
+        "transformer_blocks.12.img_mlp.proj",
+        "transformer_blocks.13.img_mlp.gate_layer",
+        "transformer_blocks.13.img_mlp.proj",
+        "transformer_blocks.14.img_mlp.gate_layer",
+        "transformer_blocks.14.img_mlp.proj",
+        "transformer_blocks.15.img_mlp.gate_layer",
+        "transformer_blocks.15.img_mlp.proj",
+        "transformer_blocks.16.img_mlp.gate_layer",
+        "transformer_blocks.16.img_mlp.proj",
+        "transformer_blocks.17.img_mlp.gate_layer",
+        "transformer_blocks.17.img_mlp.proj",
+        "transformer_blocks.18.img_mlp.gate_layer",
+        "transformer_blocks.18.img_mlp.proj",
+        "transformer_blocks.19.img_mlp.gate_layer",
+        "transformer_blocks.19.img_mlp.proj",
+        "transformer_blocks.20.img_mlp.gate_layer",
+        "transformer_blocks.20.img_mlp.proj",
+        "transformer_blocks.21.img_mlp.gate_layer",
+        "transformer_blocks.21.img_mlp.proj",
+        "transformer_blocks.22.img_mlp.gate_layer",
+        "transformer_blocks.22.img_mlp.proj",
+        "transformer_blocks.23.img_mlp.gate_layer",
+        "transformer_blocks.23.img_mlp.proj",
+        "transformer_blocks.24.img_mlp.gate_layer",
+        "transformer_blocks.24.img_mlp.proj",
+        "transformer_blocks.25.img_mlp.gate_layer",
+        "transformer_blocks.25.img_mlp.proj",
+        "transformer_blocks.26.img_mlp.gate_layer",
+        "transformer_blocks.26.img_mlp.proj",
+        "transformer_blocks.27.img_mlp.gate_layer",
+        "transformer_blocks.27.img_mlp.proj",
+        "transformer_blocks.28.img_mlp.gate_layer",
+        "transformer_blocks.28.img_mlp.proj",
+        "transformer_blocks.29.img_mlp.gate_layer",
+        "transformer_blocks.29.img_mlp.proj",
+        "transformer_blocks.30.img_mlp.gate_layer",
+        "transformer_blocks.30.img_mlp.proj",
+        "transformer_blocks.31.img_mlp.gate_layer",
+        "transformer_blocks.31.img_mlp.proj"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_8",
+      "static": {
+        "N": 4096,
+        "K": 12288,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 4096
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 32
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096,
+            12288
+          ],
+          "input_stride": [
+            50331648,
+            12288,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096,
+            4096
+          ]
+        }
+      ],
+      "tags": [
+        "transformer_blocks.0.img_mlp.out",
+        "transformer_blocks.1.img_mlp.out",
+        "transformer_blocks.2.img_mlp.out",
+        "transformer_blocks.3.img_mlp.out",
+        "transformer_blocks.4.img_mlp.out",
+        "transformer_blocks.5.img_mlp.out",
+        "transformer_blocks.6.img_mlp.out",
+        "transformer_blocks.7.img_mlp.out",
+        "transformer_blocks.8.img_mlp.out",
+        "transformer_blocks.9.img_mlp.out",
+        "transformer_blocks.10.img_mlp.out",
+        "transformer_blocks.11.img_mlp.out",
+        "transformer_blocks.12.img_mlp.out",
+        "transformer_blocks.13.img_mlp.out",
+        "transformer_blocks.14.img_mlp.out",
+        "transformer_blocks.15.img_mlp.out",
+        "transformer_blocks.16.img_mlp.out",
+        "transformer_blocks.17.img_mlp.out",
+        "transformer_blocks.18.img_mlp.out",
+        "transformer_blocks.19.img_mlp.out",
+        "transformer_blocks.20.img_mlp.out",
+        "transformer_blocks.21.img_mlp.out",
+        "transformer_blocks.22.img_mlp.out",
+        "transformer_blocks.23.img_mlp.out",
+        "transformer_blocks.24.img_mlp.out",
+        "transformer_blocks.25.img_mlp.out",
+        "transformer_blocks.26.img_mlp.out",
+        "transformer_blocks.27.img_mlp.out",
+        "transformer_blocks.28.img_mlp.out",
+        "transformer_blocks.29.img_mlp.out",
+        "transformer_blocks.30.img_mlp.out",
+        "transformer_blocks.31.img_mlp.out"
+      ]
+    },
+    {
+      "op": "gemm",
+      "family": "linear",
+      "layer": "shape_group_9",
+      "static": {
+        "N": 64,
+        "K": 4096,
+        "bias": false,
+        "dtype": "bfloat16"
+      },
+      "dynamic": {
+        "M": {
+          "values": {
+            "qwen21-grid64-refs3-cached": 4096
+          }
+        }
+      },
+      "call_count": {
+        "qwen21-grid64-refs3-cached": 1
+      },
+      "layout": null,
+      "observations": [
+        {
+          "profile": "qwen21-grid64-refs3-cached",
+          "forward_index": 1,
+          "input_shape": [
+            1,
+            4096,
+            4096
+          ],
+          "input_stride": [
+            16777216,
+            4096,
+            1
+          ],
+          "input_dtype": "bfloat16",
+          "weight_dtype": "torch.bfloat16",
+          "output_shape": [
+            1,
+            4096,
+            64
+          ]
+        }
+      ],
+      "tags": [
+        "proj_out"
+      ]
+    }
+  ]
+}

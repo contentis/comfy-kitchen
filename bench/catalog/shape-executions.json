@@ -1,0 +1,635 @@
+{
+  "evidence": "weightless shape execution, not checkpoint-backed capture or performance evidence",
+  "runs": [
+    {
+      "profile": "krea2-image4096",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "image_rows": 4096,
+        "text_rows": 151,
+        "source": "image rows from 1024/2048 geometry; text length from existing Krea capture",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "938d6b7191a137ff045d02320b2f8c7c01165f9b9f0ba9fd40942fc63d2c4d3a",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "e921aca6169141c25473e2a510d7dd685d2f0333310dfa1e33616e114f298500",
+      "linear_calls": 264,
+      "shape_groups": 18,
+      "main_row_candidates": [
+        1,
+        151,
+        1812,
+        4096,
+        4352,
+        386560
+      ]
+    },
+    {
+      "profile": "krea2-image16384",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "image_rows": 16384,
+        "text_rows": 151,
+        "source": "image rows from 1024/2048 geometry; text length from existing Krea capture",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "938d6b7191a137ff045d02320b2f8c7c01165f9b9f0ba9fd40942fc63d2c4d3a",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "9a4a30dc83a25f6866d6499908b9698038cf3da785e157ef3f186637579bc81a",
+      "linear_calls": 264,
+      "shape_groups": 18,
+      "main_row_candidates": [
+        1,
+        151,
+        1812,
+        16384,
+        16640,
+        386560
+      ]
+    },
+    {
+      "profile": "h3-video17408",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "video_patch_rows": 17408,
+        "audio_rows": 1024,
+        "text_rows": 512,
+        "geometry_scope": "proposed patch-token counts, not an RGB pipeline capture",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "92d665e9fa10b1417088341dce5977663a180f9e6fa404fb9330062f353fe7ef",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "6b3d6b99f46597cba04e217dabae457509989296ae7f6a2be5e17e9fabd8617a",
+      "linear_calls": 370,
+      "shape_groups": 17,
+      "main_row_candidates": [
+        1,
+        512,
+        1024,
+        17408,
+        18944
+      ]
+    },
+    {
+      "profile": "h3-video139264",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "video_patch_rows": 139264,
+        "audio_rows": 1024,
+        "text_rows": 512,
+        "geometry_scope": "proposed patch-token counts, not an RGB pipeline capture",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "92d665e9fa10b1417088341dce5977663a180f9e6fa404fb9330062f353fe7ef",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "111efd48d43b377cc1e81d93e498af0e2e94aca730c9b252ae00223c93bc0936",
+      "linear_calls": 370,
+      "shape_groups": 17,
+      "main_row_candidates": [
+        1,
+        512,
+        1024,
+        139264,
+        140800
+      ]
+    },
+    {
+      "profile": "qwen21-grid64-refs0-extract",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          64,
+          64
+        ],
+        "reference_images": 0,
+        "text_rows": 512,
+        "phase": "extract",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "7f198c2afde45874b6e188f488187b9bc77bd44858bb635018b22bd27ce0b9b9",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        512,
+        4096,
+        4608
+      ]
+    },
+    {
+      "profile": "qwen21-grid64-refs0-cached",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          64,
+          64
+        ],
+        "reference_images": 0,
+        "text_rows": 512,
+        "phase": "cached",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "415c4533e6accda00d7fe00e19f4689f9aee8f9a44078a43e7766d8e641a18d4",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        512,
+        4096
+      ]
+    },
+    {
+      "profile": "qwen21-grid64-refs1-extract",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          64,
+          64
+        ],
+        "reference_images": 1,
+        "text_rows": 512,
+        "phase": "extract",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "07aa66f491be1dfe031b4e69df5fb6d0667bd2158b78c87e87b663c4937bcbfd",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        1536,
+        8192,
+        8704
+      ]
+    },
+    {
+      "profile": "qwen21-grid64-refs1-cached",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          64,
+          64
+        ],
+        "reference_images": 1,
+        "text_rows": 512,
+        "phase": "cached",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "969275cb8753a62a75b7e4a28eabdbd2a02ba1f9614c8670d27376f4f444c0ef",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        1536,
+        4096,
+        8192
+      ]
+    },
+    {
+      "profile": "qwen21-grid64-refs3-extract",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          64,
+          64
+        ],
+        "reference_images": 3,
+        "text_rows": 512,
+        "phase": "extract",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "c474901adfcf535e118d4ddeab7c5f4a35fa3fa3dfda81569de97e4bedab120e",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        3584,
+        16384,
+        16896
+      ]
+    },
+    {
+      "profile": "qwen21-grid64-refs3-cached",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          64,
+          64
+        ],
+        "reference_images": 3,
+        "text_rows": 512,
+        "phase": "cached",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "bca80a8a93009aed3e448cd4a03b25c4d51f484c17fa5c27f44171728ed4cdf8",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        3584,
+        4096,
+        16384
+      ]
+    },
+    {
+      "profile": "qwen21-grid128-refs0-extract",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          128,
+          128
+        ],
+        "reference_images": 0,
+        "text_rows": 512,
+        "phase": "extract",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "8e4a7c5694d370f561227a9321dcce970aabc09311fb132b038585ec18fcc0d4",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        512,
+        16384,
+        16896
+      ]
+    },
+    {
+      "profile": "qwen21-grid128-refs0-cached",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          128,
+          128
+        ],
+        "reference_images": 0,
+        "text_rows": 512,
+        "phase": "cached",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "4b697aba4cc1d5a50775493966da0d0896a45fa0e34f22fe5f34617d0a75b717",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        512,
+        16384
+      ]
+    },
+    {
+      "profile": "qwen21-grid128-refs1-extract",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          128,
+          128
+        ],
+        "reference_images": 1,
+        "text_rows": 512,
+        "phase": "extract",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "b0a5af0f75435e91137ca8139812f221bcf3eb73586199c384be69fd5f1cec60",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        4608,
+        32768,
+        33280
+      ]
+    },
+    {
+      "profile": "qwen21-grid128-refs1-cached",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          128,
+          128
+        ],
+        "reference_images": 1,
+        "text_rows": 512,
+        "phase": "cached",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "42f5bc90d40688ab19fd0f7eea8ed39037edc69727536ad5d0d0a3c2db45048a",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        4608,
+        16384,
+        32768
+      ]
+    },
+    {
+      "profile": "qwen21-grid128-refs3-extract",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          128,
+          128
+        ],
+        "reference_images": 3,
+        "text_rows": 512,
+        "phase": "extract",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "3fa3b4bcef5ca42aaec760c2f4406949ac2a014149232ae0c46143421e1d71a3",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        12800,
+        65536,
+        66048
+      ]
+    },
+    {
+      "profile": "qwen21-grid128-refs3-cached",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "target_grid": [
+          1,
+          128,
+          128
+        ],
+        "reference_images": 3,
+        "text_rows": 512,
+        "phase": "cached",
+        "geometry_scope": "proposed transformer input layout; VLM token values not executed",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "7a3393f89b1eb71d79c8669a719a21a616e6c8b188b2c1f5a2faca2cc701f171",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "5f43baa2cb7902916e11d2833d6d2d9d79e37d5d9c9b20cdd8df381cfdf4d14d",
+      "linear_calls": 232,
+      "shape_groups": 9,
+      "main_row_candidates": [
+        2,
+        12800,
+        16384,
+        65536
+      ]
+    },
+    {
+      "profile": "ltx25-video17408",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "latent_grid": [
+          17,
+          32,
+          32
+        ],
+        "video_rows": 17408,
+        "audio_rows": 1024,
+        "text_rows": 512,
+        "geometry_scope": "proposed latent geometry; no VAE/pipeline execution",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "3a06d5043886efeb0d58f8284e7d7dc6559a71344568ccdb1230da9882727fad",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "c1fbb33adb8c4ac99602bec0a11ea48a7d2ca264058d3b5ba3bb41a65ac247ac",
+      "linear_calls": 1660,
+      "shape_groups": 26,
+      "main_row_candidates": [
+        1,
+        512,
+        1024,
+        17408
+      ]
+    },
+    {
+      "profile": "ltx25-video139264",
+      "status": "complete",
+      "evidence": "weightless_meta_forward_attention_shape_adapter",
+      "context": {
+        "latent_grid": [
+          17,
+          64,
+          128
+        ],
+        "video_rows": 139264,
+        "audio_rows": 1024,
+        "text_rows": 512,
+        "geometry_scope": "proposed latent geometry; no VAE/pipeline execution",
+        "weights_loaded": false
+      },
+      "diffusers": "0.42.1",
+      "torch": "2.15.0",
+      "script_sha256": "a5eecdf8a986a115e12b6d4e477aaf694ac46b01c3b2c959be1d6bccbcf1c403",
+      "model_source_sha256": "3a06d5043886efeb0d58f8284e7d7dc6559a71344568ccdb1230da9882727fad",
+      "adapters": [
+        "attention output shape only; no QK/PV arithmetic",
+        "Qwen modulation mask moved to meta device",
+        "Krea torch.compile decorators unwrapped"
+      ],
+      "dtype_scope": "Uniform BF16 meta execution; checkpoint mixed-precision dtypes not verified",
+      "capture_sha256": "cd1768cf6540a5806378e8c774b54c1f7a44c82c5442ee93b9f8f1e0d63fcc34",
+      "linear_calls": 1660,
+      "shape_groups": 26,
+      "main_row_candidates": [
+        1,
+        512,
+        1024,
+        139264
+      ]
+    }
+  ]
+}
