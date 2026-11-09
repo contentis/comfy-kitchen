@@ -507,11 +507,7 @@ def get_cublas_workspace_size_bytes() -> int:
 
 
 def get_cublas_workspace() -> torch.Tensor:
-    """Call-local scratch: persistent caches can retain an Inductor pool allocation.
-
-    The caching allocator recycles this storage after the call, and graph capture
-    records its lifetime. Concurrent executions do not share mutable scratch.
-    """
+    """Per-call scratch avoids retaining graph-pool tensors; the allocator reuses storage."""
     return torch.empty(get_cublas_workspace_size_bytes(), dtype=torch.uint8,
                        device=torch.cuda.current_device())
 

@@ -200,8 +200,7 @@ def _fake_sol_attn_chunked(chunks, t, h, rope_freqs, q_norm, k_norm,
 
 @torch.compiler.disable
 def _sol_attn_chunked_callable(*args, **kwargs):
-    # An arbitrary Python producer may stream projections rather than materialize
-    # its chunks. Preserve that contract outside the compiled region.
+    # Callable producers must keep streaming instead of materializing all chunks.
     return _sol_attn_chunked_impl(*args, **kwargs)
 
 
@@ -1147,11 +1146,7 @@ def _op_fp16_linear(
     residual: torch.Tensor | None = None,
     residual_scale: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """fp16-accumulate linear, optionally with ``residual + residual_scale * out`` fused.
-
-    Same numerics as ``torch.backends.cuda.matmul.allow_fp16_accumulation``, so
-    route here only when the user opted into that mode.
-    """
+    """FP16 accumulation; the caller must opt into reduced precision."""
     kwargs = {
         "x": x,
         "weight": weight,

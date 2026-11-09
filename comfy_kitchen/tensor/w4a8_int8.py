@@ -163,16 +163,7 @@ def _op_w4a8_int8_linear(
     residual: torch.Tensor | None = None,
     residual_scale: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Compute ``x @ W.T + bias`` with the selected W4A8 backend.
-
-    input_act ("swiglu" or "rms_norm", with input_act_weight/input_act_eps for the
-    norm) is applied to x on the way into the activation quantizer; the CUDA
-    decode path folds it into that kernel, every other path applies it eagerly
-    with identical results. residual/residual_scale make the result
-    ``residual + residual_scale * (x @ W.T + bias)`` (a pre-norm block's addcmul,
-    with the linear rounded to out_dtype first), fused into the CUDA decode
-    kernel's epilogue and applied after the GEMM everywhere else.
-    """
+    """Compute ``x @ W.T + bias`` with the selected W4A8 backend."""
     kwargs = {
         "x": x,
         "qdata": qdata,

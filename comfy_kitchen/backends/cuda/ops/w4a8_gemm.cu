@@ -27,9 +27,8 @@
 #include "dtype_dispatch.cuh"
 #include "float_utils.cuh"
 
-// The default decode table is immutable program data, not a Python tensor.
-// Retaining a lazily allocated tensor here leaks Inductor graph-pool storage.
-// Generate the exact FP32 multiply / round-to-even / clamp grid at compile time.
+// Static storage avoids retaining tensors from CUDA graph pools.
+// Match FP32 multiplication, round-to-even and [-127, 127] clamping.
 namespace {
 struct FixedDecodeLut { int8_t values[256 * 16]; };
 __host__ __device__ constexpr FixedDecodeLut make_fixed_decode_lut() {
@@ -48,7 +47,7 @@ __host__ __device__ constexpr FixedDecodeLut make_fixed_decode_lut() {
         for (int j = 0; j > power; --j) scale *= 0.5f;
         if (bits & 128) scale = -scale;
         for (int code = 0; code < 16; ++code) {
-            // E4M3's two NaN encodings convert to zero in the original CPU table.
+            // Both E4M3 NaN encodings map to zero.
             const float value = levels[code] * scale;
             int rounded = static_cast<int>(value);
             const float fraction = value - static_cast<float>(rounded);

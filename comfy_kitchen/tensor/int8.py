@@ -136,9 +136,7 @@ class TensorWiseINT8Layout(QuantizedLayout):
             )
             qdata, qscale = impl(tensor, convrot_groupsize, stochastic_rounding=stochastic_rounding)
         else:
-            # Use the same functional boundary as the public API. Dispatching
-            # directly here exposes native pointers and splits symbolic shape
-            # metadata across a Python graph break during from_float().
+            # Custom ops keep native pointers opaque and preserve symbolic shape tracing.
             from comfy_kitchen import quantize_int8_rowwise, quantize_int8_tensorwise
 
             if is_weight and not per_channel:
@@ -258,7 +256,6 @@ class TensorWiseINT8Layout(QuantizedLayout):
         if params.transposed:
             return NotImplemented
         qdata, scale = cls.get_plain_tensors(weight)
-        # Through the custom op, as linear does: torch.compile cannot trace the raw kernels.
         return torch.ops.comfy_kitchen.int8_linear(
             x, qdata, scale, bias, _dtype_code(x.dtype),
             params.convrot, params.convrot_groupsize,

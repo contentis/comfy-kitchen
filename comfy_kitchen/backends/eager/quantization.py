@@ -1145,8 +1145,7 @@ def _op_quantize_int8_tensorwise(
     kwargs = {"x": x, "scale": scale, "stochastic_rounding": stochastic_rounding}
     impl = registry.get_implementation("quantize_int8_tensorwise", kwargs=kwargs)
     q, result_scale = impl(**kwargs)
-    # A custom-op output cannot alias an input. The public wrapper restores the
-    # explicit-scale alias outside this functional boundary.
+    # Custom-op outputs cannot alias inputs; the public wrapper returns the supplied scale.
     return q.contiguous(), result_scale.clone() if scale is not None else result_scale
 
 
