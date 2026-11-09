@@ -1156,19 +1156,14 @@ def _op_quantize_int8_tensorwise_fake(x, scale=None, stochastic_rounding=0):
             torch.empty(scale.shape if scale is not None else (), dtype=torch.float32, device=x.device))
 
 
-# The package also supports PyTorch versions predating custom-op capture tags.
-_CUDAGRAPH_UNSAFE_TAG = getattr(torch._C.Tag, "cudagraph_unsafe", None)
-
-
 @torch.library.custom_op(
     "comfy_kitchen::quantize_int8_tensorwise_seeded", mutates_args=(),
-    **({"tags": (_CUDAGRAPH_UNSAFE_TAG,)} if _CUDAGRAPH_UNSAFE_TAG is not None else {}),
+    tags=(torch._C.Tag.cudagraph_unsafe,),
 )
 def _op_quantize_int8_tensorwise_seeded(
     x: torch.Tensor, scale: torch.Tensor | None, stochastic_rounding: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    # The eager tensorwise RNG constructs a generator. Keep that operation out
-    # of Inductor capture while preserving its exact per-call seed semantics.
+    # Per-call generator construction is not capture-safe.
     return _op_quantize_int8_tensorwise(x, scale, stochastic_rounding)
 
 

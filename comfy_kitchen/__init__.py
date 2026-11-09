@@ -1077,12 +1077,6 @@ def apply_rope_split_half1_(
     return x
 
 
-@torch.compiler.disable
-def _quantize_int8_tensorwise_seeded_eager(x, scale, seed):
-    # Older PyTorch cannot tag an opaque op as capture-unsafe.
-    return torch.ops.comfy_kitchen.quantize_int8_tensorwise_seeded(x, scale, seed)
-
-
 def quantize_int8_tensorwise(
     x: torch.Tensor,
     scale: torch.Tensor | float | str | None = None,
@@ -1097,10 +1091,7 @@ def quantize_int8_tensorwise(
         scale = torch.tensor(scale, device=x.device, dtype=torch.float32)
     seed = int(stochastic_rounding or 0)
     if seed > 0:
-        if hasattr(torch._C.Tag, "cudagraph_unsafe"):
-            q, result_scale = torch.ops.comfy_kitchen.quantize_int8_tensorwise_seeded(x, scale, seed)
-        else:
-            q, result_scale = _quantize_int8_tensorwise_seeded_eager(x, scale, seed)
+        q, result_scale = torch.ops.comfy_kitchen.quantize_int8_tensorwise_seeded(x, scale, seed)
     else:
         q, result_scale = torch.ops.comfy_kitchen.quantize_int8_tensorwise(x, scale, seed)
     return q, result_scale if scale is None else scale
