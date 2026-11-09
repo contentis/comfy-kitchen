@@ -623,47 +623,49 @@ def _build_constraints() -> dict:
         }),
     })
 
-    out["quantize_mxfp8"] = FunctionConstraints(
-            params={
-                "x": ParamConstraint(
-                    dtypes=standard_floats,
-                    shape_rules=(ExactDims(2),),
-                ),
-            },
-            default_devices=all_devices)
+    out.update(
+        quantize_mxfp8=FunctionConstraints(
+                params={
+                    "x": ParamConstraint(
+                        dtypes=standard_floats,
+                        shape_rules=(ExactDims(2),),
+                    ),
+                },
+                default_devices=all_devices),
 
-    out["dequantize_mxfp8"] = FunctionConstraints(
-            params={
-                "qx": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn}),
-                    shape_rules=(ExactDims(2),),
-                ),
-                "block_scales": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e8m0fnu}),
-                ),
-                "output_type": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=all_devices)
+        dequantize_mxfp8=FunctionConstraints(
+                params={
+                    "qx": ParamConstraint(
+                        dtypes=frozenset({torch.float8_e4m3fn}),
+                        shape_rules=(ExactDims(2),),
+                    ),
+                    "block_scales": ParamConstraint(
+                        dtypes=frozenset({torch.float8_e8m0fnu}),
+                    ),
+                    "output_type": ParamConstraint(dtypes=standard_floats),
+                },
+                default_devices=all_devices),
 
-    out["scaled_mm_mxfp8"] = FunctionConstraints(
-            params={
-                "a": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn}),
-                    shape_rules=(ExactDims(2),),
-                ),
-                "b": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e4m3fn}),
-                    shape_rules=(ExactDims(2),),
-                ),
-                "block_scale_a": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e8m0fnu}),
-                ),
-                "block_scale_b": ParamConstraint(
-                    dtypes=frozenset({torch.float8_e8m0fnu}),
-                ),
-                "out_dtype": ParamConstraint(dtypes=standard_floats),
-            },
-            default_devices=all_devices)
+        scaled_mm_mxfp8=FunctionConstraints(
+                params={
+                    "a": ParamConstraint(
+                        dtypes=frozenset({torch.float8_e4m3fn}),
+                        shape_rules=(ExactDims(2),),
+                    ),
+                    "b": ParamConstraint(
+                        dtypes=frozenset({torch.float8_e4m3fn}),
+                        shape_rules=(ExactDims(2),),
+                    ),
+                    "block_scale_a": ParamConstraint(
+                        dtypes=frozenset({torch.float8_e8m0fnu}),
+                    ),
+                    "block_scale_b": ParamConstraint(
+                        dtypes=frozenset({torch.float8_e8m0fnu}),
+                    ),
+                    "out_dtype": ParamConstraint(dtypes=standard_floats),
+                },
+                default_devices=all_devices),
+    )
 
     for inplace_name, functional_name in {
         "apply_rope_": "apply_rope",
