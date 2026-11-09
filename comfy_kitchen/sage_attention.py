@@ -8,6 +8,8 @@ import math
 from dataclasses import dataclass
 
 import torch
+
+from comfy_kitchen._compile import eager_call as _eager_call
 from torch.nn import functional
 
 from .backends import cuda as _cuda_backend
@@ -339,6 +341,8 @@ def prequantize_int8_attention(
     remains the lower-overhead single-call path when early Q/K/V release is not
     needed.
     """
+    if torch.compiler.is_compiling():
+        return _eager_call(prequantize_int8_attention, q=q, k=k, v=v, scale=scale, attn_mask=attn_mask)
     attn_mask = _validate_inputs(q, k, v, attn_mask)
 
     original_head_dim = q.shape[-1]
@@ -460,6 +464,8 @@ def int8_attention_from_prequantized(
     quantized: PrequantizedInt8Attention,
 ) -> torch.Tensor:
     """Run INT8 attention after the floating-point Q/K/V inputs are released."""
+    if torch.compiler.is_compiling():
+        return _eager_call(int8_attention_from_prequantized, quantized=quantized)
     if not isinstance(quantized, PrequantizedInt8Attention):
         raise TypeError(
             "quantized must be returned by prequantize_int8_attention, got "
@@ -563,7 +569,11 @@ def _op_int8_attention_fake(
     v,
     scale,
 ):
-    return q.new_empty(q.shape)
+    d = q.shape[-1]
+    padded = 64 if d <= 64 else (128 if d <= 128 else 256)
+    if q.dtype == torch.float32:
+        return q.new_empty(q.shape)
+    return q.new_empty((*q.shape[:-1], padded))[..., :d]
 
 
 @torch.library.custom_op("comfy_kitchen::int8_attention_masked", mutates_args=())
@@ -591,7 +601,11 @@ def _op_int8_attention_masked_fake(
     attn_mask,
     scale,
 ):
-    return q.new_empty(q.shape)
+    d = q.shape[-1]
+    padded = 64 if d <= 64 else (128 if d <= 128 else 256)
+    if q.dtype == torch.float32:
+        return q.new_empty(q.shape)
+    return q.new_empty((*q.shape[:-1], padded))[..., :d]
 
 
 def int8_attention(

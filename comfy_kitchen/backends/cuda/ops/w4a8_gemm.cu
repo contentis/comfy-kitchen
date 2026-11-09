@@ -27,6 +27,42 @@
 #include "dtype_dispatch.cuh"
 #include "float_utils.cuh"
 
+// The default decode table is immutable program data, not a Python tensor.
+// Retaining a lazily allocated tensor here leaks Inductor graph-pool storage.
+// Generate the exact FP32 multiply / round-to-even / clamp grid at compile time.
+namespace {
+struct FixedDecodeLut { int8_t values[256 * 16]; };
+__host__ __device__ constexpr FixedDecodeLut make_fixed_decode_lut() {
+    constexpr float levels[16] = {
+        -0.980602f, -0.794529f, -0.638165f, -0.500986f,
+        -0.377321f, -0.263187f, -0.155210f, -0.050720f,
+         0.052541f,  0.156985f,  0.265284f,  0.379533f,
+         0.502636f,  0.638953f,  0.794876f,  0.980671f,
+    };
+    FixedDecodeLut table{};
+    for (int bits = 0; bits < 256; ++bits) {
+        const int exponent = (bits >> 3) & 15;
+        float scale = static_cast<float>((bits & 7) + (exponent ? 8 : 0));
+        const int power = exponent ? exponent - 10 : -9;
+        for (int j = 0; j < power; ++j) scale *= 2.0f;
+        for (int j = 0; j > power; --j) scale *= 0.5f;
+        if (bits & 128) scale = -scale;
+        for (int code = 0; code < 16; ++code) {
+            // E4M3's two NaN encodings convert to zero in the original CPU table.
+            const float value = levels[code] * scale;
+            int rounded = static_cast<int>(value);
+            const float fraction = value - static_cast<float>(rounded);
+            if (fraction > 0.5f || (fraction == 0.5f && (rounded & 1))) ++rounded;
+            if (fraction < -0.5f || (fraction == -0.5f && (rounded & 1))) --rounded;
+            rounded = rounded < -127 ? -127 : (rounded > 127 ? 127 : rounded);
+            table.values[bits * 16 + code] = (bits & 127) == 127 ? 0 : static_cast<int8_t>(rounded);
+        }
+    }
+    return table;
+}
+__device__ __align__(16) const FixedDecodeLut kFixedDecodeLut = make_fixed_decode_lut();
+} // namespace
+
 // Grouped int4 -> int8 dequant for the int8-GEMM W4A8 path: out[n,k] =
 // round((q_u[n,k]-8) * s_rel[n, k/G]), q_u packed uint4 (even col=low nibble).
 // s_rel = per-group scale / per-channel scale (so the int8 range is used). The
@@ -326,7 +362,7 @@ void w4a8_codebook_mma_stream_kernel(
     }
     for (int i = threadIdx.x; i < 256; i += kMmaWarps * 32) {
         if constexpr (BITS == 4) {
-            lut[i] = reinterpret_cast<const uint4*>(decode_lut)[i];
+            lut[i] = reinterpret_cast<const uint4*>(decode_lut ? decode_lut : kFixedDecodeLut.values)[i];
         } else {
             scale_table[i] = load_scale<uint8_t>(static_cast<uint8_t>(i));
         }
@@ -684,7 +720,7 @@ extern "C" bool launch_w4a8_codebook_mma(
     int out_dtype_code, cudaStream_t stream)
 {
     if (M == 0 || N == 0 || K == 0) return true;
-    if (M > 8 || (bits == 4 && decode_lut == nullptr) || N > std::numeric_limits<int>::max()
+    if (M > 8 || N > std::numeric_limits<int>::max()
             || (bits != 4 && bits != 6)
             || K > std::numeric_limits<int>::max() || N % 16 != 0
             || G != 16 || K % 256 != 0) {

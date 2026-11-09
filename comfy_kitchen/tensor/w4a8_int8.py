@@ -17,6 +17,8 @@ from dataclasses import dataclass
 
 import torch
 
+from comfy_kitchen._compile import eager_call as _eager_call
+
 from comfy_kitchen.registry import registry
 
 from .base import (
@@ -60,6 +62,13 @@ def quantize_w4a8_int8_weight(
     storage; ``scale_search`` (6-bit only) runs the grid-aware group-scale search at quantize
     time, which the requantize path skips.
     """
+    if torch.compiler.is_compiling():
+        return _eager_call(
+            quantize_w4a8_int8_weight, weight=weight, group_size=group_size,
+            convrot_groupsize=convrot_groupsize, symmetric=symmetric, scale_dtype=scale_dtype,
+            codebook=codebook, codebook_tensor=codebook_tensor, stochastic_rounding=stochastic_rounding,
+            bits=bits, scale_search=scale_search
+        )
     if scale_dtype not in (torch.float32, torch.float8_e4m3fn):
         raise ValueError(f"scale_dtype must be float32 or float8_e4m3fn, got {scale_dtype}")
     kwargs = {
@@ -78,7 +87,8 @@ def quantize_w4a8_int8_weight(
     return impl(**kwargs)
 
 
-def dequantize_w4a8_int8_weight(
+@torch.library.custom_op("comfy_kitchen::dequantize_w4a8_int8_weight", mutates_args=())
+def _op_dequantize_w4a8_int8_weight(
     qdata: torch.Tensor,
     s_rel: torch.Tensor,
     s_channel: torch.Tensor,
@@ -103,7 +113,39 @@ def dequantize_w4a8_int8_weight(
     return impl(**kwargs)
 
 
-def w4a8_int8_linear(
+@_op_dequantize_w4a8_int8_weight.register_fake
+def _fake_dequantize_w4a8_int8_weight(
+    qdata: torch.Tensor,
+    s_rel: torch.Tensor,
+    s_channel: torch.Tensor,
+    codebook: torch.Tensor | None = None,
+    correction: torch.Tensor | None = None,
+    group_size: int = 16,
+    convrot_groupsize: int = 256,
+    output_dtype: torch.dtype = torch.bfloat16,
+) -> torch.Tensor:
+    return torch.empty((s_rel.shape[0], s_rel.shape[1]*group_size), dtype=output_dtype, device=qdata.device)
+
+
+def dequantize_w4a8_int8_weight(
+    qdata: torch.Tensor,
+    s_rel: torch.Tensor,
+    s_channel: torch.Tensor,
+    codebook: torch.Tensor | None = None,
+    correction: torch.Tensor | None = None,
+    group_size: int = 16,
+    convrot_groupsize: int = 256,
+    output_dtype: torch.dtype = torch.bfloat16,
+) -> torch.Tensor:
+    """Dequantize a packed W4A8 weight into its original basis."""
+    return torch.ops.comfy_kitchen.dequantize_w4a8_int8_weight(
+        qdata=qdata, s_rel=s_rel, s_channel=s_channel, codebook=codebook, correction=correction,
+        group_size=group_size, convrot_groupsize=convrot_groupsize, output_dtype=output_dtype
+    )
+
+
+@torch.library.custom_op("comfy_kitchen::w4a8_int8_linear", mutates_args=())
+def _op_w4a8_int8_linear(
     x: torch.Tensor,
     qdata: torch.Tensor,
     s_rel: torch.Tensor,
@@ -151,6 +193,64 @@ def w4a8_int8_linear(
     operation = "w4a8_packed_linear" if mma_packed else "w4a8_int8_linear"
     impl = registry.get_implementation(operation, kwargs=kwargs)
     return impl(**kwargs)
+
+
+@_op_w4a8_int8_linear.register_fake
+def _fake_w4a8_int8_linear(
+    x: torch.Tensor,
+    qdata: torch.Tensor,
+    s_rel: torch.Tensor,
+    s_channel: torch.Tensor,
+    codebook: torch.Tensor | None = None,
+    correction: torch.Tensor | None = None,
+    bias: torch.Tensor | None = None,
+    group_size: int = 16,
+    convrot_groupsize: int = 256,
+    out_dtype: torch.dtype = torch.bfloat16,
+    mma_packed: bool = False,
+    input_act: str | None = None,
+    input_act_weight: torch.Tensor | None = None,
+    input_act_eps: float = 0.0,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
+) -> torch.Tensor:
+    return torch.empty((*x.shape[:-1], s_channel.numel()), dtype=out_dtype, device=x.device)
+
+
+def w4a8_int8_linear(
+    x: torch.Tensor,
+    qdata: torch.Tensor,
+    s_rel: torch.Tensor,
+    s_channel: torch.Tensor,
+    codebook: torch.Tensor | None = None,
+    correction: torch.Tensor | None = None,
+    bias: torch.Tensor | None = None,
+    group_size: int = 16,
+    convrot_groupsize: int = 256,
+    out_dtype: torch.dtype = torch.bfloat16,
+    mma_packed: bool = False,
+    input_act: str | None = None,
+    input_act_weight: torch.Tensor | None = None,
+    input_act_eps: float = 0.0,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute ``x @ W.T + bias`` with the selected W4A8 backend.
+
+    input_act ("swiglu" or "rms_norm", with input_act_weight/input_act_eps for the
+    norm) is applied to x on the way into the activation quantizer; the CUDA
+    decode path folds it into that kernel, every other path applies it eagerly
+    with identical results. residual/residual_scale make the result
+    ``residual + residual_scale * (x @ W.T + bias)`` (a pre-norm block's addcmul,
+    with the linear rounded to out_dtype first), fused into the CUDA decode
+    kernel's epilogue and applied after the GEMM everywhere else.
+    """
+    return torch.ops.comfy_kitchen.w4a8_int8_linear(
+        x=x, qdata=qdata, s_rel=s_rel, s_channel=s_channel, codebook=codebook, correction=correction,
+        bias=bias, group_size=group_size, convrot_groupsize=convrot_groupsize, out_dtype=out_dtype,
+        mma_packed=mma_packed, input_act=input_act, input_act_weight=input_act_weight,
+        input_act_eps=input_act_eps, residual=residual, residual_scale=residual_scale
+    )
 
 
 class AsymW4A8Int8Layout(QuantizedLayout):
