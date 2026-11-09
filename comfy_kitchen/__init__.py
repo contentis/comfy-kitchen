@@ -1,7 +1,5 @@
 import torch
 
-from comfy_kitchen._compile import eager_call as _eager_call
-
 from .allocation import set_allocation_context
 from .backends import cuda as _cuda_backend
 
@@ -305,7 +303,7 @@ def sol_attn(
 def memmove(dst: torch.Tensor, src: torch.Tensor):
     """Copy src's bytes into dst in place; the two ranges may overlap."""
     if torch.compiler.is_compiling():
-        return _eager_call(memmove, dst=dst, src=src)
+        return _memmove_eager(dst=dst, src=src)
     if dst.device.type == "cuda" and registry.is_available("hip" if torch.version.hip else "cuda"):
         return _memmove_(dst, src)
     dst.copy_(src.clone())
@@ -590,7 +588,7 @@ def stochastic_rounding_fp8(
         Stochastically rounded FP8 tensor
     """
     if torch.compiler.is_compiling():
-        return _eager_call(stochastic_rounding_fp8, x=x, rng=rng, output_type=output_type)
+        return _stochastic_rounding_fp8_eager(x=x, rng=rng, output_type=output_type)
     kwargs = {"x": x, "rng": rng, "output_type": output_type}
     impl = registry.get_implementation("stochastic_rounding_fp8", kwargs=kwargs)
     return impl(**kwargs)
@@ -1396,7 +1394,7 @@ def delaunay3d(points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.
     cospherical input, but the result is always a valid tetrahedralization.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(delaunay3d, points=points)
+        return _delaunay3d_eager(points=points)
     kwargs = {"points": points}
     impl = registry.get_implementation("delaunay3d", kwargs=kwargs)
     return impl(**kwargs)
@@ -1409,7 +1407,7 @@ def mesh_bvh(triangles: torch.Tensor):
     node boxes).
     """
     if torch.compiler.is_compiling():
-        return _eager_call(mesh_bvh, triangles=triangles)
+        return _mesh_bvh_eager(triangles=triangles)
     kwargs = {"triangles": triangles}
     impl = registry.get_implementation("mesh_bvh", kwargs=kwargs)
     return impl(**kwargs)
@@ -1425,7 +1423,7 @@ def closest_point_on_mesh(
     distance max_dist, the point itself and triangle -1.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(closest_point_on_mesh, bvh=bvh, points=points, max_dist=max_dist)
+        return _closest_point_on_mesh_eager(bvh=bvh, points=points, max_dist=max_dist)
     kwargs = {"bvh": bvh, "points": points, "max_dist": max_dist}
     impl = registry.get_implementation("closest_point_on_mesh", kwargs=kwargs)
     return impl(**kwargs)
@@ -1442,8 +1440,8 @@ def closest_hit_on_mesh(
     that hit nothing get t = tmax and triangle -1.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            closest_hit_on_mesh, bvh=bvh, origins=origins, directions=directions, tmin=tmin, tmax=tmax,
+        return _closest_hit_on_mesh_eager(
+            bvh=bvh, origins=origins, directions=directions, tmin=tmin, tmax=tmax,
             cull_backface=cull_backface
         )
     kwargs = {"bvh": bvh, "origins": origins, "directions": directions, "tmin": tmin, "tmax": tmax,
@@ -1458,7 +1456,7 @@ def connected_components(edges: torch.Tensor, num_nodes: int) -> torch.Tensor:
     component.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(connected_components, edges=edges, num_nodes=num_nodes)
+        return _connected_components_eager(edges=edges, num_nodes=num_nodes)
     kwargs = {"edges": edges, "num_nodes": num_nodes}
     impl = registry.get_implementation("connected_components", kwargs=kwargs)
     return impl(**kwargs)
@@ -1484,8 +1482,8 @@ def edge_collapse_checks(
       the collapse keeps the topology.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            edge_collapse_checks, vertices=vertices, faces=faces, edges=edges, positions=positions,
+        return _edge_collapse_checks_eager(
+            vertices=vertices, faces=faces, edges=edges, positions=positions,
             cos_threshold=cos_threshold
         )
     kwargs = {"vertices": vertices, "faces": faces, "edges": edges, "positions": positions,
@@ -1501,7 +1499,7 @@ def min_cut(nbr: torch.Tensor, cap: torch.Tensor, s_cap: torch.Tensor, t_cap: to
     (N,) bool, True on the source side (the largest source side among the minimum cuts).
     """
     if torch.compiler.is_compiling():
-        return _eager_call(min_cut, nbr=nbr, cap=cap, s_cap=s_cap, t_cap=t_cap)
+        return _min_cut_eager(nbr=nbr, cap=cap, s_cap=s_cap, t_cap=t_cap)
     kwargs = {"nbr": nbr, "cap": cap, "s_cap": s_cap, "t_cap": t_cap}
     impl = registry.get_implementation("min_cut", kwargs=kwargs)
     return impl(**kwargs)
@@ -1568,3 +1566,15 @@ def use_backend(name: str):
             result = comfy_kitchen.quantize_per_tensor_fp8(x, scale)
     """
     return registry.use_backend(name)
+
+
+# Private aliases preserve the eager boundary when a public function is compiled directly.
+_memmove_eager = torch.compiler.disable(memmove)
+_stochastic_rounding_fp8_eager = torch.compiler.disable(stochastic_rounding_fp8)
+_delaunay3d_eager = torch.compiler.disable(delaunay3d)
+_mesh_bvh_eager = torch.compiler.disable(mesh_bvh)
+_closest_point_on_mesh_eager = torch.compiler.disable(closest_point_on_mesh)
+_closest_hit_on_mesh_eager = torch.compiler.disable(closest_hit_on_mesh)
+_connected_components_eager = torch.compiler.disable(connected_components)
+_edge_collapse_checks_eager = torch.compiler.disable(edge_collapse_checks)
+_min_cut_eager = torch.compiler.disable(min_cut)

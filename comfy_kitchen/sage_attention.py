@@ -8,8 +8,6 @@ import math
 from dataclasses import dataclass
 
 import torch
-
-from comfy_kitchen._compile import eager_call as _eager_call
 from torch.nn import functional
 
 from .backends import cuda as _cuda_backend
@@ -342,7 +340,7 @@ def prequantize_int8_attention(
     needed.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(prequantize_int8_attention, q=q, k=k, v=v, scale=scale, attn_mask=attn_mask)
+        return _prequantize_int8_attention_eager(q=q, k=k, v=v, scale=scale, attn_mask=attn_mask)
     attn_mask = _validate_inputs(q, k, v, attn_mask)
 
     original_head_dim = q.shape[-1]
@@ -465,7 +463,7 @@ def int8_attention_from_prequantized(
 ) -> torch.Tensor:
     """Run INT8 attention after the floating-point Q/K/V inputs are released."""
     if torch.compiler.is_compiling():
-        return _eager_call(int8_attention_from_prequantized, quantized=quantized)
+        return _int8_attention_from_prequantized_eager(quantized=quantized)
     if not isinstance(quantized, PrequantizedInt8Attention):
         raise TypeError(
             "quantized must be returned by prequantize_int8_attention, got "
@@ -648,3 +646,7 @@ def int8_attention(
         attn_mask,
         scale,
     )
+
+
+_prequantize_int8_attention_eager = torch.compiler.disable(prequantize_int8_attention)
+_int8_attention_from_prequantized_eager = torch.compiler.disable(int8_attention_from_prequantized)

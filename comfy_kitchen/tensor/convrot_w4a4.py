@@ -14,8 +14,6 @@ from dataclasses import dataclass
 
 import torch
 
-from comfy_kitchen._compile import eager_call as _eager_call
-
 from comfy_kitchen.backends.eager.svdquant import _INT4_GROUP_SIZE
 from comfy_kitchen.registry import registry
 
@@ -36,8 +34,8 @@ def quantize_convrot_w4a4_weight(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Rotate a weight matrix with ConvRot and pack it as signed W4."""
     if torch.compiler.is_compiling():
-        return _eager_call(
-            quantize_convrot_w4a4_weight, weight=weight, convrot_groupsize=convrot_groupsize,
+        return _quantize_convrot_w4a4_weight_eager(
+            weight=weight, convrot_groupsize=convrot_groupsize,
             quant_group_size=quant_group_size, stochastic_rounding=stochastic_rounding
         )
     impl = registry.get_implementation(
@@ -322,3 +320,6 @@ def _handle_convrot_w4a4_addmm(qt, args, kwargs):
         a = a.dequantize()
     b = _resolve_convrot_w4a4_rhs(b)
     return _convrot_w4a4_forward(a, b, bias=bias)
+
+
+_quantize_convrot_w4a4_weight_eager = torch.compiler.disable(quantize_convrot_w4a4_weight)

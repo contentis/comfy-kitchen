@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import torch
 
-from comfy_kitchen._compile import eager_call as _eager_call
-
 from .backends import cuda as _cuda_backend
 
 if getattr(torch.version, "hip", None):
@@ -110,8 +108,8 @@ def deltanet_conv_step_deferred(
     for the next step.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            deltanet_conv_step_deferred, proj=proj, conv_state=conv_state, conv_w=conv_w, conv_b=conv_b,
+        return _deltanet_conv_step_deferred_eager(
+            proj=proj, conv_state=conv_state, conv_w=conv_w, conv_b=conv_b,
             proj_buf=proj_buf, qkv_buf=qkv_buf, ctl=ctl
         )
     channels = proj.shape[2]
@@ -203,8 +201,8 @@ def gated_delta_decode_deferred(
     (see deltanet_conv_step_deferred). State, dt_bias and g_decay must be contiguous.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            gated_delta_decode_deferred, x=x, w_a=w_a, w_b=w_b, dt_bias=dt_bias, g_decay=g_decay,
+        return _gated_delta_decode_deferred_eager(
+            x=x, w_a=w_a, w_b=w_b, dt_bias=dt_bias, g_decay=g_decay,
             state=state, key_dim=key_dim, num_key_heads=num_key_heads, scale=scale, z=z,
             norm_weight=norm_weight, eps=eps, qkv_buf=qkv_buf, gates_buf=gates_buf, sumsq_buf=sumsq_buf,
             ctl=ctl
@@ -337,8 +335,8 @@ def gated_delta_decode_fused(
     and snapshots must be contiguous.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            gated_delta_decode_fused, mixed_qkv=mixed_qkv, x=x, w_a=w_a, w_b=w_b, dt_bias=dt_bias,
+        return _gated_delta_decode_fused_eager(
+            mixed_qkv=mixed_qkv, x=x, w_a=w_a, w_b=w_b, dt_bias=dt_bias,
             g_decay=g_decay, state=state, key_dim=key_dim, num_key_heads=num_key_heads, scale=scale,
             z=z, norm_weight=norm_weight, eps=eps, snapshots=snapshots
         )
@@ -384,8 +382,8 @@ def deltanet_conv_step(
     must be contiguous.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            deltanet_conv_step, proj=proj, conv_state=conv_state, conv_w=conv_w, conv_b=conv_b,
+        return _deltanet_conv_step_eager(
+            proj=proj, conv_state=conv_state, conv_w=conv_w, conv_b=conv_b,
             snapshots=snapshots
         )
     if not is_available(proj.device):
@@ -410,3 +408,9 @@ def deltanet_conv_step(
     if not ok:
         raise RuntimeError("deltanet_conv_step launch rejected")
     return out
+
+
+_deltanet_conv_step_deferred_eager = torch.compiler.disable(deltanet_conv_step_deferred)
+_gated_delta_decode_deferred_eager = torch.compiler.disable(gated_delta_decode_deferred)
+_gated_delta_decode_fused_eager = torch.compiler.disable(gated_delta_decode_fused)
+_deltanet_conv_step_eager = torch.compiler.disable(deltanet_conv_step)

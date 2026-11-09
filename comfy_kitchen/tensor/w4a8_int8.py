@@ -17,8 +17,6 @@ from dataclasses import dataclass
 
 import torch
 
-from comfy_kitchen._compile import eager_call as _eager_call
-
 from comfy_kitchen.registry import registry
 
 from .base import (
@@ -63,8 +61,8 @@ def quantize_w4a8_int8_weight(
     time, which the requantize path skips.
     """
     if torch.compiler.is_compiling():
-        return _eager_call(
-            quantize_w4a8_int8_weight, weight=weight, group_size=group_size,
+        return _quantize_w4a8_int8_weight_eager(
+            weight=weight, group_size=group_size,
             convrot_groupsize=convrot_groupsize, symmetric=symmetric, scale_dtype=scale_dtype,
             codebook=codebook, codebook_tensor=codebook_tensor, stochastic_rounding=stochastic_rounding,
             bits=bits, scale_search=scale_search
@@ -578,3 +576,6 @@ def _handle_w4a8int8_addmm(qt, args, kwargs):
         bias=bias,
         out_dtype=weight._params.orig_dtype,
     )
+
+
+_quantize_w4a8_int8_weight_eager = torch.compiler.disable(quantize_w4a8_int8_weight)
