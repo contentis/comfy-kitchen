@@ -28,7 +28,7 @@ classifiers = [
     "Programming Language :: C++",
     "License :: OSI Approved :: Apache Software License",
 ]
-dependencies = []
+dependencies = ["torch>=2.9"]
 
 [project.urls]
 Homepage = "https://github.com/Comfy-Org/comfy-kitchen"
