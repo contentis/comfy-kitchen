@@ -7,7 +7,7 @@ from .backends import cuda as _cuda_backend
 from .backends import ascend as _ascend_backend  # noqa: F401
 from .backends import eager as _eager_backend  # noqa: F401
 from .backends import triton as _triton_backend  # noqa: F401
-from .backends.cuda import sol_attn_chunked  # chunked-producer form of sol_attn (HIP's below)
+from .backends.cuda import sol_attn_chunked as _sol_attn_chunked_impl  # chunked-producer form of sol_attn (HIP's below)
 from .backends.cuda import memmove_ as _memmove_
 from .backends.eager.quantization import DTYPE_TO_CODE
 from .backends.eager.quantization import mm_int8 as _mm_int8
@@ -58,7 +58,7 @@ if getattr(torch.version, "hip", None):
     # and advertises only the ops that device can run; prefer it where it registers.
     if registry.is_available("hip"):
         registry.set_priority(["hip", "cuda", "triton", "eager"])
-        sol_attn_chunked = _hip_backend.sol_attn_chunked
+        _sol_attn_chunked_impl = _hip_backend.sol_attn_chunked
         _memmove_ = _hip_backend.memmove_
 else:
     registry.mark_unavailable("hip", "PyTorch ROCm/HIP runtime not available")
@@ -170,6 +170,58 @@ __all__ = [
 ]
 
 
+@torch.library.custom_op("comfy_kitchen::sol_attn_chunked", mutates_args=())
+def _op_sol_attn_chunked(
+    chunks: list[torch.Tensor], t: int, h: int, rope_freqs: torch.Tensor,
+    q_norm: torch.Tensor, k_norm: torch.Tensor,
+    kmean: torch.Tensor | None, vscale: torch.Tensor | None,
+    tau: float, topk_ratio: float, scale: float | None,
+    sink_blocks: list[int] | None, sink_q: list[int] | None,
+    rope_eps: float, tail: bool, block_len: torch.Tensor | None,
+    coarse_gate: torch.Tensor | None, token_aug: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    return _sol_attn_chunked_impl(
+        chunks, t, h, rope_freqs, (q_norm, k_norm), kmean, vscale, tau,
+        topk_ratio, scale, sink_blocks, sink_q, rope_eps, tail, block_len,
+        coarse_gate, token_aug,
+    )
+
+
+@_op_sol_attn_chunked.register_fake
+def _fake_sol_attn_chunked(chunks, t, h, rope_freqs, q_norm, k_norm,
+                          kmean, vscale, tau, topk_ratio, scale, sink_blocks,
+                          sink_q, rope_eps, tail, block_len, coarse_gate, token_aug):
+    return (torch.empty((1, t, h, 128), device=rope_freqs.device, dtype=torch.bfloat16),
+            torch.empty((h, 128), device=rope_freqs.device, dtype=torch.float32),
+            torch.empty((h, 128), device=rope_freqs.device, dtype=torch.float32))
+
+
+@torch.compiler.disable
+def _sol_attn_chunked_callable(*args, **kwargs):
+    # Callable producers must keep streaming instead of materializing all chunks.
+    return _sol_attn_chunked_impl(*args, **kwargs)
+
+
+def sol_attn_chunked(
+    qkv_chunks, t: int, h: int, rope_freqs: torch.Tensor, qk_norm_weights,
+    kmean=None, vscale=None, tau=1.0, topk_ratio=0.0, scale=None,
+    sink_blocks=None, sink_q=None, rope_eps=1e-6, tail=True,
+    block_len=None, coarse_gate=None, token_aug=0,
+):
+    """Chunked Sol attention; callable producers retain streaming behavior."""
+    if callable(qkv_chunks):
+        return _sol_attn_chunked_callable(
+            qkv_chunks, t, h, rope_freqs, qk_norm_weights, kmean, vscale,
+            tau, topk_ratio, scale, sink_blocks, sink_q, rope_eps, tail,
+            block_len, coarse_gate, token_aug,
+        )
+    return torch.ops.comfy_kitchen.sol_attn_chunked(
+        list(qkv_chunks), t, h, rope_freqs, qk_norm_weights[0], qk_norm_weights[1],
+        kmean, vscale, tau, topk_ratio, scale, sink_blocks, sink_q,
+        rope_eps, tail, block_len, coarse_gate, token_aug,
+    )
+
+
 # =============================================================================
 # Public API Functions
 # =============================================================================
@@ -250,6 +302,8 @@ def sol_attn(
 
 def memmove(dst: torch.Tensor, src: torch.Tensor):
     """Copy src's bytes into dst in place; the two ranges may overlap."""
+    if torch.compiler.is_compiling():
+        return _memmove_eager(dst=dst, src=src)
     if dst.device.type == "cuda" and registry.is_available("hip" if torch.version.hip else "cuda"):
         return _memmove_(dst, src)
     dst.copy_(src.clone())
@@ -533,6 +587,8 @@ def stochastic_rounding_fp8(
     Returns:
         Stochastically rounded FP8 tensor
     """
+    if torch.compiler.is_compiling():
+        return _stochastic_rounding_fp8_eager(x=x, rng=rng, output_type=output_type)
     kwargs = {"x": x, "rng": rng, "output_type": output_type}
     impl = registry.get_implementation("stochastic_rounding_fp8", kwargs=kwargs)
     return impl(**kwargs)
@@ -1024,9 +1080,18 @@ def quantize_int8_tensorwise(
     stochastic_rounding: int | None = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Quantize tensor to INT8 with single tensorwise scale."""
-    kwargs = {"x": x, "scale": scale, "stochastic_rounding": stochastic_rounding}
-    impl = registry.get_implementation("quantize_int8_tensorwise", kwargs=kwargs)
-    return impl(**kwargs)
+    if scale is None or (isinstance(scale, str) and scale == "recalculate"):
+        scale = None
+    elif isinstance(scale, torch.Tensor):
+        scale = scale.to(device=x.device, dtype=torch.float32)
+    else:
+        scale = torch.tensor(scale, device=x.device, dtype=torch.float32)
+    seed = int(stochastic_rounding or 0)
+    if seed > 0:
+        q, result_scale = torch.ops.comfy_kitchen.quantize_int8_tensorwise_seeded(x, scale, seed)
+    else:
+        q, result_scale = torch.ops.comfy_kitchen.quantize_int8_tensorwise(x, scale, seed)
+    return q, result_scale if scale is None else scale
 
 
 def quantize_int8_rowwise(
@@ -1034,9 +1099,7 @@ def quantize_int8_rowwise(
     stochastic_rounding: int | None = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Quantize tensor to INT8 with per-row scales."""
-    kwargs = {"x": x, "stochastic_rounding": stochastic_rounding}
-    impl = registry.get_implementation("quantize_int8_rowwise", kwargs=kwargs)
-    return impl(**kwargs)
+    return torch.ops.comfy_kitchen.quantize_int8_rowwise(x, int(stochastic_rounding or 0))
 
 
 def dequantize_int8_simple(q: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
@@ -1072,6 +1135,38 @@ def rms_gated_residual(
     )
 
 
+
+@torch.library.custom_op("comfy_kitchen::fp16_linear", mutates_args=())
+def _op_fp16_linear(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """FP16 accumulation; the caller must opt into reduced precision."""
+    kwargs = {
+        "x": x,
+        "weight": weight,
+        "bias": bias,
+        "residual": residual,
+        "residual_scale": residual_scale,
+    }
+    impl = registry.get_implementation("fp16_linear", kwargs=kwargs)
+    return impl(**kwargs)
+
+
+@_op_fp16_linear.register_fake
+def _fake_fp16_linear(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    residual: torch.Tensor | None = None,
+    residual_scale: torch.Tensor | None = None,
+) -> torch.Tensor:
+    return x.new_empty((*x.shape[:-1], weight.shape[0]))
+
+
 def fp16_linear(
     x: torch.Tensor,
     weight: torch.Tensor,
@@ -1093,15 +1188,10 @@ def fp16_linear(
         if residual_scale is None:
             raise ValueError("fp16_linear: residual requires residual_scale")
         return torch.addcmul(residual.to(out.dtype), out, residual_scale.to(out.dtype))
-    kwargs = {
-        "x": x,
-        "weight": weight,
-        "bias": bias,
-        "residual": residual,
-        "residual_scale": residual_scale,
-    }
-    impl = registry.get_implementation("fp16_linear", kwargs=kwargs)
-    return impl(**kwargs)
+
+    return torch.ops.comfy_kitchen.fp16_linear(
+        x=x, weight=weight, bias=bias, residual=residual, residual_scale=residual_scale
+    )
 
 
 def _fp16_linear_fills_gpu(m: int, n: int, k: int) -> bool:
@@ -1153,27 +1243,15 @@ def int8_linear(
     Returns:
         Result tensor.
     """
-    if out_dtype is None:
-        out_dtype = torch.bfloat16
-    kwargs = {
-        "x": x,
-        "weight": weight,
-        "weight_scale": weight_scale,
-        "bias": bias,
-        "out_dtype": out_dtype,
-        "convrot": convrot,
-        "convrot_groupsize": convrot_groupsize,
-        "input_act": input_act,
-        "input_act_weight": input_act_weight,
-        "input_act_eps": input_act_eps,
-        "residual": residual,
-        "residual_scale": residual_scale,
-    }
-    impl = registry.get_implementation("int8_linear", kwargs=kwargs)
-    return impl(**kwargs)
+    return torch.ops.comfy_kitchen.int8_linear(
+        x, weight, weight_scale, bias, DTYPE_TO_CODE[out_dtype or torch.bfloat16],
+        convrot, convrot_groupsize, input_act, input_act_weight, input_act_eps,
+        residual, residual_scale,
+    )
 
 
-def int8_linear_modulated(
+@torch.library.custom_op("comfy_kitchen::int8_linear_modulated", mutates_args=())
+def _op_int8_linear_modulated(
     x: torch.Tensor,
     modulation_scale: torch.Tensor,
     weight: torch.Tensor,
@@ -1201,7 +1279,39 @@ def int8_linear_modulated(
     )
 
 
-def int8_linear_rms_modulated(
+@_op_int8_linear_modulated.register_fake
+def _fake_int8_linear_modulated(
+    x: torch.Tensor,
+    modulation_scale: torch.Tensor,
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype | None = None,
+    convrot: bool = False,
+    convrot_groupsize: int = 256,
+) -> torch.Tensor:
+    return torch.empty((*x.shape[:-1], weight.shape[0]), dtype=out_dtype or torch.bfloat16, device=x.device)
+
+
+def int8_linear_modulated(
+    x: torch.Tensor,
+    modulation_scale: torch.Tensor,
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype | None = None,
+    convrot: bool = False,
+    convrot_groupsize: int = 256,
+) -> torch.Tensor:
+    """Batch-one modulation with fused INT8 quantization."""
+    return torch.ops.comfy_kitchen.int8_linear_modulated(
+        x=x, modulation_scale=modulation_scale, weight=weight, weight_scale=weight_scale, bias=bias,
+        out_dtype=out_dtype, convrot=convrot, convrot_groupsize=convrot_groupsize
+    )
+
+
+@torch.library.custom_op("comfy_kitchen::int8_linear_rms_modulated", mutates_args=())
+def _op_int8_linear_rms_modulated(
     x: torch.Tensor,
     norm_weight: torch.Tensor,
     norm_eps: float,
@@ -1233,6 +1343,42 @@ def int8_linear_rms_modulated(
     )
 
 
+@_op_int8_linear_rms_modulated.register_fake
+def _fake_int8_linear_rms_modulated(
+    x: torch.Tensor,
+    norm_weight: torch.Tensor,
+    norm_eps: float,
+    modulation_scale: torch.Tensor,
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype | None = None,
+    convrot: bool = False,
+    convrot_groupsize: int = 256,
+) -> torch.Tensor:
+    return torch.empty((*x.shape[:-1], weight.shape[0]), dtype=out_dtype or torch.bfloat16, device=x.device)
+
+
+def int8_linear_rms_modulated(
+    x: torch.Tensor,
+    norm_weight: torch.Tensor,
+    norm_eps: float,
+    modulation_scale: torch.Tensor,
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype | None = None,
+    convrot: bool = False,
+    convrot_groupsize: int = 256,
+) -> torch.Tensor:
+    """INT8 projection with RMSNorm and batch-one modulation in its producer."""
+    return torch.ops.comfy_kitchen.int8_linear_rms_modulated(
+        x=x, norm_weight=norm_weight, norm_eps=norm_eps, modulation_scale=modulation_scale,
+        weight=weight, weight_scale=weight_scale, bias=bias, out_dtype=out_dtype, convrot=convrot,
+        convrot_groupsize=convrot_groupsize
+    )
+
+
 def delaunay3d(points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """3D Delaunay tetrahedralization of distinct points (N, 3) float32/float64.
 
@@ -1247,6 +1393,8 @@ def delaunay3d(points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.
     are the joggled ones. A small fraction of faces may stay non-Delaunay, mostly on nearly
     cospherical input, but the result is always a valid tetrahedralization.
     """
+    if torch.compiler.is_compiling():
+        return _delaunay3d_eager(points=points)
     kwargs = {"points": points}
     impl = registry.get_implementation("delaunay3d", kwargs=kwargs)
     return impl(**kwargs)
@@ -1258,6 +1406,8 @@ def mesh_bvh(triangles: torch.Tensor):
     Returns a reusable tuple (triangles in Morton order, their original ids, child links,
     node boxes).
     """
+    if torch.compiler.is_compiling():
+        return _mesh_bvh_eager(triangles=triangles)
     kwargs = {"triangles": triangles}
     impl = registry.get_implementation("mesh_bvh", kwargs=kwargs)
     return impl(**kwargs)
@@ -1272,6 +1422,8 @@ def closest_point_on_mesh(
     into the triangles given to mesh_bvh). Points with nothing within `max_dist` get
     distance max_dist, the point itself and triangle -1.
     """
+    if torch.compiler.is_compiling():
+        return _closest_point_on_mesh_eager(bvh=bvh, points=points, max_dist=max_dist)
     kwargs = {"bvh": bvh, "points": points, "max_dist": max_dist}
     impl = registry.get_implementation("closest_point_on_mesh", kwargs=kwargs)
     return impl(**kwargs)
@@ -1287,6 +1439,11 @@ def closest_hit_on_mesh(
     count as inside. Returns (t (N,) float32, triangle id (N,) int64 into the triangles given to mesh_bvh); rays
     that hit nothing get t = tmax and triangle -1.
     """
+    if torch.compiler.is_compiling():
+        return _closest_hit_on_mesh_eager(
+            bvh=bvh, origins=origins, directions=directions, tmin=tmin, tmax=tmax,
+            cull_backface=cull_backface
+        )
     kwargs = {"bvh": bvh, "origins": origins, "directions": directions, "tmin": tmin, "tmax": tmax,
               "cull_backface": cull_backface}
     impl = registry.get_implementation("closest_hit_on_mesh", kwargs=kwargs)
@@ -1298,6 +1455,8 @@ def connected_components(edges: torch.Tensor, num_nodes: int) -> torch.Tensor:
     [0, num_nodes). Returns (num_nodes,) int64: the smallest node index in each node's
     component.
     """
+    if torch.compiler.is_compiling():
+        return _connected_components_eager(edges=edges, num_nodes=num_nodes)
     kwargs = {"edges": edges, "num_nodes": num_nodes}
     impl = registry.get_implementation("connected_components", kwargs=kwargs)
     return impl(**kwargs)
@@ -1322,6 +1481,11 @@ def edge_collapse_checks(
     - link_ok (E,) bool: a and b share at most as many neighbours as faces on the edge, so
       the collapse keeps the topology.
     """
+    if torch.compiler.is_compiling():
+        return _edge_collapse_checks_eager(
+            vertices=vertices, faces=faces, edges=edges, positions=positions,
+            cos_threshold=cos_threshold
+        )
     kwargs = {"vertices": vertices, "faces": faces, "edges": edges, "positions": positions,
               "cos_threshold": cos_threshold}
     impl = registry.get_implementation("edge_collapse_checks", kwargs=kwargs)
@@ -1334,6 +1498,8 @@ def min_cut(nbr: torch.Tensor, cap: torch.Tensor, s_cap: torch.Tensor, t_cap: to
     capacities; s_cap / t_cap (N,) float32 capacities to the source and the sink. Returns
     (N,) bool, True on the source side (the largest source side among the minimum cuts).
     """
+    if torch.compiler.is_compiling():
+        return _min_cut_eager(nbr=nbr, cap=cap, s_cap=s_cap, t_cap=t_cap)
     kwargs = {"nbr": nbr, "cap": cap, "s_cap": s_cap, "t_cap": t_cap}
     impl = registry.get_implementation("min_cut", kwargs=kwargs)
     return impl(**kwargs)
@@ -1400,3 +1566,15 @@ def use_backend(name: str):
             result = comfy_kitchen.quantize_per_tensor_fp8(x, scale)
     """
     return registry.use_backend(name)
+
+
+# Private aliases preserve the eager boundary when a public function is compiled directly.
+_memmove_eager = torch.compiler.disable(memmove)
+_stochastic_rounding_fp8_eager = torch.compiler.disable(stochastic_rounding_fp8)
+_delaunay3d_eager = torch.compiler.disable(delaunay3d)
+_mesh_bvh_eager = torch.compiler.disable(mesh_bvh)
+_closest_point_on_mesh_eager = torch.compiler.disable(closest_point_on_mesh)
+_closest_hit_on_mesh_eager = torch.compiler.disable(closest_hit_on_mesh)
+_connected_components_eager = torch.compiler.disable(connected_components)
+_edge_collapse_checks_eager = torch.compiler.disable(edge_collapse_checks)
+_min_cut_eager = torch.compiler.disable(min_cut)

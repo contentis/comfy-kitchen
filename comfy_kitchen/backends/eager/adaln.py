@@ -34,12 +34,12 @@ def _op_adaln(
 ) -> torch.Tensor:
     kwargs = {"x": x, "scale": scale, "shift": shift, "eps": eps}
     impl = registry.get_implementation("adaln", kwargs=kwargs)
-    return impl(**kwargs)
+    return impl(**kwargs).to(x.dtype).contiguous()
 
 
 @_op_adaln.register_fake
 def _op_adaln_fake(x, scale, shift, eps):
-    return torch.empty_like(x)
+    return torch.empty(x.shape, dtype=x.dtype, device=x.device)
 
 
 @torch.library.custom_op("comfy_kitchen::rms_adaln", mutates_args=())
@@ -51,10 +51,10 @@ def _op_rms_adaln(
 ) -> torch.Tensor:
     kwargs = {"x": x, "scale": scale, "shift": shift, "eps": eps}
     impl = registry.get_implementation("rms_adaln", kwargs=kwargs)
-    return impl(**kwargs)
+    return impl(**kwargs).to(x.dtype).contiguous()
 
 
 @_op_rms_adaln.register_fake
 def _op_rms_adaln_fake(x, scale, shift, eps):
-    return torch.empty_like(x)
+    return torch.empty(x.shape, dtype=x.dtype, device=x.device)
 

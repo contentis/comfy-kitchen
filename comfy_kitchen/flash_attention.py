@@ -64,6 +64,8 @@ def flash_attention_decode(
 
     CUDA and HIP support head dimensions 64, 128 and 256.
     """
+    if torch.compiler.is_compiling():
+        return _flash_attention_decode_eager(q=q, k=k, v=v, kv_lengths=kv_lengths)
     batch, _, query_heads, head_dim = q.shape
     _, kv_capacity, kv_heads, _ = k.shape
     if not is_available(q.device):
@@ -181,6 +183,11 @@ def flash_attention_decode_gqa(
     [B, S, H*D], with the fp32 log-sum-exp of the scaled scores [B, H, S] as a second value
     when return_lse. BF16 head_dim 256 runs the CUDA or HIP kernel; anything else the same
     computation in torch."""
+    if torch.compiler.is_compiling():
+        return _flash_attention_decode_gqa_eager(
+            q=q, k=k, v=v, kv_lengths=kv_lengths, return_lse=return_lse,
+            causal=causal
+        )
     batch, heads, query_length, head_dim = q.shape
     _, kv_heads, kv_capacity, _ = k.shape
     if head_dim != 256 or not flash_attention_decode_gqa_is_available(q.device, q.dtype):
@@ -256,6 +263,10 @@ def flash_attention_decode_tree_merge(
     committed prefix with causal=False; q [B, H, S, D] and k/v [B, Hk, S, D] are the verify
     rows' own rotated query/key/value, and mask [S] int32 the rows each row attends inside the
     step (bit t = row t, including itself). Writes and returns ``merged`` [B, S, H*D]."""
+    if torch.compiler.is_compiling():
+        return _flash_attention_decode_tree_merge_eager(
+            out=out, lse=lse, q=q, k=k, v=v, mask=mask, merged=merged
+        )
     if q.shape[-1] != 256 or not flash_attention_decode_gqa_is_available(q.device, q.dtype):
         return _tree_merge_torch(out, lse, q, k, v, mask, merged)
     if _hip_backend is not None:
@@ -273,5 +284,13 @@ def flash_attention_decode_step_merge(
     merged: torch.Tensor,
 ) -> torch.Tensor:
     """Fold the current step's rows causally into a prefix-only decode result."""
+    if torch.compiler.is_compiling():
+        return _flash_attention_decode_step_merge_eager(out=out, lse=lse, q=q, k=k, v=v, merged=merged)
     mask = (1 << torch.arange(1, q.shape[2] + 1, device=q.device, dtype=torch.int32)) - 1
     return flash_attention_decode_tree_merge(out, lse, q, k, v, mask, merged)
+
+
+_flash_attention_decode_eager = torch.compiler.disable(flash_attention_decode)
+_flash_attention_decode_gqa_eager = torch.compiler.disable(flash_attention_decode_gqa)
+_flash_attention_decode_tree_merge_eager = torch.compiler.disable(flash_attention_decode_tree_merge)
+_flash_attention_decode_step_merge_eager = torch.compiler.disable(flash_attention_decode_step_merge)

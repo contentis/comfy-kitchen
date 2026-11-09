@@ -33,6 +33,11 @@ def quantize_convrot_w4a4_weight(
     stochastic_rounding: int | None = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Rotate a weight matrix with ConvRot and pack it as signed W4."""
+    if torch.compiler.is_compiling():
+        return _quantize_convrot_w4a4_weight_eager(
+            weight=weight, convrot_groupsize=convrot_groupsize,
+            quant_group_size=quant_group_size, stochastic_rounding=stochastic_rounding
+        )
     impl = registry.get_implementation(
         "quantize_convrot_w4a4_weight",
         kwargs={
@@ -50,7 +55,8 @@ def quantize_convrot_w4a4_weight(
     )
 
 
-def dequantize_convrot_w4a4_weight(
+@torch.library.custom_op("comfy_kitchen::dequantize_convrot_w4a4_weight", mutates_args=())
+def _op_dequantize_convrot_w4a4_weight(
     qdata: torch.Tensor,
     scales: torch.Tensor,
     convrot_groupsize: int = 256,
@@ -77,7 +83,33 @@ def dequantize_convrot_w4a4_weight(
     )
 
 
-def convrot_w4a4_linear(
+@_op_dequantize_convrot_w4a4_weight.register_fake
+def _fake_dequantize_convrot_w4a4_weight(
+    qdata: torch.Tensor,
+    scales: torch.Tensor,
+    convrot_groupsize: int = 256,
+    quant_group_size: int = _INT4_GROUP_SIZE,
+    output_dtype: torch.dtype = torch.float32,
+) -> torch.Tensor:
+    return torch.empty((qdata.shape[0], qdata.shape[1]*2), dtype=output_dtype, device=qdata.device)
+
+
+def dequantize_convrot_w4a4_weight(
+    qdata: torch.Tensor,
+    scales: torch.Tensor,
+    convrot_groupsize: int = 256,
+    quant_group_size: int = _INT4_GROUP_SIZE,
+    output_dtype: torch.dtype = torch.float32,
+) -> torch.Tensor:
+    """Dequantize packed ConvRot W4A4 weights and rotate back to original basis."""
+    return torch.ops.comfy_kitchen.dequantize_convrot_w4a4_weight(
+        qdata=qdata, scales=scales, convrot_groupsize=convrot_groupsize,
+        quant_group_size=quant_group_size, output_dtype=output_dtype
+    )
+
+
+@torch.library.custom_op("comfy_kitchen::convrot_w4a4_linear", mutates_args=())
+def _op_convrot_w4a4_linear(
     x: torch.Tensor,
     qweight: torch.Tensor,
     wscales: torch.Tensor,
@@ -109,6 +141,35 @@ def convrot_w4a4_linear(
         convrot_groupsize=convrot_groupsize,
         quant_group_size=quant_group_size,
         linear_dtype=linear_dtype,
+    )
+
+
+@_op_convrot_w4a4_linear.register_fake
+def _fake_convrot_w4a4_linear(
+    x: torch.Tensor,
+    qweight: torch.Tensor,
+    wscales: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    convrot_groupsize: int = 256,
+    quant_group_size: int = _INT4_GROUP_SIZE,
+    linear_dtype: str = "int4",
+) -> torch.Tensor:
+    return x.new_empty((*x.shape[:-1], qweight.shape[0]))
+
+
+def convrot_w4a4_linear(
+    x: torch.Tensor,
+    qweight: torch.Tensor,
+    wscales: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    convrot_groupsize: int = 256,
+    quant_group_size: int = _INT4_GROUP_SIZE,
+    linear_dtype: str = "int4",
+) -> torch.Tensor:
+    """Compute ``x @ W.T + bias`` using ConvRot W4A4 int4 MMA."""
+    return torch.ops.comfy_kitchen.convrot_w4a4_linear(
+        x=x, qweight=qweight, wscales=wscales, bias=bias, convrot_groupsize=convrot_groupsize,
+        quant_group_size=quant_group_size, linear_dtype=linear_dtype
     )
 
 
@@ -259,3 +320,6 @@ def _handle_convrot_w4a4_addmm(qt, args, kwargs):
         a = a.dequantize()
     b = _resolve_convrot_w4a4_rhs(b)
     return _convrot_w4a4_forward(a, b, bias=bias)
+
+
+_quantize_convrot_w4a4_weight_eager = torch.compiler.disable(quantize_convrot_w4a4_weight)

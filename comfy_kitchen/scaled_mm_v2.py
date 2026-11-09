@@ -4,13 +4,12 @@ import torch
 from packaging import version
 
 _TORCH_VERSION = version.parse(torch.__version__.split("+")[0])  # Remove git hash suffix
-TORCH_2_10 = version.parse("2.10.0")
 _HAS_SCALED_MM_V2 = hasattr(torch.nn.functional, "scaled_mm")
 
 if _HAS_SCALED_MM_V2:
     from torch.nn.functional import ScalingType, SwizzleType
 else:
-    # Dummy types for older PyTorch versions
+    # PyTorch 2.9 has no public scaled_mm API.
     class ScalingType:
         TensorWise = "TensorWise"
         BlockWise1x16 = "BlockWise1x16"
@@ -146,9 +145,6 @@ def scaled_mm_v2(
             bias = None if add_bias_separate else bias
         )
 
-        # Handle tuple return
-        if isinstance(output, tuple):
-            output = output[0]
         if alpha is not None:
             output = output * alpha.to(output.dtype)
         if add_bias_separate:

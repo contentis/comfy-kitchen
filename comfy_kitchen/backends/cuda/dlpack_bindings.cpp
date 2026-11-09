@@ -3642,8 +3642,8 @@ bool w4a8_codebook_mma_linear(
                     || partial_absmax->stride(1) != 1
                     || partial_absmax->stride(0) != K / convrot_group_size)))
         throw std::runtime_error("w4a8_codebook_mma_linear staged scratch mismatch");
-    if (bits == 4 && (!decode_lut.has_value()
-            || decode_lut->shape(0) != 256 || decode_lut->shape(1) != 16
+    if (bits == 4 && decode_lut.has_value()
+            && (decode_lut->shape(0) != 256 || decode_lut->shape(1) != 16
             || decode_lut->stride(1) != 1 || decode_lut->stride(0) != 16))
         throw std::runtime_error("w4a8_codebook_mma_linear decode LUT must be contiguous [256, 16]");
     if ((bias.has_value() && bias->size() != N)

@@ -623,17 +623,17 @@ def _build_constraints() -> dict:
         }),
     })
 
-    if hasattr(torch, "float8_e8m0fnu"):
-        out["quantize_mxfp8"] = FunctionConstraints(
+    out.update(
+        quantize_mxfp8=FunctionConstraints(
                 params={
                     "x": ParamConstraint(
                         dtypes=standard_floats,
                         shape_rules=(ExactDims(2),),
                     ),
                 },
-                default_devices=all_devices)
+                default_devices=all_devices),
 
-        out["dequantize_mxfp8"] = FunctionConstraints(
+        dequantize_mxfp8=FunctionConstraints(
                 params={
                     "qx": ParamConstraint(
                         dtypes=frozenset({torch.float8_e4m3fn}),
@@ -644,9 +644,9 @@ def _build_constraints() -> dict:
                     ),
                     "output_type": ParamConstraint(dtypes=standard_floats),
                 },
-                default_devices=all_devices)
+                default_devices=all_devices),
 
-        out["scaled_mm_mxfp8"] = FunctionConstraints(
+        scaled_mm_mxfp8=FunctionConstraints(
                 params={
                     "a": ParamConstraint(
                         dtypes=frozenset({torch.float8_e4m3fn}),
@@ -664,7 +664,8 @@ def _build_constraints() -> dict:
                     ),
                     "out_dtype": ParamConstraint(dtypes=standard_floats),
                 },
-                default_devices=all_devices)
+                default_devices=all_devices),
+    )
 
     for inplace_name, functional_name in {
         "apply_rope_": "apply_rope",

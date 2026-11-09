@@ -17,7 +17,6 @@ import ctypes
 import importlib.util
 import os
 import sys
-import weakref
 from typing import NamedTuple
 
 import torch
@@ -220,7 +219,7 @@ from comfy_kitchen.backends.eager.w4a8_int8 import (  # noqa: E402
     validate_w4a8_operands,
     validate_w4a8_weight_shape,
 )
-from comfy_kitchen.tensor.w4a8_packed import _FIXED_LUT, _mma_bits, w4a8_mma_record_bytes  # noqa: E402
+from comfy_kitchen.tensor.w4a8_packed import w4a8_mma_record_bytes  # noqa: E402
 from comfy_kitchen.backends.eager.w4a8_int8 import (  # noqa: E402
     w4a8_int8_linear as eager_w4a8_int8_linear,
 )
@@ -246,7 +245,6 @@ from comfy_kitchen.tensor.int8_utils import (  # noqa: E402
 )
 
 _CUBLASLT_AVAILABLE = _EXT_AVAILABLE and getattr(_C, "HAS_CUBLASLT", False)
-_cublas_workspaces: dict[int, torch.Tensor] = {}
 _empty_cuda_tensors: dict[tuple[str, int | None, torch.dtype], torch.Tensor] = {}
 _turing_device_cache: dict[int, bool] = {}
 _nvidia_16_series_device_cache: dict[int, bool] = {}
@@ -260,29 +258,6 @@ _FORCE_INT4_INT8_FALLBACK = os.environ.get("COMFY_KITCHEN_FORCE_INT4_INT8_FALLBA
 _INT4_PACKED_WEIGHT_SMALL_M_MAX = 8
 _INT4_INT8_WEIGHT_CHUNK_N = max(1, int(os.environ.get("COMFY_KITCHEN_INT4_INT8_WEIGHT_CHUNK_N", "4096")))
 _W4A8_CHUNKED = os.environ.get("COMFY_KITCHEN_W4A8_CHUNKED", "1") != "0"
-_W4A8_FIXED_DECODE_LUTS: dict[torch.device, torch.Tensor] = {}
-
-
-def _w4a8_fixed_decode_lut(device: torch.device) -> torch.Tensor:
-    if (decode_lut := _W4A8_FIXED_DECODE_LUTS.get(device)) is None:
-        codebook = torch.tensor(_FIXED_LUT, dtype=torch.float32)
-        scales = torch.arange(256, dtype=torch.uint8)
-        scales = scales.view(torch.float8_e4m3fn).float()
-        table = (
-            (scales[:, None] * codebook[None, :])
-            .round_()
-            .clamp_(-127, 127)
-            .to(torch.int8)
-            .contiguous()
-        )
-        # The immutable table outlives each capture; finish its copy before another
-        # stream can read it, and keep it outside execution-scoped allocations.
-        with allocation_context():
-            decode_lut = table.to(device)
-        _W4A8_FIXED_DECODE_LUTS[device] = decode_lut
-    return decode_lut
-
-
 _NVIDIA_16_SERIES = (
     "1660",
     "1650",
@@ -532,17 +507,9 @@ def get_cublas_workspace_size_bytes() -> int:
 
 
 def get_cublas_workspace() -> torch.Tensor:
-    """Returns workspace for cublas."""
-    device_index = torch.cuda.current_device()
-    workspace = _cublas_workspaces.get(device_index)
-    if workspace is None:
-        workspace = torch.empty(
-            get_cublas_workspace_size_bytes(),
-            dtype=torch.uint8,
-            device=device_index,
-        )
-        _cublas_workspaces[device_index] = workspace
-    return workspace
+    """Per-call scratch avoids retaining graph-pool tensors; the allocator reuses storage."""
+    return torch.empty(get_cublas_workspace_size_bytes(), dtype=torch.uint8,
+                       device=torch.cuda.current_device())
 
 
 def _empty_cuda_tensor(device: torch.device, dtype: torch.dtype) -> torch.Tensor:
@@ -2088,8 +2055,6 @@ def _w4a8_mma_linear(
     # Call-local split-K sums and counters also isolate independently replayed graphs.
     scratch = torch.zeros(m * n + n // 16, dtype=torch.int32, device=out.device)
     workspace, counters = scratch[:m * n].view(m, n), scratch[m * n:]
-    bits = _mma_bits(qdata.numel(), n, xq.shape[1])
-    decode_lut = _w4a8_fixed_decode_lut(qdata.device) if bits == 4 else None
     used = _C.w4a8_codebook_mma_linear(
         _wrap_for_dlpack(x_2d),
         _wrap_for_dlpack(rotated) if rotated is not None else None,
@@ -2099,7 +2064,7 @@ def _w4a8_mma_linear(
         _input_act_code(input_act),
         _wrap_for_dlpack(xq),
         _wrap_for_dlpack(qdata),
-        _wrap_for_dlpack(decode_lut) if decode_lut is not None else None,
+        None,  # Native immutable fixed table; no cached graph-pool tensor.
         _wrap_for_dlpack(s_channel),
         _wrap_for_dlpack(xs),
         _wrap_for_dlpack(bias_float) if bias_float is not None else None,
@@ -3011,17 +2976,12 @@ def _topk_threshold(q, k, topk_ratio, scale, lengths, valid, sinks):
     return _topk_from_pooled(c8, csc.squeeze(-1), kc, topk_ratio, scale * _LOG2E, sinks)
 
 
-_ROPE_FAB_CACHE = {}
 
 
 def _packed_rope_fab(freqs, t, rot):
     """[..., T, 1, rot/2, 2, 2] -> [T, rot, 2] per-channel (self, partner)
-    coefficients. Cached per freqs tensor (H3 reuses one across a step's
-    layers); the weak ref validates an id() hit without retaining freqs."""
-    key = (id(freqs), t, rot)
-    hit = _ROPE_FAB_CACHE.get(key)
-    if hit is not None and hit[0]() is freqs:
-        return hit[1]
+    coefficients. Recompute inside capture so changed frequency contents and
+    the derived buffer's lifetime are both represented in the graph."""
     f = freqs.reshape(-1, rot // 2, 2, 2)
     if f.shape[0] != t:
         raise ValueError(f"sol_attn: rope_freqs covers {f.shape[0]} tokens, T={t}")
@@ -3031,8 +2991,6 @@ def _packed_rope_fab(freqs, t, rot):
     fab[:, :rot // 2, 1] = f[:, :, 0, 1]
     fab[:, rot // 2:, 0] = f[:, :, 1, 1]
     fab[:, rot // 2:, 1] = f[:, :, 1, 0]
-    _ROPE_FAB_CACHE.clear()   # one live entry
-    _ROPE_FAB_CACHE[key] = (weakref.ref(freqs), fab)
     return fab
 
 
@@ -3254,7 +3212,7 @@ def sol_attn_chunked(
 
 
 def _perm_d_index(device):
-    d = torch.arange(128)
+    d = torch.arange(128, device=device)
     kc, rem = d >> 5, d & 31
     h, r2 = rem >> 4, rem & 15
     return (kc * 32 + 8 * (r2 >> 2) + 4 * h + (r2 & 3)).to(device)
@@ -3662,17 +3620,11 @@ def min_cut(nbr: torch.Tensor, cap: torch.Tensor, s_cap: torch.Tensor, t_cap: to
     return h >= big
 
 
-_ZERO_VECTORS: dict[tuple, torch.Tensor] = {}
 
 
 def _zero_vector(n: int, device: torch.device, dtype: torch.dtype = torch.float16) -> torch.Tensor:
-    """A cached length-n zero vector: the "no bias" / "no residual" operand of
-    the fused kernels, which read a vector unconditionally."""
-    key = (n, device.type, device.index, dtype)
-    vec = _ZERO_VECTORS.get(key)
-    if vec is None:
-        vec = _ZERO_VECTORS[key] = torch.zeros(n, dtype=dtype, device=device)
-    return vec
+    # Do not retain a tensor allocated during Inductor's graph-pool warmup.
+    return torch.zeros(n, dtype=dtype, device=device)
 
 
 def _ndhwc_strides(t: torch.Tensor):

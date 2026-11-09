@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 import torch
 
-import comfy_kitchen as ck
 from comfy_kitchen.exceptions import NoCapableBackendError
 from comfy_kitchen.registry import registry
 
@@ -136,25 +135,14 @@ class TensorWiseINT8Layout(QuantizedLayout):
                 kwargs={"weight": tensor, "group_size": convrot_groupsize, "stochastic_rounding": stochastic_rounding},
             )
             qdata, qscale = impl(tensor, convrot_groupsize, stochastic_rounding=stochastic_rounding)
-        elif is_weight:
-            if per_channel:
-                impl = registry.get_implementation(
-                    "quantize_int8_rowwise",
-                    kwargs={"x": tensor, "stochastic_rounding": stochastic_rounding},
-                )
-                qdata, qscale = impl(tensor, stochastic_rounding=stochastic_rounding)
-            else:
-                impl = registry.get_implementation(
-                    "quantize_int8_tensorwise",
-                    kwargs={"x": tensor, "scale": scale, "stochastic_rounding": stochastic_rounding},
-                )
-                qdata, qscale = impl(tensor, scale=scale, stochastic_rounding=stochastic_rounding)
         else:
-            impl = registry.get_implementation(
-                "quantize_int8_rowwise",
-                kwargs={"x": tensor, "stochastic_rounding": stochastic_rounding},
-            )
-            qdata, qscale = impl(tensor, stochastic_rounding=stochastic_rounding)
+            # Custom ops keep native pointers opaque and preserve symbolic shape tracing.
+            from comfy_kitchen import quantize_int8_rowwise, quantize_int8_tensorwise
+
+            if is_weight and not per_channel:
+                qdata, qscale = quantize_int8_tensorwise(tensor, scale, stochastic_rounding)
+            else:
+                qdata, qscale = quantize_int8_rowwise(tensor, stochastic_rounding)
 
         params = cls.Params(
             scale=qscale,
@@ -268,11 +256,11 @@ class TensorWiseINT8Layout(QuantizedLayout):
         if params.transposed:
             return NotImplemented
         qdata, scale = cls.get_plain_tensors(weight)
-        return ck.int8_linear(
-            x, qdata, scale, bias, x.dtype,
-            convrot=params.convrot, convrot_groupsize=params.convrot_groupsize,
-            input_act=input_act, input_act_weight=input_act_weight, input_act_eps=input_act_eps,
-            residual=residual, residual_scale=residual_scale,
+        return torch.ops.comfy_kitchen.int8_linear(
+            x, qdata, scale, bias, _dtype_code(x.dtype),
+            params.convrot, params.convrot_groupsize,
+            input_act, input_act_weight, float(input_act_eps),
+            residual, residual_scale,
         )
 
     @classmethod

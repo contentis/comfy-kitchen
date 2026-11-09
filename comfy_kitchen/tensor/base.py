@@ -171,10 +171,12 @@ class QuantizedTensor(torch.Tensor):
         qdata: torch.Tensor,
         layout_cls: str,
         params: Any,
+        outer_stride: Any = None,
     ):
         return torch.Tensor._make_wrapper_subclass(
             cls,
             params.orig_shape,
+            strides=outer_stride,
             device=qdata.device,
             dtype=params.orig_dtype,
             requires_grad=False,
@@ -185,6 +187,7 @@ class QuantizedTensor(torch.Tensor):
         qdata: torch.Tensor,
         layout_cls: str,
         params: Any,
+        outer_stride: Any = None,
     ):
         assert isinstance(layout_cls, str)
         self._qdata = qdata
@@ -372,6 +375,13 @@ class QuantizedTensor(torch.Tensor):
             params_kwargs[field_name] = inner_tensors[attr_name]
 
         params = ctx["params_class"](**params_kwargs)
+        # Dynamo requires its symbolic outer shape and stride, not flatten-time metadata.
+        # Scalar gather placeholders (0) mean "keep the stored shape".
+        if isinstance(outer_size, (tuple, list, torch.Size)):
+            params = dataclasses.replace(params, orig_shape=tuple(outer_size))
+            return QuantizedTensor(
+                inner_tensors["_qdata"], ctx["layout_cls"], params, outer_stride=outer_stride,
+            )
         return QuantizedTensor(inner_tensors["_qdata"], ctx["layout_cls"], params)
 
     # ==================== Torch Dispatch ====================

@@ -796,9 +796,7 @@ if BUILD_NO_CUDA and not extensions:
         "version": version,
         "description": f"{description} (CPU-only)",
         "include_package_data": False,
-        "install_requires": [
-            "torch>=2.5.0",
-        ],
+        "install_requires": project_meta["dependencies"],
     })
 
     readme_path = pathlib.Path("README.md")

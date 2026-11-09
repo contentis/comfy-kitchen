@@ -346,7 +346,7 @@ def _register():
         return
 
     has_cuda = torch.cuda.is_available()
-    has_xpu = hasattr(torch, "xpu") and torch.xpu.is_available()
+    has_xpu = torch.xpu.is_available()
 
     if not has_cuda and not has_xpu:
         registry.mark_unavailable("triton", "Neither CUDA nor XPU available on this system")

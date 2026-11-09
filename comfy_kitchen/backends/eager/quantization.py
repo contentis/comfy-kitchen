@@ -431,13 +431,13 @@ def _op_quantize_fp8(
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     kwargs = {"x": x, "scale": scale, "output_type": output_dtype}
     impl = registry.get_implementation("quantize_per_tensor_fp8", kwargs=kwargs)
-    return impl(**kwargs)
+    return impl(**kwargs).contiguous()
 
 
 @_op_quantize_fp8.register_fake
 def _op_quantize_fp8_fake(x, scale, output_dtype_code):
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
-    return torch.empty_like(x, dtype=output_dtype)
+    return torch.empty(x.shape, dtype=output_dtype, device=x.device)
 
 
 @torch.library.custom_op("comfy_kitchen::dequantize_fp8", mutates_args=())
@@ -459,13 +459,13 @@ def _op_dequantize_fp8(
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
     kwargs = {"x": x, "scale": scale, "output_type": output_dtype}
     impl = registry.get_implementation("dequantize_per_tensor_fp8", kwargs=kwargs)
-    return impl(**kwargs)
+    return impl(**kwargs).contiguous()
 
 
 @_op_dequantize_fp8.register_fake
 def _op_dequantize_fp8_fake(x, scale, output_dtype_code):
     output_dtype = DTYPE_CODE_TO_DTYPE[output_dtype_code]
-    return torch.empty_like(x, dtype=output_dtype)
+    return torch.empty(x.shape, dtype=output_dtype, device=x.device)
 
 
 @torch.library.custom_op("comfy_kitchen::quantize_nvfp4", mutates_args=())
@@ -1140,34 +1140,49 @@ def int8_linear_rms_modulated(
 
 @torch.library.custom_op("comfy_kitchen::quantize_int8_tensorwise", mutates_args=())
 def _op_quantize_int8_tensorwise(
-    x: torch.Tensor,
+    x: torch.Tensor, scale: torch.Tensor | None = None, stochastic_rounding: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    kwargs = {"x": x}
+    kwargs = {"x": x, "scale": scale, "stochastic_rounding": stochastic_rounding}
     impl = registry.get_implementation("quantize_int8_tensorwise", kwargs=kwargs)
-    return impl(**kwargs)
+    q, result_scale = impl(**kwargs)
+    # Custom-op outputs cannot alias inputs; the public wrapper returns the supplied scale.
+    return q.contiguous(), result_scale.clone() if scale is not None else result_scale
 
 
 @_op_quantize_int8_tensorwise.register_fake
-def _op_quantize_int8_tensorwise_fake(x):
-    q = torch.empty_like(x, dtype=torch.int8)
-    scale = torch.empty((), dtype=torch.float32, device=x.device)
-    return q, scale
+def _op_quantize_int8_tensorwise_fake(x, scale=None, stochastic_rounding=0):
+    return (torch.empty(x.shape, dtype=torch.int8, device=x.device),
+            torch.empty(scale.shape if scale is not None else (), dtype=torch.float32, device=x.device))
+
+
+@torch.library.custom_op(
+    "comfy_kitchen::quantize_int8_tensorwise_seeded", mutates_args=(),
+    tags=(torch._C.Tag.cudagraph_unsafe,),
+)
+def _op_quantize_int8_tensorwise_seeded(
+    x: torch.Tensor, scale: torch.Tensor | None, stochastic_rounding: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    # Per-call generator construction is not capture-safe.
+    return _op_quantize_int8_tensorwise(x, scale, stochastic_rounding)
+
+
+_op_quantize_int8_tensorwise_seeded.register_fake(_op_quantize_int8_tensorwise_fake)
 
 
 @torch.library.custom_op("comfy_kitchen::quantize_int8_rowwise", mutates_args=())
 def _op_quantize_int8_rowwise(
-    x: torch.Tensor,
+    x: torch.Tensor, stochastic_rounding: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    kwargs = {"x": x}
+    kwargs = {"x": x, "stochastic_rounding": stochastic_rounding}
     impl = registry.get_implementation("quantize_int8_rowwise", kwargs=kwargs)
-    return impl(**kwargs)
+    q, scale = impl(**kwargs)
+    return q.contiguous(), scale
 
 
 @_op_quantize_int8_rowwise.register_fake
-def _op_quantize_int8_rowwise_fake(x):
-    q = torch.empty_like(x, dtype=torch.int8)
-    scale = torch.empty(*x.shape[:-1], 1, dtype=torch.float32, device=x.device)
-    return q, scale
+def _op_quantize_int8_rowwise_fake(x, stochastic_rounding=0):
+    return (torch.empty(x.shape, dtype=torch.int8, device=x.device),
+            torch.empty((*x.shape[:-1], 1), dtype=torch.float32, device=x.device))
 
 
 @torch.library.custom_op("comfy_kitchen::quantize_int8_convrot_weight", mutates_args=())

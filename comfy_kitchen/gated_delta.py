@@ -107,6 +107,11 @@ def deltanet_conv_step_deferred(
     extends (-1: the committed window). The current projections are saved to proj_buf[parity]
     for the next step.
     """
+    if torch.compiler.is_compiling():
+        return _deltanet_conv_step_deferred_eager(
+            proj=proj, conv_state=conv_state, conv_w=conv_w, conv_b=conv_b,
+            proj_buf=proj_buf, qkv_buf=qkv_buf, ctl=ctl
+        )
     channels = proj.shape[2]
     conv_w = conv_w.reshape(channels, -1).contiguous()
     if not deferred_is_available(proj.device):
@@ -195,6 +200,13 @@ def gated_delta_decode_deferred(
     chain; a row's ancestors are ctl's parent[]
     (see deltanet_conv_step_deferred). State, dt_bias and g_decay must be contiguous.
     """
+    if torch.compiler.is_compiling():
+        return _gated_delta_decode_deferred_eager(
+            x=x, w_a=w_a, w_b=w_b, dt_bias=dt_bias, g_decay=g_decay,
+            state=state, key_dim=key_dim, num_key_heads=num_key_heads, scale=scale, z=z,
+            norm_weight=norm_weight, eps=eps, qkv_buf=qkv_buf, gates_buf=gates_buf, sumsq_buf=sumsq_buf,
+            ctl=ctl
+        )
     batch, seq, _ = x.shape
     heads, key_dim_head, value_dim = state.shape[1], state.shape[2], state.shape[3]
     z = z.reshape(batch, seq, heads * value_dim)
@@ -322,6 +334,12 @@ def gated_delta_decode_fused(
     The fp32 state [B, Hv, DK, DV] is updated in place. State, dt_bias, g_decay,
     and snapshots must be contiguous.
     """
+    if torch.compiler.is_compiling():
+        return _gated_delta_decode_fused_eager(
+            mixed_qkv=mixed_qkv, x=x, w_a=w_a, w_b=w_b, dt_bias=dt_bias,
+            g_decay=g_decay, state=state, key_dim=key_dim, num_key_heads=num_key_heads, scale=scale,
+            z=z, norm_weight=norm_weight, eps=eps, snapshots=snapshots
+        )
     batch, _, seq = mixed_qkv.shape
     heads, key_dim_head, value_dim = state.shape[1], state.shape[2], state.shape[3]
     if not is_available(x.device, key_dim_head, value_dim):
@@ -363,6 +381,11 @@ def deltanet_conv_step(
     The conv_state [B, C, KS-1] is updated in place. Conv_state and snapshots
     must be contiguous.
     """
+    if torch.compiler.is_compiling():
+        return _deltanet_conv_step_eager(
+            proj=proj, conv_state=conv_state, conv_w=conv_w, conv_b=conv_b,
+            snapshots=snapshots
+        )
     if not is_available(proj.device):
         raise RuntimeError("deltanet_conv_step requires the CUDA or HIP extension")
     batch, seq, channels = proj.shape
@@ -385,3 +408,9 @@ def deltanet_conv_step(
     if not ok:
         raise RuntimeError("deltanet_conv_step launch rejected")
     return out
+
+
+_deltanet_conv_step_deferred_eager = torch.compiler.disable(deltanet_conv_step_deferred)
+_gated_delta_decode_deferred_eager = torch.compiler.disable(gated_delta_decode_deferred)
+_gated_delta_decode_fused_eager = torch.compiler.disable(gated_delta_decode_fused)
+_deltanet_conv_step_eager = torch.compiler.disable(deltanet_conv_step)
