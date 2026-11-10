@@ -1113,3 +1113,134 @@ class TestBandedStreamK:
         m = 9216                                          # 75.5 MB
         assert pick(m, n, k) == (13 if m * k > threshold else 0)
         assert pick(4096, 24576, 32768) in (0, 1)         # fewer M tiles than N: no reroute
+
+
+class TestScalarInt8Gemm:
+    """The SM90/SM100 path preserves scalar scales and input-dependent graphs."""
+
+    @requires_cuda_backend
+    @pytest.mark.parametrize("shape", [(39, 3840, 2560), (151, 6144, 2560), (1, 19, 1024)])
+    def test_matches_vector_scale_epilogue_and_replays_changed_inputs(self, shape, seed):
+        if torch.cuda.get_device_capability() not in ((9, 0), (10, 0)):
+            pytest.skip("TMA INT8 fast path is specialized for SM90/SM100")
+        m, n, k = shape
+        wrap, c = cuda._wrap_for_dlpack, cuda._C
+        a = torch.randint(-128, 128, (m, k), dtype=torch.int8, device="cuda")
+        b = torch.randint(-128, 128, (n, k), dtype=torch.int8, device="cuda")
+        xs = torch.rand(m, device="cuda") * 0.01
+        ws = torch.full((), 0.027, device="cuda")
+        bias = torch.randn(n, dtype=torch.bfloat16, device="cuda")
+        out = torch.empty(m, n, dtype=torch.bfloat16, device="cuda")
+        ref = torch.empty_like(out)
+        stream = torch.cuda.current_stream().cuda_stream
+
+        def run():
+            return c.cutlass_int8_dequant_scalar(
+                *(wrap(t) for t in (a, b, xs, ws, bias, out)),
+                torch.cuda.current_stream().cuda_stream)
+
+        def reference():
+            if n == 19:  # Exercise a GEMV tail the legacy vector-store GEMM cannot run.
+                acc = (a.cpu().int() @ b.cpu().int().T).float()
+                first = acc * xs.cpu()[:, None]
+                ref.copy_((first.double() * ws.cpu().double() + bias.cpu().double()).float().bfloat16())
+            else:
+                vector_scale = ws.expand(n).contiguous()
+                assert c.cutlass_int8_dequant(
+                    *(wrap(t) for t in (a, b, xs, vector_scale, bias, ref)), 2, stream)
+
+        reference()
+        assert run()
+        assert torch.equal(out.view(torch.int16), ref.view(torch.int16))
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            assert run()
+        a.random_(-128, 128)
+        b.random_(-128, 128)
+        xs.uniform_(0.001, 0.01)
+        ws.fill_(0.013)
+        bias.normal_()
+        reference()
+        graph.replay()
+        torch.cuda.synchronize()
+        assert torch.equal(out.view(torch.int16), ref.view(torch.int16))
+
+    @requires_cuda_backend
+    def test_tiny_k12_uses_exact_integer_dot(self, seed):
+        if torch.cuda.get_device_capability() not in ((9, 0), (10, 0)):
+            pytest.skip("TMA INT8 fast path is specialized for SM90/SM100")
+        wrap, c = cuda._wrap_for_dlpack, cuda._C
+        a = torch.randint(-128, 128, (257, 12), dtype=torch.int8, device="cuda")
+        b = torch.randint(-128, 128, (1, 12), dtype=torch.int8, device="cuda")
+        xs = torch.ones(257, device="cuda")
+        ws = torch.ones((), device="cuda")
+        bias = cuda._empty_cuda_tensor(a.device, torch.bfloat16)
+        out = torch.empty(257, 1, dtype=torch.bfloat16, device="cuda")
+        assert c.cutlass_int8_dequant_scalar(
+            *(wrap(t) for t in (a, b, xs, ws, bias, out)),
+            torch.cuda.current_stream().cuda_stream)
+        ref = (a.cpu().int() @ b.cpu().int().T).float().bfloat16()
+        assert torch.equal(out.cpu().view(torch.int16), ref.view(torch.int16))
+
+    @requires_cuda_backend
+    def test_split_k_graphs_own_their_workspace(self, seed):
+        if torch.cuda.get_device_capability() != (9, 0):
+            pytest.skip("Only the Hopper routes use cuBLAS partials")
+        wrap, c = cuda._wrap_for_dlpack, cuda._C
+        cases = []
+        for _ in range(2):
+            a = torch.randint(-128, 128, (4096, 3072), dtype=torch.int8, device="cuda")
+            b = torch.randint(-128, 128, (64, 3072), dtype=torch.int8, device="cuda")
+            xs = torch.rand(4096, device="cuda") * 0.01
+            ws = torch.full((), 0.027, device="cuda")
+            bias = torch.randn(64, dtype=torch.bfloat16, device="cuda")
+            out = torch.empty(4096, 64, dtype=torch.bfloat16, device="cuda")
+            ref = torch.empty_like(out)
+            assert c.cutlass_int8_dequant(
+                *(wrap(t) for t in (a, b, xs, ws.expand(64).contiguous(), bias, ref)),
+                2, torch.cuda.current_stream().cuda_stream)
+            cases.append((a, b, xs, ws, bias, out, ref))
+        torch.cuda.synchronize()
+        streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+        graphs = []
+        for stream, case in zip(streams, cases, strict=True):
+            def run(case=case, stream=stream):
+                assert c.cutlass_int8_dequant_scalar(
+                    *(wrap(t) for t in case[:-1]), stream.cuda_stream)
+            with torch.cuda.stream(stream):
+                run()  # Initialize this stream's cuBLAS handle before capture.
+                graph = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(graph, stream=stream):
+                    run()
+            graphs.append(graph)
+        for stream in streams:
+            stream.synchronize()
+        for stream, graph in zip(streams, graphs, strict=True):
+            with torch.cuda.stream(stream):
+                graph.replay()
+        for stream in streams:
+            stream.synchronize()
+        for *_, out, ref in cases:
+            assert torch.equal(out.view(torch.int16), ref.view(torch.int16))
+
+    @requires_cuda_backend
+    def test_int8_linear_dispatches_scalar_scale_without_expanding_it(self, seed, monkeypatch):
+        if torch.cuda.get_device_capability() not in ((9, 0), (10, 0)):
+            pytest.skip("TMA INT8 fast path is specialized for SM90/SM100")
+        x = torch.randn(39, 2560, dtype=torch.bfloat16, device="cuda")
+        weight = torch.randint(-128, 128, (3840, 2560), dtype=torch.int8, device="cuda")
+        scale = torch.full((), 0.027, device="cuda")
+        bias = torch.randn(3840, dtype=torch.bfloat16, device="cuda")
+        launch = cuda._C.cutlass_int8_dequant_scalar
+        calls = []
+
+        def record(*args):
+            used = launch(*args)
+            calls.append(used)
+            return used
+
+        monkeypatch.setattr(cuda._C, "cutlass_int8_dequant_scalar", record)
+        got = cuda.int8_linear(x, weight, scale, bias, out_dtype=torch.bfloat16)
+        ref = cuda.int8_linear(x, weight, scale.expand(3840).contiguous(), bias, out_dtype=torch.bfloat16)
+        assert calls == [True]
+        assert torch.equal(got.view(torch.int16), ref.view(torch.int16))
