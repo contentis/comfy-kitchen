@@ -1,0 +1,174 @@
+{
+  "code_revision": "cae8b25fec363bad4f91d7aadc1aa73e7140c306",
+  "pr_base": "5beaba69afa63b71e86677c49093f04d621b07f1",
+  "reference_revision": "7d6a22ae8281cd1053a8449530fa0e764a2e51cb",
+  "survey_candidate_revision": "2e14988b9cbcd2da30ae7f8da5bc1cc769c72c70",
+  "reference_quantizer_implementations_unchanged_in_pr_base": true,
+  "source_audit": {
+    "matches_sweep": "2e14988b9cbcd2da30ae7f8da5bc1cc769c72c70",
+    "files": {
+      "float_utils.cuh": "f2bb97a33e38db9d1c4c9c30ea6f92da5a8596876fcacda9fef3140f839ee964",
+      "utils.cuh": "9d4395d032ec473a4a3c92cbf2e09ad9cce187757f1d5a66dc576b68907e7e64",
+      "dtype_dispatch.cuh": "5a155c3bf2123604a0689ad792016b703c45d9676a389381b482ac1f1afb23bc",
+      "ops/quantize_mxfp8.cu": {
+        "sha256": "2a0e5ea5562b5c513dbef0d3eb4b533d4ad75b0289d1f1fc3c25cf247aad907d",
+        "matches_sweep_without_compile_guards": true
+      },
+      "ops/quantize_nvfp4.cu": {
+        "sha256": "af0d6a32a4f220052dd036e1758991ed1d730196679ed84a58ef459cde16db02",
+        "matches_sweep_without_compile_guards": true
+      }
+    },
+    "python_function_bodies_match": [
+      "quantize_mxfp8",
+      "quantize_nvfp4"
+    ]
+  },
+  "input_dtype": "bfloat16",
+  "configured_comparisons": 1670,
+  "matched_timings": 1644,
+  "status_counts": {
+    "ok/ok": 1644,
+    "resource_limit/resource_limit": 26
+  },
+  "unmeasured_boards": {
+    "H200": "Separate compile guards disabled the operation in the sweep; this PR does not include those guards.",
+    "RTX 6000 Ada": "Separate compile guards disabled the operation in the sweep; this PR does not include those guards.",
+    "RTX 4500 Ada": "Separate compile guards disabled the operation in the sweep; this PR does not include those guards."
+  },
+  "performance_summary": [
+    {
+      "op": "quantize_mxfp8",
+      "board": "b200",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.076148528725151,
+      "median": 1.0,
+      "min": 0.9960937202460228,
+      "max": 3.8530101325933237,
+      "slow_over5pct": 0
+    },
+    {
+      "op": "quantize_mxfp8",
+      "board": "b300",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.0705215481902641,
+      "median": 1.0,
+      "min": 0.8000000181898945,
+      "max": 3.571428769413814,
+      "slow_over5pct": 1
+    },
+    {
+      "op": "quantize_mxfp8",
+      "board": "rtxpro6000-blackwell",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.0127464579707464,
+      "median": 1.00118529026786,
+      "min": 0.8312499840838423,
+      "max": 1.2673267569240825,
+      "slow_over5pct": 8
+    },
+    {
+      "op": "quantize_mxfp8",
+      "board": "rtx5080",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 1.0087130546122411,
+      "median": 1.0,
+      "min": 0.7664671340474868,
+      "max": 1.4330708183240457,
+      "slow_over5pct": 5
+    },
+    {
+      "op": "quantize_mxfp8",
+      "board": "rtxpro2000-blackwell",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 1.0023344208267244,
+      "median": 1.0,
+      "min": 0.6844919848516895,
+      "max": 1.3333332828058517,
+      "slow_over5pct": 22
+    },
+    {
+      "op": "quantize_nvfp4",
+      "board": "b200",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.0366395105598565,
+      "median": 1.0,
+      "min": 0.8372703967440376,
+      "max": 3.6500002364686286,
+      "slow_over5pct": 4
+    },
+    {
+      "op": "quantize_nvfp4",
+      "board": "b300",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.0097523970635234,
+      "median": 1.0,
+      "min": 0.8000000181898945,
+      "max": 1.2539062513322676,
+      "slow_over5pct": 2
+    },
+    {
+      "op": "quantize_nvfp4",
+      "board": "rtxpro6000-blackwell",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 0.9936733952808565,
+      "median": 1.0,
+      "min": 0.820512860908232,
+      "max": 1.310397537548984,
+      "slow_over5pct": 20
+    },
+    {
+      "op": "quantize_nvfp4",
+      "board": "rtx5080",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 1.0033616938593326,
+      "median": 1.0,
+      "min": 0.7529412274946063,
+      "max": 1.799609390205615,
+      "slow_over5pct": 6
+    },
+    {
+      "op": "quantize_nvfp4",
+      "board": "rtxpro2000-blackwell",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 0.9652883467047376,
+      "median": 0.9984699396251292,
+      "min": 0.7500000284217095,
+      "max": 1.6035198801277946,
+      "slow_over5pct": 37
+    }
+  ],
+  "compile_validation": {
+    "passed": true,
+    "architectures": [
+      "89",
+      "90a",
+      "100f",
+      "103",
+      "120f"
+    ],
+    "complete_wheel_rebuilt": false
+  },
+  "fresh_gpu_run": false,
+  "followup_slowdown_flags": 70,
+  "notes": [
+    "Performance-only extraction: no architecture policy or compile-guard changes.",
+    "Reuse of same-allocation sequential revision blocks from the full survey; no new standalone PR performance run.",
+    "Within-run ratio intervals exclude between-run/run-order uncertainty; no multiple-testing adjustment. Flags are follow-up candidates, not proven code regressions.",
+    "Boxes describe shape distributions, not confidence intervals.",
+    "Logical I/O is useful bytes, not hardware-counter DRAM traffic; theoretical bandwidth uses observed active memory clocks. No fitted calibration.",
+    "Large-input SOL uses logical I/O >=4x L2. Thermal-overlap timings remain in relative comparisons but SOL is unscored.",
+    "The B300 NVFP4 large-input score remains about 8.5% of nominal DRAM roof for both revisions in this dataset; cause is not established.",
+    "Earlier targeted numerical validation is reused; the full sweep checks finite outputs rather than complete numerical correctness."
+  ]
+}
