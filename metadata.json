@@ -1,0 +1,223 @@
+{
+  "code_revision": "67dbfd2274f735e64e2491766ce4f46eba8917da",
+  "pr_base": "5beaba69afa63b71e86677c49093f04d621b07f1",
+  "reference_revision": "7d6a22ae8281cd1053a8449530fa0e764a2e51cb",
+  "survey_candidate_revision": "2e14988b9cbcd2da30ae7f8da5bc1cc769c72c70",
+  "reference_adaln_source_unchanged_in_pr_base": true,
+  "status_counts": {
+    "ok/ok": 2633,
+    "resource_limit/resource_limit": 38,
+    "ok/resource_limit": 1
+  },
+  "configured_case_pairs": 2672,
+  "matched_timings": 2633,
+  "input_dtype": "bfloat16",
+  "compiled_architectures": [
+    "89",
+    "90a",
+    "100f",
+    "103",
+    "120f"
+  ],
+  "compile_validation": "CUDA translation unit compiled successfully; no complete wheel rebuild",
+  "fresh_gpu_runs": false,
+  "source_audit": {
+    "matches_sweep": "2e14988b9cbcd2da30ae7f8da5bc1cc769c72c70",
+    "exact_files": {
+      "ops/adaln.cu": "fdd6445c216c5600a4a4038f86f03e7caacaee23a3341eae6d8e2938b86fb6b4",
+      "utils.cuh": "9d4395d032ec473a4a3c92cbf2e09ad9cce187757f1d5a66dc576b68907e7e64",
+      "dtype_dispatch.cuh": "5a155c3bf2123604a0689ad792016b703c45d9676a389381b482ac1f1afb23bc"
+    },
+    "python_wrapper_match": [
+      "_adaln_impl",
+      "adaln",
+      "rms_adaln"
+    ]
+  },
+  "performance_summary": [
+    {
+      "op": "adaln",
+      "board": "h200",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.4909834069699395,
+      "median": 1.0088175091333516,
+      "min": 0.9568345165576198,
+      "max": 6.35347438638616,
+      "slow_over5pct": 0
+    },
+    {
+      "op": "adaln",
+      "board": "b200",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.5489978076593196,
+      "median": 1.276638007671151,
+      "min": 0.7559054991799365,
+      "max": 6.444444264791173,
+      "slow_over5pct": 2
+    },
+    {
+      "op": "adaln",
+      "board": "b300",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.5359035396326088,
+      "median": 1.300904981844736,
+      "min": 0.9512799484657932,
+      "max": 6.302325514499038,
+      "slow_over5pct": 1
+    },
+    {
+      "op": "adaln",
+      "board": "rtx6000-ada",
+      "timed_pairs": 165,
+      "planned": 167,
+      "geomean": 1.2450886817346298,
+      "median": 1.0,
+      "min": 0.8705357047151387,
+      "max": 4.600000218278734,
+      "slow_over5pct": 1
+    },
+    {
+      "op": "adaln",
+      "board": "rtx4500-ada",
+      "timed_pairs": 164,
+      "planned": 167,
+      "geomean": 1.2136210113379384,
+      "median": 1.000640837873462,
+      "min": 0.9827586152824336,
+      "max": 4.102563987756093,
+      "slow_over5pct": 0
+    },
+    {
+      "op": "adaln",
+      "board": "rtxpro6000-blackwell",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.2833514208890895,
+      "median": 1.0041921119122408,
+      "min": 0.8375000318323154,
+      "max": 4.2679243621127005,
+      "slow_over5pct": 1
+    },
+    {
+      "op": "adaln",
+      "board": "rtx5080",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 1.2421271431462595,
+      "median": 1.0,
+      "min": 0.6230366342562752,
+      "max": 4.015686394461005,
+      "slow_over5pct": 3
+    },
+    {
+      "op": "adaln",
+      "board": "rtxpro2000-blackwell",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 1.2400423316764086,
+      "median": 1.0,
+      "min": 0.7529412274946063,
+      "max": 3.965625101181288,
+      "slow_over5pct": 2
+    },
+    {
+      "op": "rms_adaln",
+      "board": "h200",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.4545538661046373,
+      "median": 1.0016518833692998,
+      "min": 0.9215686013422002,
+      "max": 6.123893893441001,
+      "slow_over5pct": 2
+    },
+    {
+      "op": "rms_adaln",
+      "board": "b200",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.540959328462902,
+      "median": 1.251962685687846,
+      "min": 0.7529412274946063,
+      "max": 6.66666689764945,
+      "slow_over5pct": 4
+    },
+    {
+      "op": "rms_adaln",
+      "board": "b300",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.5343548793384343,
+      "median": 1.2652423697986488,
+      "min": 0.7559054991799365,
+      "max": 6.600000218278734,
+      "slow_over5pct": 2
+    },
+    {
+      "op": "rms_adaln",
+      "board": "rtx6000-ada",
+      "timed_pairs": 165,
+      "planned": 167,
+      "geomean": 1.2675853763931688,
+      "median": 1.001172341902393,
+      "min": 0.7578124742428257,
+      "max": 5.050000018189895,
+      "slow_over5pct": 6
+    },
+    {
+      "op": "rms_adaln",
+      "board": "rtx4500-ada",
+      "timed_pairs": 164,
+      "planned": 167,
+      "geomean": 1.2152374884520147,
+      "median": 1.0026046427974413,
+      "min": 0.9459706068382912,
+      "max": 3.7647060837635364,
+      "slow_over5pct": 1
+    },
+    {
+      "op": "rms_adaln",
+      "board": "rtxpro6000-blackwell",
+      "timed_pairs": 166,
+      "planned": 167,
+      "geomean": 1.2432691357961818,
+      "median": 1.003011849783555,
+      "min": 0.7960198702418043,
+      "max": 3.9386711379141803,
+      "slow_over5pct": 9
+    },
+    {
+      "op": "rms_adaln",
+      "board": "rtx5080",
+      "timed_pairs": 161,
+      "planned": 167,
+      "geomean": 1.2715563022385823,
+      "median": 1.0004342195320943,
+      "min": 0.8590604358946462,
+      "max": 4.011764795845753,
+      "slow_over5pct": 4
+    },
+    {
+      "op": "rms_adaln",
+      "board": "rtxpro2000-blackwell",
+      "timed_pairs": 162,
+      "planned": 167,
+      "geomean": 1.2152327226227106,
+      "median": 1.000009999977612,
+      "min": 0.7529412274946063,
+      "max": 4.18181809887766,
+      "slow_over5pct": 7
+    }
+  ],
+  "notes": [
+    "Reused same-allocation sequential-block sweep measurements, not a fresh standalone PR run.",
+    "Per-case intervals describe IID within-run timing uncertainty and exclude between-run and run-order effects. Boxes show distributions across shapes, not confidence intervals.",
+    "Logical I/O is useful bytes, not measured DRAM traffic. Large-input SOL requires logical bytes >=4x L2; thermal-overlap cases unscored.",
+    "Dense theoretical ceilings with observed active memory clocks, without fitted bandwidth calibration.",
+    "Measured slowdowns are retained; aggregate speedup does not imply every case improves.",
+    "Earlier numerical validation is reused; the full sweep checked finite outputs rather than complete numerical correctness."
+  ]
+}
