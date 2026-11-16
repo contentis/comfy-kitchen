@@ -1,0 +1,590 @@
+[
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "h200"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "h200"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "h200"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "h200"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "h200"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "h200"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "b200"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "b200"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "b200"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "b200"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "b200"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "native_scalar"
+    },
+    "board": "b200"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx6000-ada"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx6000-ada"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx6000-ada"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx6000-ada"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx6000-ada"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx6000-ada"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx4500-ada"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx4500-ada"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx4500-ada"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx4500-ada"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx4500-ada"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx4500-ada"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro6000-blackwell"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro6000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro6000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro6000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro6000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro6000-blackwell"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx5080"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx5080"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx5080"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx5080"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx5080"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtx5080"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro2000-blackwell"
+  },
+  {
+    "shape": [
+      1025,
+      128,
+      256
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro2000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro2000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro2000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": false,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro2000-blackwell"
+  },
+  {
+    "shape": [
+      4096,
+      256,
+      8192
+    ],
+    "bias": true,
+    "passed": true,
+    "routes": {
+      "reference": "legacy_cutlass",
+      "candidate": "legacy_cutlass"
+    },
+    "board": "rtxpro2000-blackwell"
+  }
+]

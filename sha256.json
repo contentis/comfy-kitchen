@@ -1,0 +1,13 @@
+{
+  "int8-linear-speedups.svg": "755500085f551b545967a7f1e486581f47a55a1a10912f630b0c7e6cb940257d",
+  "paired-samples.jsonl.gz": "841fa819dc2f333e2f19bec93dedfcddce91b036d449c9176d2f59e4fb361f34",
+  "int8-linear-roof-common.png": "a7d3610208e63ca6cf9c9fe63b32b090b5023b8b734d60cf56bea8e1bf0f2a26",
+  "int8-linear-roof-common.svg": "48623dc91265721b20007d55a074e058f0aa71f906f0c1975540166c29841714",
+  "int8-linear-speedups.png": "61840a59366a5d1776471f954409a55c9c95070db2b7fbb4205dc9960c151c84",
+  "metadata.json": "d2c216ee863aa0c2f0ec36dad846387f6adb4e617ef2b270bb6ce56c174e7274",
+  "int8-linear-roof.svg": "e4ee6994295bb63408b560cab0a4d3fee0ef81852ca187cbc13c25b85e14f74b",
+  "validation.json": "49331ea341888076ebdb93c84aea7f53af902252711b064b9ff5b10b99de9a7a",
+  "comparison.csv": "181e026e1fa71035c7aae6f2f3de26d625e2e8e539c299a3b25e7ea47e6270e7",
+  "followup-slowdowns.csv": "1e38c52d23a7b3a62f1c14c4adab0ad70b1c86ed3d8e81cfeeb96a83025dceed",
+  "int8-linear-roof.png": "c93b82a3adf2b495b503e029ededdc7c0ed79eb5af1a6cb2798f6cbb4c2778e6"
+}
