@@ -1,0 +1,16 @@
+{
+  "main": "bada696abbb34e0cd3cfd45a6364411c765637ec",
+  "candidate_original": "6f7ba5ed856424e160bbe762a9895dea7101352a",
+  "files": {
+    "comfy_kitchen/backends/cuda/ops/na3d.cu": {
+      "reference_sha256": "fb48da23cb6f7046491bc858db48514fa20d7dae659d0bd2a120218c1d11ba31",
+      "candidate_sha256": "b43c0a2ae2984747a985a2398891640e04d55af7b5c6ff02fb2b45fe633d5301",
+      "both_match_reused_full_sweep": true
+    }
+  },
+  "wrappers_unchanged": [
+    "na3d",
+    "window_attention"
+  ],
+  "new_gpu_runs": false
+}

@@ -1,0 +1,211 @@
+{
+  "code_commit": "1fcf44ee9a4a613a6eb52008f440a9af45fefa29",
+  "source_audit": {
+    "main": "bada696abbb34e0cd3cfd45a6364411c765637ec",
+    "candidate_original": "6f7ba5ed856424e160bbe762a9895dea7101352a",
+    "files": {
+      "comfy_kitchen/backends/cuda/ops/na3d.cu": {
+        "reference_sha256": "fb48da23cb6f7046491bc858db48514fa20d7dae659d0bd2a120218c1d11ba31",
+        "candidate_sha256": "b43c0a2ae2984747a985a2398891640e04d55af7b5c6ff02fb2b45fe633d5301",
+        "both_match_reused_full_sweep": true
+      }
+    },
+    "wrappers_unchanged": [
+      "na3d",
+      "window_attention"
+    ],
+    "new_gpu_runs": false
+  },
+  "measurements": {
+    "reference_revision": "7d6a22ae8281cd1053a8449530fa0e764a2e51cb",
+    "candidate_revision": "2e14988b9cbcd2da30ae7f8da5bc1cc769c72c70",
+    "same_na3d_source_as_prepared_branch": true,
+    "date": "2026-11-12",
+    "configured_cases": 176,
+    "matched_cases": 173,
+    "memory_budget_skips": 3,
+    "failed_cases": 0,
+    "model_shapes": "Source-derived LTX-2.5 and FLUX-3-Action estimates; not captured model forwards.",
+    "timing": "Cold-cache CUDA Graph samples; 41/101/201 confirmation samples per role. Same allocation, sequential revision blocks, not alternating paired revisions.",
+    "clocks": "Unmodified clocks and power. Per-case observed clock ranges retained in CSV; frequencies differ between revision blocks on some boards. Observed elapsed-time speedups, not equal-clock isolated comparisons.",
+    "uncertainty": "Reused within-run median-ratio intervals from survey. Exclude run-order, between-session and clock/model uncertainty. Box whiskers describe shapes, not confidence intervals."
+  },
+  "validation": {
+    "measured_before_extraction": true,
+    "source_hash_matches": true,
+    "controls": [
+      {
+        "board": "H200 NVL",
+        "cases": 46,
+        "max_abs_fp32_oracle": 0.008759737014770508,
+        "unaffected_bit_exact": 14
+      },
+      {
+        "board": "B200",
+        "cases": 46,
+        "max_abs_fp32_oracle": 0.012646675109863281,
+        "unaffected_bit_exact": 14
+      },
+      {
+        "board": "B300",
+        "cases": 46,
+        "max_abs_fp32_oracle": 0.012646675109863281,
+        "unaffected_bit_exact": 14
+      },
+      {
+        "board": "L40S \u00b7 SM89",
+        "cases": 46,
+        "max_abs_fp32_oracle": 0.011818408966064453,
+        "unaffected_bit_exact": 14
+      },
+      {
+        "board": "RTX PRO 6000 \u00b7 SM120",
+        "cases": 46,
+        "max_abs_fp32_oracle": 0.009449958801269531,
+        "unaffected_bit_exact": 14
+      }
+    ],
+    "control_total": 230,
+    "additional_bf16_workloads_per_gpu": 32,
+    "oracle": "Independent FP32 sampled/corner-query reference, plus full-output comparisons against the preceding optimized kernel. Not an exhaustive full-tensor FP32 oracle.",
+    "sanitizer": "Eight temporal partial/border/causal controls on SM120: memcheck 0 errors; racecheck 0 hazards/errors/warnings.",
+    "package_tests_rerun": false
+  },
+  "implementation": {
+    "files_changed": 1,
+    "insertions": 310,
+    "deletions": 39,
+    "compiled_kernels_per_architecture_before": 40,
+    "compiled_kernels_per_architecture_after": 50,
+    "added_compiled_kernels_per_architecture": 10,
+    "shared_mma_sync": true,
+    "tma_or_tcgen05": false
+  },
+  "summary": [
+    {
+      "board": "h200",
+      "label": "H200",
+      "cases": 22,
+      "skipped": 0,
+      "geomean_speedup": 2.726843663651183,
+      "minimum": 2.2000418706628175,
+      "maximum": 3.2339038198997514,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41
+      ]
+    },
+    {
+      "board": "b200",
+      "label": "B200",
+      "cases": 22,
+      "skipped": 0,
+      "geomean_speedup": 3.088469826225049,
+      "minimum": 2.1600000582076624,
+      "maximum": 3.887189329145053,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41
+      ]
+    },
+    {
+      "board": "b300",
+      "label": "B300",
+      "cases": 22,
+      "skipped": 0,
+      "geomean_speedup": 3.1001422280956397,
+      "minimum": 2.1249998863131663,
+      "maximum": 3.890049769647398,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41
+      ]
+    },
+    {
+      "board": "rtx6000-ada",
+      "label": "RTX 6000 Ada",
+      "cases": 22,
+      "skipped": 0,
+      "geomean_speedup": 2.3691542268748744,
+      "minimum": 1.4659089969530275,
+      "maximum": 3.4462207745510693,
+      "reference_sample_counts": [
+        41,
+        101,
+        201
+      ],
+      "candidate_sample_counts": [
+        41,
+        101,
+        201
+      ]
+    },
+    {
+      "board": "rtx4500-ada",
+      "label": "RTX 4500 Ada",
+      "cases": 21,
+      "skipped": 1,
+      "geomean_speedup": 2.3594320466677003,
+      "minimum": 1.5291222628312322,
+      "maximum": 3.0909513745186326,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41
+      ]
+    },
+    {
+      "board": "rtxpro6000-blackwell",
+      "label": "RTX PRO 6000 BW",
+      "cases": 22,
+      "skipped": 0,
+      "geomean_speedup": 3.0551531053287038,
+      "minimum": 1.8196721858980964,
+      "maximum": 3.886801895185945,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41
+      ]
+    },
+    {
+      "board": "rtx5080",
+      "label": "RTX 5080",
+      "cases": 21,
+      "skipped": 1,
+      "geomean_speedup": 3.5721579913672734,
+      "minimum": 2.2695312332053534,
+      "maximum": 4.567104967786273,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41
+      ]
+    },
+    {
+      "board": "rtxpro2000-blackwell",
+      "label": "RTX PRO 2000 BW",
+      "cases": 21,
+      "skipped": 1,
+      "geomean_speedup": 3.0308688659491656,
+      "minimum": 2.2417067105370854,
+      "maximum": 3.791359741212026,
+      "reference_sample_counts": [
+        41
+      ],
+      "candidate_sample_counts": [
+        41,
+        101
+      ]
+    }
+  ]
+}
